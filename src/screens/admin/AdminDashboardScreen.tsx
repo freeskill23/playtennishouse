@@ -308,7 +308,7 @@ export function AdminDashboardScreen() {
         {/* Preview */}
         <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-100 p-4 mb-3">
           <img
-            src={logoImageUrl || '/logo_png.png'}
+            src={logoImageUrl || `${import.meta.env.BASE_URL}logo_png.png`}
             alt="로고 미리보기"
             className="w-12 h-12 object-contain"
           />

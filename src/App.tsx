@@ -134,7 +134,7 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
             로그인
           </button>
           <a
-            href={window.location.pathname}
+            href={`${import.meta.env.BASE_URL}`}
             className="block text-center mt-3 text-xs text-slate-400 hover:text-navy-600"
           >
             ← 일반 화면으로
