@@ -11,13 +11,25 @@ import {
   CheckCircle2,
   Trash2,
   LogOut,
+  Pencil,
+  KeyRound,
+  Camera,
+  Loader2,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { SectionTitle, StatusBadge, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
-import { useState } from 'react';
-import type { NTRP, GameType, GenderRequirement } from '../types';
+import { useState, useRef } from 'react';
+import type { NTRP, GameType, GenderRequirement, Hand as HandType } from '../types';
+
+const NTRP_OPTIONS: NTRP[] = ['1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5'];
+const HAND_OPTIONS: { value: HandType; label: string }[] = [
+  { value: 'right', label: '오른손' },
+  { value: 'left', label: '왼손' },
+  { value: 'both', label: '양손' },
+];
+const CAREER_OPTIONS = ['0년', '1년', '2년', '3년', '5년', '7년', '10년', '15년+'];
 
 export function MyPageScreen({ go }: { go: (k: string) => void }) {
   const {
@@ -27,10 +39,13 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     cancelReservation,
     createMatchingPost,
     getUser,
+    updateCurrentUser,
   } = useApp();
-  const { signOut } = useAuth();
+  const { signOut, updateProfile, changePassword, uploadProfileImage } = useAuth();
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [matchingTarget, setMatchingTarget] = useState<string | null>(null);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [pwChangeOpen, setPwChangeOpen] = useState(false);
 
   const myReservations = reservations.filter((r) => r.userId === currentUser.id);
   const myMatchings = matchingPosts.filter((m) => m.userId === currentUser.id);
@@ -83,7 +98,12 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
             className="w-16 h-16 rounded-2xl object-cover"
           />
           <div className="flex-1">
-            <p className="text-lg font-extrabold text-navy-900">{currentUser.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-lg font-extrabold text-navy-900">{currentUser.name}</p>
+              {currentUser.nickname && (
+                <span className="text-sm font-semibold text-volt-700">({currentUser.nickname})</span>
+              )}
+            </div>
             <p className="text-sm text-slate-500">{currentUser.phone}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               <span className="chip bg-volt-100 text-volt-800">NTRP {currentUser.ntrp}</span>
@@ -103,6 +123,20 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         {currentUser.bio && (
           <p className="text-sm text-slate-600 mt-3 pt-3 border-t border-slate-100">{currentUser.bio}</p>
         )}
+        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+          <button
+            onClick={() => setEditProfileOpen(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-navy-800 bg-slate-100 hover:bg-slate-200 transition"
+          >
+            <Pencil size={15} /> 프로필 수정
+          </button>
+          <button
+            onClick={() => setPwChangeOpen(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold text-navy-800 bg-slate-100 hover:bg-slate-200 transition"
+          >
+            <KeyRound size={15} /> 비밀번호 변경
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -329,7 +363,350 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
           </div>
         </div>
       </Modal>
+
+      {/* Profile edit modal */}
+      <EditProfileModal
+        open={editProfileOpen}
+        onClose={() => setEditProfileOpen(false)}
+        currentUser={currentUser}
+        updateProfile={updateProfile}
+        uploadProfileImage={uploadProfileImage}
+        onUpdated={(patch) => updateCurrentUser(patch)}
+      />
+
+      {/* Password change modal */}
+      <PasswordChangeModal
+        open={pwChangeOpen}
+        onClose={() => setPwChangeOpen(false)}
+        changePassword={changePassword}
+      />
     </div>
+  );
+}
+
+/* ---------- Edit Profile Modal ---------- */
+
+function EditProfileModal({
+  open,
+  onClose,
+  currentUser,
+  updateProfile,
+  uploadProfileImage,
+  onUpdated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  currentUser: ReturnType<typeof useApp>['currentUser'];
+  updateProfile: ReturnType<typeof useAuth>['updateProfile'];
+  uploadProfileImage: ReturnType<typeof useAuth>['uploadProfileImage'];
+  onUpdated: (patch: Partial<ReturnType<typeof useApp>['currentUser']>) => void;
+}) {
+  const [name, setName] = useState(currentUser.name);
+  const [nickname, setNickname] = useState(currentUser.nickname || '');
+  const [phone, setPhone] = useState(currentUser.phone);
+  const [ntrp, setNtrp] = useState<string>(currentUser.ntrp);
+  const [career, setCareer] = useState(currentUser.career);
+  const [hand, setHand] = useState<HandType>(currentUser.hand);
+  const [bio, setBio] = useState(currentUser.bio || '');
+  const [profileImg, setProfileImg] = useState(currentUser.profileImg);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    const res = await uploadProfileImage(file);
+    setUploading(false);
+    if (res.ok && res.url) {
+      setProfileImg(res.url);
+    } else {
+      setError(res.error || '이미지 업로드에 실패했습니다.');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setError('이름을 입력해주세요.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    const patch = { name, nickname, phone, ntrp: ntrp as NTRP, career, hand, bio, profileImg };
+    const res = await updateProfile(patch);
+    setSaving(false);
+    if (res.ok) {
+      onUpdated(patch);
+      onClose();
+    } else {
+      setError(res.error || '저장에 실패했습니다.');
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="프로필 수정"
+      footer={
+        <>
+          <button className="btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving || uploading}>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+            {saving ? '저장 중...' : '저장하기'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {/* Profile image */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="relative">
+            <img
+              src={profileImg}
+              alt="프로필"
+              className="w-20 h-20 rounded-2xl object-cover border-2 border-slate-200"
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-navy-900 text-white flex items-center justify-center shadow-lg hover:bg-navy-800 transition disabled:opacity-50"
+              aria-label="사진 변경"
+            >
+              {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={14} />}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+          <p className="text-xs text-slate-400">사진을 눌러 프로필 이미지 변경</p>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="label">이름</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="input"
+            placeholder="이름"
+          />
+        </div>
+
+        {/* Nickname */}
+        <div>
+          <label className="label">닉네임</label>
+          <input
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            className="input"
+            placeholder="닉네임"
+          />
+        </div>
+
+        {/* Phone */}
+        <div>
+          <label className="label">연락처</label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="input"
+            placeholder="010-0000-0000"
+          />
+        </div>
+
+        {/* NTRP */}
+        <div>
+          <label className="label">NTRP</label>
+          <div className="flex flex-wrap gap-1.5">
+            {NTRP_OPTIONS.map((n) => (
+              <button
+                key={n}
+                onClick={() => setNtrp(n)}
+                className={`chip ${ntrp === n ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Career */}
+        <div>
+          <label className="label">구력</label>
+          <div className="flex flex-wrap gap-1.5">
+            {CAREER_OPTIONS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCareer(c)}
+                className={`chip ${career === c ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600'}`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hand */}
+        <div>
+          <label className="label">주사용 손</label>
+          <div className="flex gap-1.5">
+            {HAND_OPTIONS.map((h) => (
+              <button
+                key={h.value}
+                onClick={() => setHand(h.value)}
+                className={`chip ${hand === h.value ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600'}`}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Bio */}
+        <div>
+          <label className="label">소개</label>
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            className="input min-h-[70px]"
+            placeholder="간단한 소개를 작성해주세요"
+          />
+        </div>
+
+        {error && <p className="text-sm text-rose-500 font-semibold">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- Password Change Modal ---------- */
+
+function PasswordChangeModal({
+  open,
+  onClose,
+  changePassword,
+}: {
+  open: boolean;
+  onClose: () => void;
+  changePassword: ReturnType<typeof useAuth>['changePassword'];
+}) {
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async () => {
+    setError('');
+    if (!currentPw || !newPw || !confirmPw) {
+      setError('모든 필드를 입력해주세요.');
+      return;
+    }
+    if (newPw.length < 6) {
+      setError('새 비밀번호는 6자 이상이어야 합니다.');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setError('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    setSaving(true);
+    const res = await changePassword(currentPw, newPw);
+    setSaving(false);
+    if (res.ok) {
+      setSuccess(true);
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+      setTimeout(() => {
+        setSuccess(false);
+        onClose();
+      }, 1500);
+    } else {
+      setError(res.error || '비밀번호 변경에 실패했습니다.');
+    }
+  };
+
+  const handleClose = () => {
+    setCurrentPw('');
+    setNewPw('');
+    setConfirmPw('');
+    setError('');
+    setSuccess(false);
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="비밀번호 변경"
+      size="sm"
+      footer={
+        <>
+          <button className="btn-ghost" onClick={handleClose}>취소</button>
+          <button className="btn-primary" onClick={handleSubmit} disabled={saving}>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+            {saving ? '변경 중...' : '변경하기'}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {success ? (
+          <div className="flex flex-col items-center py-6 text-center">
+            <CheckCircle2 size={40} className="text-volt-500 mb-3" />
+            <p className="font-bold text-navy-900">비밀번호가 변경되었습니다.</p>
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="label">현재 비밀번호</label>
+              <input
+                type="password"
+                value={currentPw}
+                onChange={(e) => setCurrentPw(e.target.value)}
+                className="input"
+                placeholder="현재 비밀번호"
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <label className="label">새 비밀번호</label>
+              <input
+                type="password"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                className="input"
+                placeholder="새 비밀번호 (6자 이상)"
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="label">새 비밀번호 확인</label>
+              <input
+                type="password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                className="input"
+                placeholder="새 비밀번호 재입력"
+                autoComplete="new-password"
+              />
+            </div>
+            {error && <p className="text-sm text-rose-500 font-semibold">{error}</p>}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 

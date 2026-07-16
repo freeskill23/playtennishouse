@@ -14,6 +14,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  nickname: string;
   phone: string;
   profileImg: string;
   career: string;
@@ -40,8 +41,15 @@ interface AuthState {
   ) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
   updateProfile: (
-    patch: Partial<Pick<AuthUser, 'name' | 'phone' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio' | 'profileImg'>>,
+    patch: Partial<Pick<AuthUser, 'name' | 'nickname' | 'phone' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio' | 'profileImg'>>,
   ) => Promise<{ ok: boolean; error?: string }>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  uploadProfileImage: (
+    file: File,
+  ) => Promise<{ ok: boolean; error?: string; url?: string }>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -60,6 +68,7 @@ function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
     id: row.id as string,
     email: (row.email as string) || email,
     name: (row.name as string) || '사용자',
+    nickname: (row.nickname as string) || '',
     phone: (row.phone as string) || '',
     profileImg: (row.profile_img as string) || DEFAULT_PROFILE_IMG,
     career: (row.career as string) || '0년',
@@ -143,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: data.user.id,
         email: input.email,
         name: input.name,
+        nickname: input.name,
         phone: input.phone,
         profile_img: DEFAULT_PROFILE_IMG,
         career: '0년',
@@ -180,11 +190,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = useCallback(
     async (
-      patch: Partial<Pick<AuthUser, 'name' | 'phone' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio' | 'profileImg'>>,
+      patch: Partial<Pick<AuthUser, 'name' | 'nickname' | 'phone' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio' | 'profileImg'>>,
     ) => {
       if (!user) return { ok: false, error: '로그인이 필요합니다.' };
       const row: Record<string, unknown> = {};
       if (patch.name !== undefined) row.name = patch.name;
+      if (patch.nickname !== undefined) row.nickname = patch.nickname;
       if (patch.phone !== undefined) row.phone = patch.phone;
       if (patch.career !== undefined) row.career = patch.career;
       if (patch.ntrp !== undefined) row.ntrp = patch.ntrp;
@@ -204,6 +215,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const value: AuthState = { user, session, loading, configError, signUp, signIn, signOut, updateProfile };
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+      // Verify current password by re-authenticating
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) return { ok: false, error: '현재 비밀번호가 올바르지 않습니다.' };
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    },
+    [user],
+  );
+
+  const uploadProfileImage = useCallback(
+    async (file: File) => {
+      if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('profile-images')
+        .upload(path, file, { cacheControl: '3600', upsert: true });
+      if (upErr) return { ok: false, error: upErr.message };
+      const { data } = supabase.storage.from('profile-images').getPublicUrl(path);
+      return { ok: true, url: data.publicUrl };
+    },
+    [user],
+  );
+
+  const value: AuthState = { user, session, loading, configError, signUp, signIn, signOut, updateProfile, changePassword, uploadProfileImage };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

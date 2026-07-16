@@ -60,6 +60,7 @@ interface AppState {
   // derived helpers
   currentUser: User;
   getUser: (id: string) => User | undefined;
+  updateCurrentUser: (patch: Partial<Pick<User, 'name' | 'nickname' | 'phone' | 'profileImg' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio'>>) => void;
 
   // reservation actions
   createPensionReservation: (input: {
@@ -147,10 +148,11 @@ export function useApp() {
 
 export function AppProvider({ children, authUser }: { children: ReactNode; authUser: AuthUser }) {
   const currentUserId = authUser.id;
-  const [users] = useState<User[]>(() => {
+  const [users, setUsers] = useState<User[]>(() => {
     const authAsUser: User = {
       id: authUser.id,
       name: authUser.name,
+      nickname: authUser.nickname || '',
       phone: authUser.phone,
       profileImg: authUser.profileImg,
       career: authUser.career,
@@ -202,6 +204,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const getUser = useCallback(
     (id: string) => users.find((u) => u.id === id),
     [users],
+  );
+
+  const updateCurrentUser = useCallback(
+    (patch: Partial<Pick<User, 'name' | 'nickname' | 'phone' | 'profileImg' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio'>>) => {
+      setUsers((prev) => prev.map((u) => (u.id === currentUserId ? { ...u, ...patch } : u)));
+    },
+    [currentUserId],
   );
 
   const [pensionWeekdayPrice, setPensionWeekdayPrice] = useState(PENSION_WEEKDAY_PRICE);
@@ -828,6 +837,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     notifications,
     currentUser,
     getUser,
+    updateCurrentUser,
     createPensionReservation,
     createCourtReservation,
     requestWaiting,

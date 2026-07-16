@@ -55,8 +55,8 @@ export function AuthScreen() {
     <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-6">
-          <Logo size={56} />
-          <h1 className="mt-3 text-xl font-extrabold text-white tracking-tight">PLAY TENNIS HOUSE</h1>
+          <Logo size={96} />
+          <h1 className="mt-4 text-2xl font-extrabold text-white tracking-tight">PLAY TENNIS HOUSE</h1>
           <p className="text-xs text-white/50 mt-1">테니스 펜션 예약 &amp; 매칭 서비스</p>
         </div>
 
@@ -173,10 +173,6 @@ export function AuthScreen() {
             )}
           </p>
         </div>
-
-        <p className="text-center text-xs text-white/40 mt-4">
-          관리자는 URL에 #admin 을 붙여 접속하세요
-        </p>
       </div>
     </div>
   );

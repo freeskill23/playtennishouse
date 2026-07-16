@@ -27,6 +27,7 @@ export const initialUsers: User[] = [
   {
     id: 'u1',
     name: '김테니스',
+    nickname: '테니스킹',
     phone: '010-1234-5678',
     profileImg:
       'https://images.pexels.com/photos/6457544/pexels-photo-6457544.jpeg?auto=compress&cs=tinysrgb&w=200',
@@ -40,6 +41,7 @@ export const initialUsers: User[] = [
   {
     id: 'u2',
     name: '이서연',
+    nickname: '서연짱',
     phone: '010-9876-5432',
     profileImg:
       'https://images.pexels.com/photos/6457570/pexels-photo-6457570.jpeg?auto=compress&cs=tinysrgb&w=200',
@@ -53,6 +55,7 @@ export const initialUsers: User[] = [
   {
     id: 'u3',
     name: '박정훈',
+    nickname: '정훈좌',
     phone: '010-5555-1111',
     profileImg:
       'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=200',
@@ -66,6 +69,7 @@ export const initialUsers: User[] = [
   {
     id: 'admin',
     name: '관리자',
+    nickname: '관리자',
     phone: '010-0000-0000',
     profileImg:
       'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',

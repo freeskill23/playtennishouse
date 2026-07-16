@@ -39,6 +39,7 @@ const ADMIN_AUTH_USER: AuthUser = {
   id: 'admin',
   email: 'admin@playtennishouse.kr',
   name: '관리자',
+  nickname: '관리자',
   phone: '010-0000-0000',
   profileImg:
     'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
