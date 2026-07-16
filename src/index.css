@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Pretendard', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-color: #f5f7fb;
+  color: #0f1640;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+  background-clip: padding-box;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white shadow-card border border-slate-100;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 select-none disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-volt-500 text-navy-950 hover:bg-volt-400 active:scale-[0.98] shadow-volt;
+  }
+  .btn-navy {
+    @apply btn bg-navy-900 text-white hover:bg-navy-800 active:scale-[0.98] shadow-navy;
+  }
+  .btn-ghost {
+    @apply btn bg-slate-100 text-navy-800 hover:bg-slate-200 active:scale-[0.98];
+  }
+  .btn-outline {
+    @apply btn border border-slate-200 bg-white text-navy-800 hover:border-navy-300 hover:bg-navy-50 active:scale-[0.98];
+  }
+  .btn-danger {
+    @apply btn bg-rose-500 text-white hover:bg-rose-600 active:scale-[0.98];
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-navy-900 placeholder:text-slate-400 outline-none transition focus:border-volt-400 focus:ring-2 focus:ring-volt-200;
+  }
+  .label {
+    @apply block text-sm font-semibold text-navy-800 mb-1.5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}
