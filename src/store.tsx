@@ -33,6 +33,7 @@ import {
   initialNotices,
   initialNotifications,
 } from './mockData';
+import type { AuthUser } from './lib/auth';
 import { isWeekendOrHoliday, COURT_SLOT_PRICE, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
@@ -45,10 +46,7 @@ interface Toast {
 
 interface AppState {
   // identity
-  role: 'user' | 'admin';
   currentUserId: string;
-  setRole: (r: 'user' | 'admin') => void;
-  setCurrentUserId: (id: string) => void;
 
   // data
   users: User[];
@@ -147,10 +145,23 @@ export function useApp() {
   return v;
 }
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<'user' | 'admin'>('user');
-  const [currentUserId, setCurrentUserId] = useState('u1');
-  const [users] = useState<User[]>(initialUsers);
+export function AppProvider({ children, authUser }: { children: ReactNode; authUser: AuthUser }) {
+  const currentUserId = authUser.id;
+  const [users] = useState<User[]>(() => {
+    const authAsUser: User = {
+      id: authUser.id,
+      name: authUser.name,
+      phone: authUser.phone,
+      profileImg: authUser.profileImg,
+      career: authUser.career,
+      ntrp: authUser.ntrp,
+      hand: authUser.hand,
+      gamePreference: authUser.gamePreference,
+      bio: authUser.bio,
+      isAdmin: false,
+    };
+    return [authAsUser, ...initialUsers.filter((u) => u.id !== authUser.id)];
+  });
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
   const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(initialMatchingPosts);
@@ -804,12 +815,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const currentUser = users.find((u) => u.id === currentUserId) || users[0];
+  void authUser;
 
   const value: AppState = {
-    role,
     currentUserId,
-    setRole,
-    setCurrentUserId,
     users,
     rooms,
     updateRoom,

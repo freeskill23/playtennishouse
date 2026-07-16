@@ -10,8 +10,10 @@ import {
   Hand,
   CheckCircle2,
   Trash2,
+  LogOut,
 } from 'lucide-react';
 import { useApp } from '../store';
+import { useAuth } from '../lib/auth';
 import { SectionTitle, StatusBadge, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
 import { useState } from 'react';
@@ -26,6 +28,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     createMatchingPost,
     getUser,
   } = useApp();
+  const { signOut } = useAuth();
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [matchingTarget, setMatchingTarget] = useState<string | null>(null);
 
@@ -90,6 +93,12 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
               </span>
             </div>
           </div>
+          <button
+            onClick={() => signOut()}
+            className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-rose-500 hover:bg-rose-50 transition flex items-center gap-1.5"
+          >
+            <LogOut size={16} /> 로그아웃
+          </button>
         </div>
         {currentUser.bio && (
           <p className="text-sm text-slate-600 mt-3 pt-3 border-t border-slate-100">{currentUser.bio}</p>

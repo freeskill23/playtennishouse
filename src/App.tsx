@@ -12,8 +12,11 @@ import {
   Menu,
   X,
   Lock,
+  LogOut,
+  Loader2,
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
+import { AuthProvider, useAuth } from './lib/auth';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
@@ -27,6 +30,7 @@ import { AdminDashboardScreen } from './screens/admin/AdminDashboardScreen';
 import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
 import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
 import { AdminNotificationScreen } from './screens/admin/AdminNotificationScreen';
+import { AuthScreen } from './screens/AuthScreen';
 
 type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'mypage';
 type AdminTab = 'dashboard' | 'approval' | 'notice' | 'notification';
@@ -126,6 +130,7 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
 
 function UserShell() {
   const { currentUser, logoImageUrl } = useApp();
+  const { signOut } = useAuth();
   const [tab, setTab] = useState<UserTab>('home');
   const [mobileMenu, setMobileMenu] = useState(false);
 
@@ -165,6 +170,14 @@ function UserShell() {
               alt={currentUser.name}
               className="w-9 h-9 rounded-full object-cover border-2 border-volt-300 hidden sm:block"
             />
+            <button
+              onClick={() => signOut()}
+              className="rounded-lg p-2 text-navy-800 hover:bg-slate-100 transition"
+              aria-label="로그아웃"
+              title="로그아웃"
+            >
+              <LogOut size={18} />
+            </button>
             <button
               onClick={() => setMobileMenu((s) => !s)}
               className="md:hidden rounded-lg p-2 text-navy-800 hover:bg-slate-100"
@@ -328,13 +341,31 @@ function AdminShell() {
 
 function Shell() {
   const isAdmin = useAdminRoute();
-  return isAdmin ? <AdminShell /> : <UserShell />;
+  const { user, loading } = useAuth();
+
+  if (isAdmin) return <AdminShell />;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-navy-950">
+        <Loader2 size={32} className="animate-spin text-volt-400" />
+      </div>
+    );
+  }
+
+  if (!user) return <AuthScreen />;
+
+  return (
+    <AppProvider authUser={user}>
+      <UserShell />
+    </AppProvider>
+  );
 }
 
 export default function App() {
   return (
-    <AppProvider>
+    <AuthProvider>
       <Shell />
-    </AppProvider>
+    </AuthProvider>
   );
 }
