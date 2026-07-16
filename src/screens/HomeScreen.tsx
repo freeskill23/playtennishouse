@@ -53,9 +53,8 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         <div className="relative p-6 sm:p-8">
           <div className="flex items-center gap-3">
             <Logo size={44} imageUrl={logoImageUrl} />
-            <span className="text-xl font-extrabold tracking-tight text-black">PLAY TENNIS HOUSE</span>
           </div>
-          <p className="mt-3 text-lg font-bold text-black">플레이 테니스 하우스(플테하)에 오신 것을 환영합니다!</p>
+          <p className="mt-3 text-lg font-bold text-white">플레이 테니스 하우스(플테하)에 오신 것을 환영합니다!</p>
         </div>
       </div>
 

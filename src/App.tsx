@@ -161,8 +161,9 @@ function UserShell() {
     <div className="min-h-screen flex flex-col bg-slate-50">
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <button onClick={() => go('home')} className="shrink-0">
+          <button onClick={() => go('home')} className="shrink-0 flex items-center gap-2">
             <Logo size={36} imageUrl={logoImageUrl} />
+            <span className="text-lg font-extrabold tracking-tight text-black">PALY TENNIS HOUSE</span>
           </button>
           <nav className="hidden md:flex items-center gap-1">
             {USER_NAV.map((n) => {
