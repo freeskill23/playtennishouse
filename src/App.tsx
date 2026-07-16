@@ -20,6 +20,8 @@ import { AuthProvider, useAuth } from './lib/auth';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { AlertTriangle } from 'lucide-react';
 import { HomeScreen } from './screens/HomeScreen';
 import { PensionScreen } from './screens/PensionScreen';
 import { CourtScreen } from './screens/CourtScreen';
@@ -341,9 +343,23 @@ function AdminShell() {
 
 function Shell() {
   const isAdmin = useAdminRoute();
-  const { user, loading } = useAuth();
+  const { user, loading, configError } = useAuth();
 
   if (isAdmin) return <AdminShell />;
+
+  if (configError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4">
+        <div className="max-w-sm w-full rounded-2xl bg-white p-6 shadow-2xl text-center">
+          <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+            <AlertTriangle size={28} className="text-amber-500" />
+          </div>
+          <h1 className="text-lg font-extrabold text-navy-900 mb-2">설정 오류</h1>
+          <p className="text-sm text-slate-500">{configError}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -364,8 +380,10 @@ function Shell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Shell />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Shell />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

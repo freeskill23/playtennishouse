@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseConfigured } from '../lib/supabase';
 import type { NTRP, Hand, GamePreference } from '../types';
 
 export interface AuthUser {
@@ -27,6 +27,7 @@ interface AuthState {
   user: AuthUser | null;
   session: Session | null;
   loading: boolean;
+  configError: string | null;
   signUp: (input: {
     email: string;
     password: string;
@@ -73,6 +74,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const configError = supabaseConfigured
+    ? null
+    : 'Supabase 환경변수가 설정되지 않았습니다. 관리자에게 문의하세요.';
 
   const fetchProfile = useCallback(async (su: SupabaseUser) => {
     const { data, error } = await supabase
@@ -91,6 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!supabaseConfigured) {
+      setLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       if (data.session?.user) {
@@ -196,6 +204,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const value: AuthState = { user, session, loading, signUp, signIn, signOut, updateProfile };
+  const value: AuthState = { user, session, loading, configError, signUp, signIn, signOut, updateProfile };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
