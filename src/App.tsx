@@ -33,6 +33,21 @@ import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
 import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
 import { AdminNotificationScreen } from './screens/admin/AdminNotificationScreen';
 import { AuthScreen } from './screens/AuthScreen';
+import type { AuthUser } from './lib/auth';
+
+const ADMIN_AUTH_USER: AuthUser = {
+  id: 'admin',
+  email: 'admin@playtennishouse.kr',
+  name: '관리자',
+  phone: '010-0000-0000',
+  profileImg:
+    'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
+  career: '10년',
+  ntrp: '4.5',
+  hand: 'right',
+  gamePreference: 'any',
+  bio: '플테하 운영진',
+};
 
 type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'mypage';
 type AdminTab = 'dashboard' | 'approval' | 'notice' | 'notification';
@@ -345,7 +360,13 @@ function Shell() {
   const isAdmin = useAdminRoute();
   const { user, loading, configError } = useAuth();
 
-  if (isAdmin) return <AdminShell />;
+  if (isAdmin) {
+    return (
+      <AppProvider authUser={ADMIN_AUTH_USER}>
+        <AdminShell />
+      </AppProvider>
+    );
+  }
 
   if (configError) {
     return (
