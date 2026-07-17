@@ -29,6 +29,8 @@ export function CourtScreen() {
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [errorReason, setErrorReason] = useState<string | null>(null);
+  const [reservedAmount, setReservedAmount] = useState(0);
+  const [reservedSlots, setReservedSlots] = useState<string[]>([]);
 
   const blockedByPension = isCourtBlockedByPension(date, court);
 
@@ -43,6 +45,8 @@ export function CourtScreen() {
     if (selectedSlots.length === 0) return;
     const res = createCourtReservation({ court, date, timeSlots: selectedSlots });
     if (res.ok) {
+      setReservedAmount(totalAmount);
+      setReservedSlots(sortedSlots);
       setModalOpen(true);
       setSelectedSlots([]);
       setErrorReason(null);
@@ -275,13 +279,13 @@ export function CourtScreen() {
             <div>
               <p className="font-bold text-navy-800">시간대:</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {sortedSlots.map((s) => (
+                {reservedSlots.map((s) => (
                   <span key={s} className="chip bg-navy-50 text-navy-700">{s}</span>
                 ))}
               </div>
             </div>
             <p><span className="font-bold text-navy-800">날짜:</span> {date}</p>
-            <p><span className="font-bold text-navy-800">금액:</span> {formatWon(totalAmount)}</p>
+            <p><span className="font-bold text-navy-800">금액:</span> {formatWon(reservedAmount)}</p>
           </div>
         </div>
       </Modal>

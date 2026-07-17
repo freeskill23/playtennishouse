@@ -61,8 +61,7 @@ export function useAuth() {
   return v;
 }
 
-const DEFAULT_PROFILE_IMG =
-  'https://images.pexels.com/photos/6457544/pexels-photo-6457544.jpeg?auto=compress&cs=tinysrgb&w=200';
+const DEFAULT_PROFILE_IMG = '/logo_png.png';
 
 function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
   return {

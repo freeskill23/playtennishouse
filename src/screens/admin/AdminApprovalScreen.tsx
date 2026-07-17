@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CheckCircle2,
   BedDouble,
@@ -8,6 +8,7 @@ import {
   Phone,
   Check,
   X,
+  Clock,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { SectionTitle, StatusBadge, EmptyState } from '../../components/ui';
@@ -28,6 +29,11 @@ export function AdminApprovalScreen() {
   const [tab, setTab] = useState<Tab>('reservations');
   const [depositModal, setDepositModal] = useState<Reservation | null>(null);
   const [matchingModal, setMatchingModal] = useState<MatchingPost | null>(null);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   const pendingReservations = reservations.filter(
     (r) =>
@@ -89,6 +95,16 @@ export function AdminApprovalScreen() {
                         <Phone size={12} className="text-slate-400" />
                         <span className="font-semibold text-navy-700">{u?.phone || '연락처 없음'}</span>
                       </div>
+                      {(() => {
+                        const elapsed = Date.now() - r.createdAt;
+                        const isOverdue = elapsed >= 2 * 60 * 60 * 1000;
+                        return (
+                          <div className={`flex items-center gap-1.5 mt-1.5 text-xs ${isOverdue ? 'text-red-600 font-bold' : 'text-slate-500'}`}>
+                            <Clock size={12} className={isOverdue ? 'text-red-600' : 'text-slate-400'} />
+                            <span>신청 시간: {new Date(r.createdAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center gap-2 mt-2">
                         <StatusBadge status={r.status} />
                         <span className="chip bg-slate-100 text-slate-600">

@@ -262,8 +262,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           nickname: (p.nickname as string) || '',
           phone: (p.phone as string) || '',
           profileImg:
-            (p.profile_img as string) ||
-            'https://images.pexels.com/photos/6457544/pexels-photo-6457544.jpeg?auto=compress&cs=tinysrgb&w=200',
+            (p.profile_img as string) || '/logo_png.png',
           career: (p.career as string) || '0년',
           ntrp: (p.ntrp as NTRP) || '2.0',
           hand: (p.hand as Hand) || 'right',

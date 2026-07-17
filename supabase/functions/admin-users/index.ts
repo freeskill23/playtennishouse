@@ -23,7 +23,7 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
 
-    // GET ?action=list — return all profiles
+    // GET ?action=list — return all profiles with reservation/matching counts
     if (req.method === "GET" && action === "list") {
       const { data, error } = await admin
         .from("profiles")
@@ -35,7 +35,44 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ users: data }), {
+
+      // Count court reservations per user
+      const { data: courtRows } = await admin
+        .from("reservations")
+        .select("user_id")
+        .eq("type", "court");
+      const courtCounts: Record<string, number> = {};
+      for (const r of courtRows || []) {
+        courtCounts[r.user_id] = (courtCounts[r.user_id] || 0) + 1;
+      }
+
+      // Count pension reservations per user
+      const { data: pensionRows } = await admin
+        .from("reservations")
+        .select("user_id")
+        .eq("type", "pension");
+      const pensionCounts: Record<string, number> = {};
+      for (const r of pensionRows || []) {
+        pensionCounts[r.user_id] = (pensionCounts[r.user_id] || 0) + 1;
+      }
+
+      // Count matching posts per user
+      const { data: matchRows } = await admin
+        .from("matching_posts")
+        .select("user_id");
+      const matchCounts: Record<string, number> = {};
+      for (const r of matchRows || []) {
+        matchCounts[r.user_id] = (matchCounts[r.user_id] || 0) + 1;
+      }
+
+      const users = (data || []).map((u: Record<string, unknown>) => ({
+        ...u,
+        court_count: courtCounts[u.id as string] || 0,
+        pension_count: pensionCounts[u.id as string] || 0,
+        matching_count: matchCounts[u.id as string] || 0,
+      }));
+
+      return new Response(JSON.stringify({ users }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

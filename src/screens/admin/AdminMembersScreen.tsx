@@ -11,6 +11,9 @@ import {
   Megaphone,
   Download,
   BellRing,
+  CalendarRange,
+  BedDouble,
+  Shuffle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -28,6 +31,9 @@ interface MemberRow {
   bad_member_reason: string | null;
   marketing_consent: boolean | null;
   created_at: string;
+  court_count: number;
+  pension_count: number;
+  matching_count: number;
 }
 
 const FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL || 'https://rmjqdogzumxqrhhiiley.supabase.co'}/functions/v1/admin-users`;
@@ -70,15 +76,21 @@ export function AdminMembersScreen() {
     fetchMembers();
   }, [fetchMembers]);
 
-  const filtered = members.filter((m) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      m.email.toLowerCase().includes(q) ||
-      m.name.toLowerCase().includes(q) ||
-      (m.phone || '').includes(q)
+  const filtered = members
+    .filter((m) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        m.email.toLowerCase().includes(q) ||
+        m.name.toLowerCase().includes(q) ||
+        (m.phone || '').includes(q)
+      );
+    })
+    .sort(
+      (a, b) =>
+        (b.court_count + b.pension_count + b.matching_count) -
+        (a.court_count + a.pension_count + a.matching_count),
     );
-  });
 
   const handleChangePassword = async () => {
     if (!pwModal || newPw.length < 6) return;
@@ -249,6 +261,20 @@ export function AdminMembersScreen() {
                     )}
                     <span>구력 {m.career || '0년'}</span>
                     <span>NTRP {m.ntrp || '2.0'}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
+                    <span className="flex items-center gap-1 text-navy-700 font-semibold">
+                      <CalendarRange size={11} /> 코트 {m.court_count}
+                    </span>
+                    <span className="flex items-center gap-1 text-volt-700 font-semibold">
+                      <BedDouble size={11} /> 펜션 {m.pension_count}
+                    </span>
+                    <span className="flex items-center gap-1 text-slate-700 font-semibold">
+                      <Shuffle size={11} /> 매칭 {m.matching_count}
+                    </span>
+                    <span className="text-slate-400">
+                      총 {m.court_count + m.pension_count + m.matching_count}회
+                    </span>
                   </div>
                   {m.is_bad_member && m.bad_member_reason && (
                     <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-rose-100/60 px-2.5 py-1.5 text-xs text-rose-700">
