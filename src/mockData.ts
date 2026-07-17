@@ -6,7 +6,7 @@ import type {
   Notice,
   AppNotification,
 } from './types';
-import { getPensionPrice, COURT_SLOT_PRICE } from './pricing';
+import { getPensionPrice, COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK } from './pricing';
 
 // ===== Helpers =====
 const today = new Date();
@@ -138,7 +138,7 @@ export const initialReservations: Reservation[] = [
     timeSlot: '19:00-21:00',
     status: '입금대기',
     waitingSequence: null,
-    amount: COURT_SLOT_PRICE,
+    amount: COURT_SLOT_PRICE_PEAK,
     createdAt: Date.now() - 3600000 * 5,
   },
   {
@@ -190,6 +190,7 @@ export const initialMatchingPosts: MatchingPost[] = [
         userId: 'u2',
         status: '대기',
         appliedAt: Date.now() - 3600000,
+        intro: 'NTRP 3.0 복식 즐겨요. 잘 부탁드립니다!',
       },
     ],
     createdAt: Date.now() - 7200000,

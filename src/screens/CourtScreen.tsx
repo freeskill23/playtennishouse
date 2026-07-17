@@ -5,7 +5,7 @@ import { Calendar, todayYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
 import { BANK_ACCOUNT } from '../mockData';
-import { COURT_SLOT_PRICE, formatWon } from '../pricing';
+import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
 import { COURT_TIME_SLOTS } from '../types';
 import type { CourtName } from '../types';
 
@@ -66,7 +66,7 @@ export function CourtScreen() {
   };
 
   const sortedSlots = [...selectedSlots].sort();
-  const totalAmount = COURT_SLOT_PRICE * selectedSlots.length;
+  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPrice(date, slot), 0);
 
   return (
     <div className="space-y-5 pb-4">
@@ -74,9 +74,14 @@ export function CourtScreen() {
         title="코트 예약"
         subtitle="2시간 단위 · 09:00 ~ 21:00 · 여러 시간대 선택 가능"
         right={
-          <span className="chip bg-navy-50 text-navy-700">
-            <CalendarRange size={14} /> {formatWon(COURT_SLOT_PRICE)} / 1시간
-          </span>
+          <div className="flex flex-col items-end gap-1">
+            <span className="chip bg-navy-50 text-navy-700">
+              <CalendarRange size={14} /> 평일 주간 {formatWon(COURT_SLOT_PRICE)}
+            </span>
+            <span className="chip bg-amber-50 text-amber-700">
+              <Clock size={14} /> 야간·주말·공휴일 {formatWon(COURT_SLOT_PRICE_PEAK)}
+            </span>
+          </div>
         }
       />
 

@@ -33,6 +33,7 @@ import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
 import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
 import { AdminNotificationScreen } from './screens/admin/AdminNotificationScreen';
 import { AdminMembersScreen } from './screens/admin/AdminMembersScreen';
+import { AdminMatchingScreen } from './screens/admin/AdminMatchingScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import type { AuthUser } from './lib/auth';
 
@@ -52,7 +53,7 @@ const ADMIN_AUTH_USER: AuthUser = {
 };
 
 type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'notice' | 'notification';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'notification';
 
 const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
@@ -67,6 +68,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'dashboard', label: '캘린더', icon: LayoutDashboard },
   { key: 'approval', label: '승인관리', icon: CheckSquare },
   { key: 'members', label: '회원목록', icon: Users },
+  { key: 'matching', label: '매칭관리', icon: Users },
   { key: 'notice', label: '공지관리', icon: Megaphone },
   { key: 'notification', label: '알림로그', icon: Bell },
 ];
@@ -373,6 +375,7 @@ function AdminShell() {
         {tab === 'dashboard' && <AdminDashboardScreen />}
         {tab === 'approval' && <AdminApprovalScreen />}
         {tab === 'members' && <AdminMembersScreen />}
+        {tab === 'matching' && <AdminMatchingScreen />}
         {tab === 'notice' && <AdminNoticeScreen />}
         {tab === 'notification' && <AdminNotificationScreen />}
       </main>

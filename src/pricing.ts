@@ -1,9 +1,22 @@
 // 펜션 요금: 평일 65만원, 주말·공휴일 85만원 (1박 기준) — 기본값, 관리자가 변경 가능
-// 코트 요금: 1시간 2만원 (2시간 슬롯 = 4만원)
+// 코트 요금: 평일 주간 1시간 2만원, 평일 야간(17:00~23:00)·주말·공휴일 1시간 2만5천원
 
 export const COURT_PRICE_PER_HOUR = 20000;
+export const COURT_PRICE_PER_HOUR_PEAK = 25000;
 export const COURT_SLOT_HOURS = 2;
 export const COURT_SLOT_PRICE = COURT_PRICE_PER_HOUR * COURT_SLOT_HOURS; // 40000
+export const COURT_SLOT_PRICE_PEAK = COURT_PRICE_PER_HOUR_PEAK * COURT_SLOT_HOURS; // 50000
+
+// 오후 5시(17:00) 이후 슬롯을 피크 시간으로 간주
+function isPeakSlot(slot: string): boolean {
+  const startHour = parseInt(slot.slice(0, 2), 10);
+  return startHour >= 17;
+}
+
+export function getCourtSlotPrice(dateStr: string, slot: string): number {
+  if (isWeekendOrHoliday(dateStr) || isPeakSlot(slot)) return COURT_SLOT_PRICE_PEAK;
+  return COURT_SLOT_PRICE;
+}
 
 export const PENSION_WEEKDAY_PRICE = 650000;
 export const PENSION_WEEKEND_PRICE = 850000;

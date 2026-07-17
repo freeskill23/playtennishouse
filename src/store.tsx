@@ -26,7 +26,7 @@ import type {
   Hand,
   GamePreference,
 } from './types';
-import { COURT_TIME_SLOTS } from './types';
+import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from './types';
 import {
   initialUsers,
   initialRooms,
@@ -37,7 +37,7 @@ import {
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured } from './lib/supabase';
-import { isWeekendOrHoliday, COURT_SLOT_PRICE, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
+import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
 
 type ReservationRow = {
   id: string;
@@ -135,15 +135,18 @@ interface AppState {
 
   // matching
   createMatchingPost: (input: {
-    reservationId: string;
+    court: CourtName;
+    date: string;
+    timeSlots: string[];
     ntrpRequirement: NTRP | 'any';
     genderRequirement: GenderRequirement;
     maxPlayers: number;
     gameType: GameType;
     description: string;
   }) => { ok: boolean; reason?: string; post?: MatchingPost };
-  applyMatching: (postId: string) => { ok: boolean; reason?: string };
+  applyMatching: (postId: string, intro: string) => { ok: boolean; reason?: string };
   approveMatchingApplication: (postId: string, applicationId: string) => void;
+  rejectMatchingApplication: (postId: string, applicationId: string) => void;
   closeMatching: (postId: string) => void;
 
   // notices
@@ -735,7 +738,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         timeSlot: slot,
         status: '신청',
         waitingSequence: null,
-        amount: COURT_SLOT_PRICE,
+        amount: getCourtSlotPrice(input.date, slot),
         createdAt: Date.now(),
       }));
       setReservations((prev) => [...prev, ...newReservations]);
@@ -917,41 +920,58 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // ===== Matching =====
   const createMatchingPost = useCallback(
     (input: {
-      reservationId: string;
+      court: CourtName;
+      date: string;
+      timeSlots: string[];
       ntrpRequirement: NTRP | 'any';
       genderRequirement: GenderRequirement;
       maxPlayers: number;
       gameType: GameType;
       description: string;
     }) => {
-      const reservation = reservations.find((r) => r.id === input.reservationId);
-      if (!reservation) return { ok: false, reason: '예약을 찾을 수 없습니다.' };
-      if (reservation.userId !== currentUserId) {
-        return { ok: false, reason: '본인의 예약만 매칭글을 작성할 수 있습니다.' };
+      if (input.timeSlots.length === 0) {
+        return { ok: false, reason: '시간대를 선택해주세요.' };
       }
-      if (reservation.status !== '예약완료') {
-        return { ok: false, reason: '예약완료 상태의 예약만 매칭글을 작성할 수 있습니다.' };
+      if (input.maxPlayers < 2 || input.maxPlayers > MATCHING_MAX_PLAYERS) {
+        return { ok: false, reason: `모집 인원은 2~${MATCHING_MAX_PLAYERS}명이어야 합니다.` };
       }
-      // Court reservation: must use own time slot
-      let time = '';
-      let court: CourtName = 'A코트';
-      let date = reservation.date;
-      if (reservation.type === 'court') {
-        time = reservation.timeSlot || '';
-        court = reservation.targetId as CourtName;
-      } else {
-        // pension reservation - allow any time slot; default to afternoon
-        time = '15:00-17:00';
-        court = reservation.targetLabel === 'A동' ? 'A코트' : 'B코트';
+      // Blocked by pension reservation?
+      if (isCourtBlockedByPension(input.date, input.court)) {
+        return { ok: false, reason: '해당 날짜에 펜션 예약이 완료되어 코트 이용이 불가합니다.' };
+      }
+      // Check court slot availability (same as court reservation)
+      for (const slot of input.timeSlots) {
+        const slotStatus = getCourtSlotStatus(input.date, input.court, slot);
+        if (slotStatus === 'booked' || slotStatus === 'pending') {
+          return { ok: false, reason: `${slot}은(는) 이미 예약되었거나 신청 중인 시간대입니다.` };
+        }
       }
 
+      // Create court reservations for the host (same flow as createCourtReservation)
+      const newReservations: Reservation[] = input.timeSlots.map((slot) => ({
+        id: uid('r'),
+        type: 'court',
+        userId: currentUserId,
+        targetId: input.court,
+        targetLabel: input.court,
+        date: input.date,
+        timeSlot: slot,
+        status: '신청',
+        waitingSequence: null,
+        amount: getCourtSlotPrice(input.date, slot),
+        createdAt: Date.now(),
+      }));
+      setReservations((prev) => [...prev, ...newReservations]);
+      newReservations.forEach((r) => upsertReservationToSupabase(r));
+
+      const reservationId = newReservations[0].id;
       const post: MatchingPost = {
         id: uid('m'),
-        reservationId: input.reservationId,
+        reservationId,
         userId: currentUserId,
-        date,
-        time,
-        court,
+        date: input.date,
+        time: input.timeSlots.join(', '),
+        court: input.court,
         ntrpRequirement: input.ntrpRequirement,
         genderRequirement: input.genderRequirement,
         maxPlayers: input.maxPlayers,
@@ -965,17 +985,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       addNotification({
         kind: 'matching_new',
         title: '새 매칭 모집',
-        body: `${getUser(currentUserId)?.name}님이 ${date} ${time} ${court} 매칭을 모집합니다.`,
+        body: `${getUser(currentUserId)?.name}님이 ${input.date} ${input.timeSlots.join(', ')} ${input.court} 매칭을 모집합니다.`,
         targetUserId: currentUserId,
       });
-      pushToast('매칭글이 등록되었습니다.');
+      pushToast('매칭글이 등록되었습니다. 코트 예약 신청도 함께 접수되었습니다.');
       return { ok: true, post };
     },
-    [reservations, currentUserId, addNotification, getUser, pushToast],
+    [isCourtBlockedByPension, getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   const applyMatching = useCallback(
-    (postId: string) => {
+    (postId: string, intro: string) => {
       const post = matchingPosts.find((p) => p.id === postId);
       if (!post) return { ok: false, reason: '매칭글을 찾을 수 없습니다.' };
       if (post.userId === currentUserId) return { ok: false, reason: '본인 매칭글에는 신청할 수 없습니다.' };
@@ -991,6 +1011,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         userId: currentUserId,
         status: '대기',
         appliedAt: Date.now(),
+        intro: intro.slice(0, 100),
       };
       setMatchingPosts((prev) =>
         prev.map((p) =>
@@ -1027,6 +1048,31 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }),
       );
       pushToast('매칭 신청을 승인했습니다.');
+    },
+    [addNotification, getUser, pushToast],
+  );
+
+  const rejectMatchingApplication = useCallback(
+    (postId: string, applicationId: string) => {
+      setMatchingPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const apps = p.applications.map((a) =>
+            a.id === applicationId ? { ...a, status: '거절' as const } : a,
+          );
+          const app = apps.find((a) => a.id === applicationId);
+          if (app) {
+            addNotification({
+              kind: 'matching_rejected',
+              title: '매칭 신청 거절',
+              body: `${getUser(p.userId)?.name}님이 회원님의 매칭 신청을 거절했습니다.`,
+              targetUserId: app.userId,
+            });
+          }
+          return { ...p, applications: apps };
+        }),
+      );
+      pushToast('매칭 신청을 거절했습니다.', 'info');
     },
     [addNotification, getUser, pushToast],
   );
@@ -1150,6 +1196,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     createMatchingPost,
     applyMatching,
     approveMatchingApplication,
+    rejectMatchingApplication,
     closeMatching,
     createNotice,
     deleteNotice,

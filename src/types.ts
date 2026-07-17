@@ -65,7 +65,10 @@ export interface MatchingApplication {
   userId: string;
   status: '대기' | '승인' | '거절';
   appliedAt: number;
+  intro: string; // 한줄 소개
 }
+
+export const MATCHING_MAX_PLAYERS = 6;
 
 export interface MatchingPost {
   id: string;
