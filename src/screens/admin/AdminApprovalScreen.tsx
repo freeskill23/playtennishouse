@@ -72,9 +72,16 @@ export function AdminApprovalScreen() {
         });
       }
     }
-    return Array.from(map.values()).sort(
-      (a, b) => a.minCreatedAt - b.minCreatedAt,
-    );
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      const aMinHour = a.items
+        .map((r) => parseInt(r.timeSlot?.split(':')[0] ?? '99', 10))
+        .reduce((min, h) => Math.min(min, h), 99);
+      const bMinHour = b.items
+        .map((r) => parseInt(r.timeSlot?.split(':')[0] ?? '99', 10))
+        .reduce((min, h) => Math.min(min, h), 99);
+      return aMinHour - bMinHour;
+    });
   }, [pendingReservations]);
 
   return (
@@ -113,7 +120,7 @@ export function AdminApprovalScreen() {
                       <span>·</span>
                       <span>{g.date}</span>
                       {g.type === 'court' && (
-                        <span>· {g.items.map((r) => r.timeSlot).filter(Boolean).join(', ')}</span>
+                        <span>· {g.items.map((r) => r.timeSlot).filter(Boolean).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</span>
                       )}
                       {g.type === 'pension' && g.items[0].capacity && (
                         <span>· {g.items[0].capacity}명</span>
@@ -199,7 +206,7 @@ export function AdminApprovalScreen() {
             <div className="rounded-xl bg-slate-50 p-3 text-sm space-y-1">
               <p>날짜: {depositModal.date}</p>
               {depositModal.type === 'court' && depositModal.items.length > 1 && (
-                <p>시간: {depositModal.items.map((r) => r.timeSlot).filter(Boolean).join(', ')}</p>
+                <p>시간: {depositModal.items.map((r) => r.timeSlot).filter(Boolean).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</p>
               )}
               {depositModal.type === 'court' && depositModal.items.length === 1 && (
                 <p>시간: {depositModal.items[0].timeSlot}</p>
