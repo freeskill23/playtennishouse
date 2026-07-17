@@ -11,6 +11,7 @@ import {
   Wallet,
   Save,
   ImageIcon,
+  XCircle,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -39,7 +40,9 @@ export function AdminDashboardScreen() {
     logoImageUrl,
     updateLogoImage,
     updateRoom,
+    cancelReservation,
   } = useApp();
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [date, setDate] = useState(todayYMD());
   const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
@@ -505,6 +508,15 @@ export function AdminDashboardScreen() {
                             <p className="text-sm font-semibold text-navy-900 truncate">{u?.name} · {r.capacity}명</p>
                           </div>
                           <StatusBadge status={r.status} />
+                          {r.status === '예약완료' && r.waitingSequence === null && (
+                            <button
+                              onClick={() => setCancelTarget({ id: r.id, label: `${u?.name ?? ''} ${room.name} 펜션` })}
+                              className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition"
+                              aria-label="관리자 취소"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -567,6 +579,15 @@ export function AdminDashboardScreen() {
                         </span>
                       )}
                       {res && <StatusBadge status={res.status} />}
+                      {res && res.status === '예약완료' && res.waitingSequence === null && (
+                        <button
+                          onClick={() => setCancelTarget({ id: res.id, label: `${u?.name ?? ''} ${court} ${slot}` })}
+                          className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition ml-auto"
+                          aria-label="관리자 취소"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -632,6 +653,40 @@ export function AdminDashboardScreen() {
           </div>
         );
       })()}
+      {/* Admin cancel confirm */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-rose-600" />
+              </div>
+              <h3 className="font-bold text-navy-900">예약 직권 취소</h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              <span className="font-bold text-navy-900">{cancelTarget.label}</span> 예약을 관리자 권한으로 취소하시겠습니까?
+            </p>
+            <p className="text-xs text-slate-400 mt-2">취소 후 복구할 수 없으며, 대기자가 있을 경우 자동 승격됩니다.</p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setCancelTarget(null)}
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                아니오
+              </button>
+              <button
+                onClick={() => {
+                  cancelReservation(cancelTarget.id);
+                  setCancelTarget(null);
+                }}
+                className="flex-1 rounded-lg bg-rose-600 py-2.5 text-sm font-bold text-white hover:bg-rose-700"
+              >
+                <XCircle size={16} /> 취소하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

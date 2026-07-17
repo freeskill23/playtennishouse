@@ -190,7 +190,7 @@ function UserShell() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
           <button onClick={() => go('home')} className="shrink-0 flex items-center gap-2">
@@ -306,8 +306,8 @@ function AdminShell() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <header className="sticky top-0 z-40 bg-navy-950 text-white">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
+      <header className="sticky top-0 z-40 bg-green-800/95 backdrop-blur-md text-white shadow-lg shadow-green-900/20">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
           <button onClick={() => go('dashboard')} className="shrink-0">
             <Logo size={36} imageUrl={logoImageUrl} />
@@ -355,7 +355,7 @@ function AdminShell() {
           </div>
         </div>
         {mobileMenu && (
-          <nav className="md:hidden border-t border-white/10 bg-navy-950 animate-slide-up">
+          <nav className="md:hidden border-t border-white/10 bg-green-800 animate-slide-up">
             <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-2 gap-1">
               {ADMIN_NAV.map((n) => {
                 const Icon = n.icon;
@@ -406,7 +406,7 @@ function Shell() {
 
   if (configError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 px-4">
         <div className="max-w-sm w-full rounded-2xl bg-white p-6 shadow-2xl text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
             <AlertTriangle size={28} className="text-amber-500" />
@@ -420,7 +420,7 @@ function Shell() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-navy-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
         <Loader2 size={32} className="animate-spin text-volt-400" />
       </div>
     );

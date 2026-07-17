@@ -54,12 +54,12 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-6">
           <Logo size={96} />
-          <h1 className="mt-4 text-2xl font-extrabold text-white tracking-tight">PLAY TENNIS HOUSE</h1>
-          <p className="text-xs text-white/50 mt-1">테니스 펜션 예약 &amp; 매칭 서비스</p>
+          <h1 className="mt-4 text-2xl font-extrabold text-green-900 tracking-tight">PLAY TENNIS HOUSE</h1>
+          <p className="text-xs text-green-700/70 mt-1">테니스 펜션 예약 &amp; 매칭 서비스</p>
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-2xl animate-slide-up">
