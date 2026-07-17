@@ -28,6 +28,7 @@ export function Calendar({
   value,
   onChange,
   minDate,
+  maxDate,
   dayRender,
 }: {
   value: string;
