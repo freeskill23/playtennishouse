@@ -22,6 +22,17 @@ import { useState, useRef } from 'react';
 import type { NTRP, GameType, GenderRequirement, Hand as HandType, Reservation } from '../types';
 import { mergeTimeSlots } from '../types';
 
+function timeWithDuration(timeRange: string): string {
+  if (!timeRange) return '';
+  const [s, e] = timeRange.split('-');
+  const [sh, sm] = s.split(':').map(Number);
+  const [eh, em] = e.split(':').map(Number);
+  const hours = (eh * 60 + em - sh * 60 - sm) / 60;
+  const hInt = Math.floor(hours);
+  const dur = hours === hInt ? `${hInt}시간` : `${hours}시간`;
+  return `${dur} ${timeRange}`;
+}
+
 const NTRP_OPTIONS: NTRP[] = ['1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5'];
 const HAND_OPTIONS: { value: HandType; label: string }[] = [
   { value: 'right', label: '오른손' },
@@ -197,7 +208,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-volt-600">{date}</span>
                         <p className="font-bold text-navy-900">{items[0].targetLabel}</p>
-                        {isCourt && timeRange && <span className="chip bg-slate-100 text-slate-600">{timeRange}</span>}
+                        {isCourt && timeRange && <span className="chip bg-slate-100 text-slate-600">{timeWithDuration(timeRange)}</span>}
                         {hasWaiting && <span className="chip bg-amber-100 text-amber-700">대기</span>}
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
@@ -237,7 +248,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                         <CalendarRange size={18} />
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-navy-900">{items[0].targetLabel} <span className="text-slate-500 font-normal">{timeRange}</span></p>
+                        <p className="font-bold text-navy-900">{items[0].targetLabel} <span className="text-slate-500 font-normal">{timeWithDuration(timeRange)}</span></p>
                         <p className="text-xs text-slate-500">{items.length}시간 대관</p>
                       </div>
                       <button onClick={() => setMatchingTarget(ids)} className="btn-primary text-sm py-2 px-3">
@@ -263,7 +274,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
               <div key={m.id} className="card p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-bold text-navy-900">{m.court} · {m.time}</p>
+                    <p className="font-bold text-navy-900">{m.court} · {timeWithDuration(m.time)}</p>
                     <p className="text-xs text-slate-500">{m.date} · {m.applications.length}명 신청</p>
                   </div>
                   <span className={`chip ${m.status === '모집중' ? 'bg-volt-100 text-volt-800' : 'bg-slate-100 text-slate-600'}`}>{m.status}</span>
@@ -278,7 +289,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-navy-900">{host?.name}님 매칭 · {m.court}</p>
-                      <p className="text-xs text-slate-500">{m.date} {m.time}</p>
+                      <p className="text-xs text-slate-500">{m.date} {timeWithDuration(m.time)}</p>
                     </div>
                     {myApp?.status === '승인' ? (
                       <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 승인</span>
