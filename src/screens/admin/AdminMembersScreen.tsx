@@ -8,6 +8,9 @@ import {
   Search,
   Loader2,
   ShieldAlert,
+  Megaphone,
+  Download,
+  BellRing,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -23,6 +26,7 @@ interface MemberRow {
   ntrp: string | null;
   is_bad_member: boolean;
   bad_member_reason: string | null;
+  marketing_consent: boolean | null;
   created_at: string;
 }
 
@@ -144,15 +148,45 @@ export function AdminMembersScreen() {
     }
   };
 
+  const handleExportSmsList = () => {
+    const consented = members.filter(
+      (m) => m.marketing_consent && m.phone && !m.is_bad_member,
+    );
+    if (consented.length === 0) {
+      alert('동의한 회원이 없습니다.');
+      return;
+    }
+    const lines = consented.map((m) => `${m.name}\t${m.phone}`);
+    const header = `# 플테하 광고문자 발송목록\n# 생성일: ${new Date().toLocaleString('ko-KR')}\n# 동의 회원 수: ${consented.length}명\n# 형식: 이름\t전화번호\n\n`;
+    const content = header + lines.join('\n') + '\n';
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `플테하_광고문자발송목록_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-5 pb-4">
       <SectionTitle
         title="회원 목록"
         subtitle="회원 정보 조회 · 비밀번호 변경 · 불량회원 관리"
         right={
-          <span className="chip bg-navy-50 text-navy-700">
-            <Users size={14} /> {members.length}명
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="chip bg-navy-50 text-navy-700">
+              <Users size={14} /> {members.length}명
+            </span>
+            <button
+              onClick={handleExportSmsList}
+              className="btn-primary text-sm py-1.5 px-3 flex items-center gap-1.5"
+            >
+              <Megaphone size={14} /> 광고문자 발송목록 만들기
+            </button>
+          </div>
         }
       />
 
@@ -210,6 +244,11 @@ export function AdminMembersScreen() {
                     <span className="flex items-center gap-1">
                       <Phone size={11} /> {m.phone || '연락처 없음'}
                     </span>
+                    {m.marketing_consent && (
+                      <span className="flex items-center gap-0.5 text-volt-700">
+                        <BellRing size={11} /> 동의
+                      </span>
+                    )}
                     <span>구력 {m.career || '0년'}</span>
                     <span>NTRP {m.ntrp || '2.0'}</span>
                   </div>

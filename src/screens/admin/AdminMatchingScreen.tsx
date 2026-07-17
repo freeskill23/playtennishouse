@@ -11,6 +11,8 @@ import {
   X,
   Search,
   MessageSquare,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { SectionTitle, EmptyState, Pill } from '../../components/ui';
@@ -32,9 +34,17 @@ const GENDER_LABEL: Record<GenderRequirement, string> = {
 };
 
 export function AdminMatchingScreen() {
-  const { matchingPosts, getUser } = useApp();
+  const { matchingPosts, getUser, deleteMatchingPost } = useApp();
   const [search, setSearch] = useState('');
   const [detailPost, setDetailPost] = useState<MatchingPost | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<MatchingPost | null>(null);
+
+  const handleDelete = () => {
+    if (!confirmDelete) return;
+    deleteMatchingPost(confirmDelete.id);
+    setConfirmDelete(null);
+    setDetailPost(null);
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return matchingPosts;
@@ -135,7 +145,15 @@ export function AdminMatchingScreen() {
         title="매칭 상세"
         size="md"
         footer={
-          <button className="btn-ghost" onClick={() => setDetailPost(null)}>닫기</button>
+          <div className="flex items-center justify-between w-full">
+            <button
+              className="btn-danger-ghost"
+              onClick={() => setConfirmDelete(detailPost)}
+            >
+              <Trash2 size={16} /> 삭제
+            </button>
+            <button className="btn-ghost" onClick={() => setDetailPost(null)}>닫기</button>
+          </div>
         }
       >
         {detailPost && (
@@ -198,6 +216,43 @@ export function AdminMatchingScreen() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        title="매칭 삭제"
+        size="sm"
+        footer={
+          <div className="flex gap-2 justify-end w-full">
+            <button className="btn-ghost" onClick={() => setConfirmDelete(null)}>취소</button>
+            <button className="btn-danger" onClick={handleDelete}>
+              <Trash2 size={16} /> 삭제 확인
+            </button>
+          </div>
+        }
+      >
+        {confirmDelete && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 text-rose-700 bg-rose-50 rounded-2xl p-4">
+              <AlertTriangle size={24} className="shrink-0" />
+              <p className="text-sm font-semibold">
+                이 매칭글을 삭제하시겠습니까?
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-100 p-3">
+              <p className="font-bold text-navy-900 text-sm">
+                {confirmDelete.court} · {confirmDelete.date} {confirmDelete.time}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                신청자 {confirmDelete.applications.length}명 · 호스트 {getUser(confirmDelete.userId)?.name || ''}
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              삭제 후 복구할 수 없으며, 연결된 예약은 유지됩니다.
+            </p>
           </div>
         )}
       </Modal>

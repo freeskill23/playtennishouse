@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogIn, UserPlus, Mail, Lock, User as UserIcon, Phone, Loader2 } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, User as UserIcon, Phone, Loader2, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Logo } from '../components/Logo';
 
@@ -12,6 +12,7 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [marketingConsent, setMarketingConsent] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -39,6 +40,7 @@ export function AuthScreen() {
         password,
         name: name.trim(),
         phone: phone.trim(),
+        marketingConsent,
       });
       if (!res.ok) setError(res.error || '회원가입에 실패했습니다.');
     }
@@ -101,6 +103,24 @@ export function AuthScreen() {
                     className="w-full bg-transparent outline-none text-sm text-navy-900 placeholder:text-slate-400"
                   />
                 </Field>
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={marketingConsent}
+                    onClick={() => setMarketingConsent((v) => !v)}
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
+                      marketingConsent
+                        ? 'bg-volt-500 border-volt-500 text-navy-950'
+                        : 'bg-white border-slate-300'
+                    }`}
+                  >
+                    {marketingConsent && <Check size={14} strokeWidth={3} />}
+                  </button>
+                  <span className="text-xs text-slate-600 leading-relaxed">
+                    플테하 이벤트 및 프로모션 발송 동의함
+                  </span>
+                </label>
               </>
             )}
             <Field icon={<Mail size={16} />}>

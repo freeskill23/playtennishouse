@@ -27,7 +27,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET" && action === "list") {
       const { data, error } = await admin
         .from("profiles")
-        .select("id, email, name, nickname, phone, career, ntrp, hand, game_preference, bio, profile_img, is_bad_member, bad_member_reason, created_at")
+        .select("id, email, name, nickname, phone, career, ntrp, hand, game_preference, bio, profile_img, is_bad_member, bad_member_reason, marketing_consent, created_at")
         .order("created_at", { ascending: false });
       if (error) {
         return new Response(JSON.stringify({ error: error.message }), {

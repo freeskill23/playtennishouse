@@ -152,6 +152,7 @@ interface AppState {
   approveMatchingApplication: (postId: string, applicationId: string) => void;
   rejectMatchingApplication: (postId: string, applicationId: string) => void;
   closeMatching: (postId: string) => void;
+  deleteMatchingPost: (postId: string) => void;
 
   // notices
   createNotice: (n: { title: string; content: string; type: NoticeType }) => void;
@@ -1227,6 +1228,19 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const deleteMatchingPost = useCallback(
+    (postId: string) => {
+      setMatchingPosts((prev) => prev.filter((p) => p.id !== postId));
+      if (supabaseConfigured) {
+        supabase.from('matching_posts').delete().eq('id', postId).then(({ error }) => {
+          if (error) pushToast('매칭 삭제 실패: ' + error.message, 'error');
+        });
+      }
+      pushToast('매칭글이 삭제되었습니다.', 'info');
+    },
+    [pushToast],
+  );
+
   // ===== Notices =====
   const createNotice = useCallback(
     (n: { title: string; content: string; type: NoticeType }) => {
@@ -1338,6 +1352,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     approveMatchingApplication,
     rejectMatchingApplication,
     closeMatching,
+    deleteMatchingPost,
     createNotice,
     deleteNotice,
     markNotificationRead,

@@ -34,6 +34,7 @@ interface AuthState {
     password: string;
     name: string;
     phone: string;
+    marketingConsent: boolean;
   }) => Promise<{ ok: boolean; error?: string }>;
   signIn: (
     email: string,
@@ -140,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signUp = useCallback(
-    async (input: { email: string; password: string; name: string; phone: string }) => {
+    async (input: { email: string; password: string; name: string; phone: string; marketingConsent: boolean }) => {
       const { data, error } = await supabase.auth.signUp({
         email: input.email,
         password: input.password,
@@ -160,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hand: 'right',
         game_preference: 'any',
         bio: '',
+        marketing_consent: input.marketingConsent,
       });
       if (profileError) {
         return { ok: false, error: '프로필 생성에 실패했습니다: ' + profileError.message };
