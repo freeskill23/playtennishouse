@@ -23,6 +23,15 @@ import { useState, useRef } from 'react';
 import type { NTRP, GameType, GenderRequirement, Hand as HandType, Reservation } from '../types';
 import { mergeTimeSlots } from '../types';
 
+function isBatchEnded(date: string, timeRange: string): boolean {
+  if (!date || !timeRange) return false;
+  const end = timeRange.split('-')[1]?.trim();
+  if (!end) return false;
+  const endDt = new Date(`${date}T${end}:00`);
+  if (isNaN(endDt.getTime())) return false;
+  return endDt.getTime() <= Date.now();
+}
+
 function timeWithDuration(timeStr: string): string {
   if (!timeStr) return '';
   const slots = timeStr.split(',').map((s) => s.trim()).filter(Boolean);
@@ -92,7 +101,11 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
       map.set(key, arr);
     }
     for (const arr of map.values()) arr.sort((a, b) => (a.timeSlot || '').localeCompare(b.timeSlot || ''));
-    return Array.from(map.entries()).sort(([, a], [, b]) => (a[0].createdAt < b[0].createdAt ? 1 : -1));
+    return Array.from(map.entries()).sort(([, a], [, b]) => {
+      const aKey = `${a[0].date}|${a[0].timeSlot || ''}`;
+      const bKey = `${b[0].date}|${b[0].timeSlot || ''}`;
+      return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+    });
   })();
 
   // matching form state
@@ -239,6 +252,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
               const date = items[0].date;
               const timeRange = mergeTimeSlots(items.map((r) => r.timeSlot || '').filter(Boolean));
               const ids = items.map((r) => r.id);
+              const ended = isBatchEnded(date, timeRange);
               return (
                 <div key={groupKeyVal}>
                   <div className="flex items-center gap-2 px-1 mb-1.5">
@@ -255,9 +269,13 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                         <p className="font-bold text-navy-900">{items[0].targetLabel} <span className="text-slate-500 font-normal">{timeWithDuration(timeRange)}</span></p>
                         <p className="text-xs text-slate-500">{items.length}시간 대관</p>
                       </div>
-                      <button onClick={() => setMatchingTarget(ids)} className="btn-primary text-sm py-2 px-3">
-                        <Plus size={16} /> 매칭 모집
-                      </button>
+                      {ended ? (
+                        <span className="chip bg-slate-100 text-slate-500"><Clock size={12} /> 이용시간종료</span>
+                      ) : (
+                        <button onClick={() => setMatchingTarget(ids)} className="btn-primary text-sm py-2 px-3">
+                          <Plus size={16} /> 매칭 모집
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
