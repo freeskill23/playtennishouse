@@ -373,6 +373,17 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                       <span className="chip bg-amber-100 text-amber-700"><Clock size={12} /> 대기</span>
                     )}
                   </div>
+                  {myApp?.status === '거절' && (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <div className="rounded-xl bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
+                        {myApp.rejectReason ? (
+                          <><span className="font-bold">거절 사유: </span>{myApp.rejectReason}</>
+                        ) : (
+                          <span className="text-rose-600">거절된 매칭입니다.</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {myApp?.status === '승인' && (
                     <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-sm">
                       <Phone size={14} className="text-volt-700" />
