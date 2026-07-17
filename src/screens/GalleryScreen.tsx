@@ -1,9 +1,15 @@
-import { Image as ImageIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Image as ImageIcon, X } from 'lucide-react';
 import { useApp } from '../store';
 import { SectionTitle, EmptyState } from '../components/ui';
 
 export function GalleryScreen() {
   const { galleryItems } = useApp();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selectedItem = selectedId
+    ? galleryItems.find((i) => i.id === selectedId) ?? null
+    : null;
 
   return (
     <div className="space-y-5 pb-4">
@@ -19,7 +25,10 @@ export function GalleryScreen() {
           {galleryItems.map((item) => (
             <figure
               key={item.id}
-              className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition hover:shadow-lg hover:-translate-y-0.5"
+              onClick={() =>
+                setSelectedId((prev) => (prev === item.id ? null : item.id))
+              }
+              className="group relative cursor-pointer overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition hover:shadow-lg hover:-translate-y-0.5"
             >
               <div className="aspect-square overflow-hidden">
                 <img
@@ -39,6 +48,42 @@ export function GalleryScreen() {
               </figcaption>
             </figure>
           ))}
+        </div>
+      )}
+
+      {selectedItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setSelectedId(null)}
+        >
+          <button
+            className="absolute top-4 right-4 grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedId(null);
+            }}
+            aria-label="닫기"
+          >
+            <X size={20} />
+          </button>
+          <figure
+            className="mx-4 max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={selectedItem.imageUrl}
+              alt={selectedItem.summary}
+              className="max-h-[80vh] w-full object-contain"
+            />
+            <figcaption className="p-4">
+              <p className="text-sm font-semibold text-navy-900">
+                {selectedItem.summary}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {new Date(selectedItem.createdAt).toLocaleDateString('ko-KR')}
+              </p>
+            </figcaption>
+          </figure>
         </div>
       )}
     </div>
