@@ -296,37 +296,55 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   }, []);
 
   // Load matching posts from Supabase so they survive refresh
+  const loadMatchingPosts = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data } = await supabase
+      .from('matching_posts')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (data && data.length > 0) {
+      setMatchingPosts(
+        data.map((p) => ({
+          id: p.id as string,
+          reservationId: p.reservation_id as string,
+          reservationIds: (p.reservation_ids as string[]) || [],
+          userId: p.user_id as string,
+          date: p.date as string,
+          time: p.time as string,
+          court: p.court as CourtName,
+          ntrpRequirement: p.ntrp_requirement as NTRP | 'any',
+          genderRequirement: p.gender_requirement as GenderRequirement,
+          maxPlayers: p.max_players as number,
+          gameType: p.game_type as GameType,
+          description: p.description as string,
+          status: p.status as MatchingStatus,
+          courtApproved: (p.court_approved as boolean) ?? false,
+          applications: (p.applications as MatchingApplication[]) || [],
+          createdAt: p.created_at as number,
+        })),
+      );
+    }
+  }, []);
+
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase
-        .from('matching_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        setMatchingPosts(
-          data.map((p) => ({
-            id: p.id as string,
-            reservationId: p.reservation_id as string,
-            reservationIds: (p.reservation_ids as string[]) || [],
-            userId: p.user_id as string,
-            date: p.date as string,
-            time: p.time as string,
-            court: p.court as CourtName,
-            ntrpRequirement: p.ntrp_requirement as NTRP | 'any',
-            genderRequirement: p.gender_requirement as GenderRequirement,
-            maxPlayers: p.max_players as number,
-            gameType: p.game_type as GameType,
-            description: p.description as string,
-            status: p.status as MatchingStatus,
-            courtApproved: (p.court_approved as boolean) ?? false,
-            applications: (p.applications as MatchingApplication[]) || [],
-            createdAt: p.created_at as number,
-          })),
-        );
-      }
-    })();
-  }, []);
+    loadMatchingPosts();
+    // Realtime: refresh matching posts when any row changes so hosts
+    // see new applicants without a manual page reload.
+    const channel = supabase
+      .channel('matching_posts_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'matching_posts' },
+        () => {
+          loadMatchingPosts();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadMatchingPosts]);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
 
   // Load notices from Supabase so admin edits are shared across sessions

@@ -262,7 +262,10 @@ export function MatchingScreen() {
             onApply={handleApply}
             onApprove={handleApprove}
             onReject={rejectMatchingApplication}
-            onCloseMatching={closeMatching}
+            onCloseMatching={(postId) => {
+              closeMatching(postId);
+              setSelectedPost(null);
+            }}
           />
         )}
       </Modal>
@@ -313,6 +316,7 @@ function ApplyOrManageModal({
   onApply,
   onApprove,
   onReject,
+  onCloseMatching,
 }: {
   post: MatchingPost;
   isHost: boolean;
@@ -324,6 +328,7 @@ function ApplyOrManageModal({
 }) {
   const [intro, setIntro] = useState('');
   const [gender, setGender] = useState<ApplicantGender | ''>('');
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   if (isHost) {
     return (
@@ -385,12 +390,40 @@ function ApplyOrManageModal({
         </div>
 
         {post.status === '모집중' && (
-          <button
-            onClick={() => onCloseMatching(post.id)}
-            className="btn-navy w-full text-sm py-2.5"
-          >
-            <CheckCircle2 size={16} /> 매칭 완료하기
-          </button>
+          <>
+            <button
+              onClick={() => setShowCloseConfirm(true)}
+              className="btn-navy w-full text-sm py-2.5"
+            >
+              <CheckCircle2 size={16} /> 매칭 완료하기
+            </button>
+            {showCloseConfirm && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+                <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+                  <p className="text-sm text-gray-700">
+                    매칭 완료를 하면 더 이상 신청을 받지 못합니다. 그래도 완료하시겠습니까?
+                  </p>
+                  <div className="mt-5 flex gap-2">
+                    <button
+                      onClick={() => setShowCloseConfirm(false)}
+                      className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCloseConfirm(false);
+                        onCloseMatching(post.id);
+                      }}
+                      className="flex-1 rounded-lg bg-[#1e3a5f] py-2.5 text-sm font-medium text-white hover:bg-[#15294a]"
+                    >
+                      완료하기
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
