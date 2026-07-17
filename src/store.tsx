@@ -56,6 +56,7 @@ type ReservationRow = {
   amount: number;
   created_at: number;
   matching_post_id: string | null;
+  batch_id: string | null;
 };
 
 function rowToReservation(r: ReservationRow): Reservation {
@@ -74,6 +75,7 @@ function rowToReservation(r: ReservationRow): Reservation {
     amount: r.amount,
     createdAt: r.created_at,
     matchingPostId: r.matching_post_id || undefined,
+    batchId: r.batch_id || undefined,
   };
 }
 
@@ -93,6 +95,7 @@ function reservationToRow(r: Reservation): ReservationRow {
     amount: r.amount,
     created_at: r.createdAt,
     matching_post_id: r.matchingPostId || null,
+    batch_id: r.batchId || null,
   };
 }
 
@@ -152,7 +155,7 @@ interface AppState {
     description: string;
   }) => { ok: boolean; reason?: string; post?: MatchingPost };
   createMatchingPostFromReservation: (input: {
-    reservationId: string;
+    reservationIds: string[];
     ntrpRequirement: NTRP | 'any';
     genderRequirement: GenderRequirement;
     maxPlayers: number;
@@ -864,6 +867,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const hasCompleted = existing.some((r) => r.status === '예약완료');
       const hasPending = existing.some((r) => r.status === '신청' || r.status === '입금대기' || r.status === '승인대기');
 
+      const batchId = uid('b');
       const reservation: Reservation = {
         id: uid('r'),
         type: 'pension',
@@ -876,6 +880,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         waitingSequence: hasCompleted || hasPending ? (reservations.filter((r) => r.type === 'pension' && r.date === input.date && r.targetId === input.roomId && r.waitingSequence !== null).length + 1) : null,
         amount: getPensionPrice(input.date),
         createdAt: Date.now(),
+        batchId,
       };
 
       setReservations((prev) => [...prev, reservation]);
@@ -917,6 +922,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }
       }
 
+      const batchId = uid('b');
       const newReservations: Reservation[] = input.timeSlots.map((slot) => ({
         id: uid('r'),
         type: 'court',
@@ -929,6 +935,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         waitingSequence: null,
         amount: getCourtSlotPrice(input.date, slot, tempHolidays),
         createdAt: Date.now(),
+        batchId,
       }));
       setReservations((prev) => [...prev, ...newReservations]);
       newReservations.forEach((r) => upsertReservationToSupabase(r));
@@ -1218,6 +1225,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
       // Create court reservations for the host (same flow as createCourtReservation)
       const matchingPostId = uid('m');
+      const batchId = uid('b');
       const newReservations: Reservation[] = input.timeSlots.map((slot) => ({
         id: uid('r'),
         type: 'court',
@@ -1231,6 +1239,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         amount: getCourtSlotPrice(input.date, slot, tempHolidays),
         createdAt: Date.now(),
         matchingPostId,
+        batchId,
       }));
       setReservations((prev) => [...prev, ...newReservations]);
       newReservations.forEach((r) => upsertReservationToSupabase(r));
@@ -1271,28 +1280,29 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const createMatchingPostFromReservation = useCallback(
     (input: {
-      reservationId: string;
+      reservationIds: string[];
       ntrpRequirement: NTRP | 'any';
       genderRequirement: GenderRequirement;
       maxPlayers: number;
       gameType: GameType;
       description: string;
     }) => {
-      const res = reservations.find((r) => r.id === input.reservationId);
-      if (!res) return { ok: false, reason: '예약을 찾을 수 없습니다.' };
-      if (res.type !== 'court') return { ok: false, reason: '코트 예약만 매칭 모집 가능합니다.' };
-      if (res.status !== '예약완료') return { ok: false, reason: '예약완료 건만 매칭 모집 가능합니다.' };
-      if (matchingPosts.some((p) => p.reservationIds.includes(res.id))) {
-        return { ok: false, reason: '이미 해당 예약으로 매칭글이 등록되어 있습니다.' };
-      }
+      const batchReservations = reservations.filter((r) => input.reservationIds.includes(r.id));
+      if (batchReservations.length === 0) return { ok: false, reason: '예약을 찾을 수 없습니다.' };
+      if (batchReservations.some((r) => r.type !== 'court')) return { ok: false, reason: '코트 예약만 매칭 모집 가능합니다.' };
+      if (batchReservations.some((r) => r.status !== '예약완료')) return { ok: false, reason: '예약완료 건만 매칭 모집 가능합니다.' };
+      const alreadyMatched = batchReservations.some((r) => matchingPosts.some((p) => p.reservationIds.includes(r.id)));
+      if (alreadyMatched) return { ok: false, reason: '이미 해당 예약으로 매칭글이 등록되어 있습니다.' };
+      const first = batchReservations[0];
+      const timeLabel = batchReservations.map((r) => r.timeSlot).filter(Boolean).join(', ');
       const post: MatchingPost = {
         id: crypto.randomUUID(),
-        reservationId: res.id,
-        reservationIds: [res.id],
+        reservationId: first.id,
+        reservationIds: input.reservationIds,
         userId: currentUserId,
-        date: res.date,
-        time: res.timeSlot || '',
-        court: res.targetId as CourtName,
+        date: first.date,
+        time: timeLabel,
+        court: first.targetId as CourtName,
         ntrpRequirement: input.ntrpRequirement,
         genderRequirement: input.genderRequirement,
         maxPlayers: input.maxPlayers,

@@ -39,7 +39,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     updateCurrentUser,
   } = useApp();
   const { signOut, updateProfile, changePassword, uploadProfileImage } = useAuth();
-  const [matchingTarget, setMatchingTarget] = useState<string | null>(null);
+  const [matchingTarget, setMatchingTarget] = useState<string[] | null>(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [pwChangeOpen, setPwChangeOpen] = useState(false);
 
@@ -49,9 +49,32 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     m.applications.some((a) => a.userId === currentUser.id),
   );
 
+  // Group reservations by batchId (or individual id as fallback)
+  const batchGroups = (() => {
+    const map = new Map<string, typeof myReservations>();
+    for (const r of myReservations) {
+      const key = r.batchId || r.id;
+      const arr = map.get(key) || [];
+      arr.push(r);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries()).sort(([, a], [, b]) => (a[0].createdAt < b[0].createdAt ? 1 : -1));
+  })();
+
+  // Group eligible reservations by batchId
   const eligibleReservations = myReservations.filter(
-    (r) => r.status === '예약완료' && r.waitingSequence === null,
+    (r) => r.status === '예약완료' && r.waitingSequence === null && r.type === 'court',
   );
+  const eligibleBatchGroups = (() => {
+    const map = new Map<string, typeof eligibleReservations>();
+    for (const r of eligibleReservations) {
+      const key = r.batchId || r.id;
+      const arr = map.get(key) || [];
+      arr.push(r);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries()).sort(([, a], [, b]) => (a[0].createdAt < b[0].createdAt ? 1 : -1));
+  })();
 
   // matching form state
   const [form, setForm] = useState<{
@@ -70,7 +93,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
 
   const handleCreateMatching = () => {
     if (!matchingTarget) return;
-    const res = createMatchingPostFromReservation({ reservationId: matchingTarget, ...form });
+    const res = createMatchingPostFromReservation({ reservationIds: matchingTarget, ...form });
     if (res.ok) {
       setMatchingTarget(null);
       setForm({
@@ -142,7 +165,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         <StatBox label="신청 매칭" value={myAppliedMatchings.length} icon={<Hand size={16} />} tone="sky" />
       </div>
 
-      {/* My reservations - grouped by date */}
+      {/* My reservations - grouped by batch */}
       <div>
         <SectionTitle title="내 예약" subtitle="예약 및 대기 내역" />
         {myReservations.length === 0 ? (
@@ -153,19 +176,15 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
           />
         ) : (
           <div className="space-y-3">
-            {Object.entries(
-              myReservations.reduce<Record<string, typeof myReservations>>((acc, r) => {
-                (acc[r.date] ||= []).push(r);
-                return acc;
-              }, {}),
-            )
-              .sort(([a], [b]) => (a < b ? 1 : -1))
-              .map(([date, items]) => (
-                <div key={date}>
+            {batchGroups.map(([batchKey, items]) => {
+              const date = items[0].date;
+              const totalAmount = items.reduce((sum, r) => sum + r.amount, 0);
+              return (
+                <div key={batchKey}>
                   <div className="flex items-center gap-2 px-1 mb-1.5">
                     <CalendarRange size={14} className="text-volt-600" />
                     <span className="text-sm font-bold text-navy-900">{date}</span>
-                    <span className="text-xs text-slate-400">({items.length}건)</span>
+                    <span className="text-xs text-slate-400">({items.length}건 · {totalAmount.toLocaleString()}원)</span>
                   </div>
                   <div className="space-y-2">
                     {items.map((r) => (
@@ -192,47 +211,45 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                     ))}
                   </div>
                 </div>
-              ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Create matching - grouped by date */}
-      {eligibleReservations.length > 0 && (
+      {/* Create matching - grouped by batch */}
+      {eligibleBatchGroups.length > 0 && (
         <div>
           <SectionTitle title="매칭글 작성" subtitle="예약완료 건으로 메이트를 모집하세요" />
           <div className="space-y-3">
-            {Object.entries(
-              eligibleReservations.reduce<Record<string, typeof eligibleReservations>>((acc, r) => {
-                (acc[r.date] ||= []).push(r);
-                return acc;
-              }, {}),
-            )
-              .sort(([a], [b]) => (a < b ? 1 : -1))
-              .map(([date, items]) => (
-                <div key={date}>
+            {eligibleBatchGroups.map(([batchKey, items]) => {
+              const date = items[0].date;
+              const timeLabel = items.map((r) => r.timeSlot).filter(Boolean).join(', ');
+              const ids = items.map((r) => r.id);
+              return (
+                <div key={batchKey}>
                   <div className="flex items-center gap-2 px-1 mb-1.5">
                     <CalendarRange size={14} className="text-volt-600" />
                     <span className="text-sm font-bold text-navy-900">{date}</span>
                     <span className="text-xs text-slate-400">({items.length}건)</span>
                   </div>
                   <div className="space-y-2">
-                    {items.map((r) => (
-                      <div key={r.id} className="card p-4 flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.type === 'pension' ? 'bg-volt-100 text-volt-700' : 'bg-navy-50 text-navy-700'}`}>
-                          {r.type === 'pension' ? <BedDouble size={18} /> : <CalendarRange size={18} />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-bold text-navy-900">{r.targetLabel} {r.type === 'court' && r.timeSlot}</p>
-                        </div>
-                        <button onClick={() => setMatchingTarget(r.id)} className="btn-primary text-sm py-2 px-3">
-                          <Plus size={16} /> 매칭 모집
-                        </button>
+                    <div className="card p-4 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-navy-50 text-navy-700">
+                        <CalendarRange size={18} />
                       </div>
-                    ))}
+                      <div className="flex-1">
+                        <p className="font-bold text-navy-900">{items[0].targetLabel} {timeLabel}</p>
+                        <p className="text-xs text-slate-500">총 {items.length}개 코트</p>
+                      </div>
+                      <button onClick={() => setMatchingTarget(ids)} className="btn-primary text-sm py-2 px-3">
+                        <Plus size={16} /> 매칭 모집
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -55,6 +55,7 @@ export interface Reservation {
   amount: number;
   createdAt: number;
   matchingPostId?: string; // set when reservation created from a matching post
+  batchId?: string; // groups reservations submitted together in one request
 }
 
 export type MatchingStatus = '대관대기' | '모집중' | '모집완료';
