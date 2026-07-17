@@ -148,6 +148,14 @@ interface AppState {
     gameType: GameType;
     description: string;
   }) => { ok: boolean; reason?: string; post?: MatchingPost };
+  createMatchingPostFromReservation: (input: {
+    reservationId: string;
+    ntrpRequirement: NTRP | 'any';
+    genderRequirement: GenderRequirement;
+    maxPlayers: number;
+    gameType: GameType;
+    description: string;
+  }) => { ok: boolean; reason?: string; post?: MatchingPost };
   applyMatching: (postId: string, intro: string, gender?: ApplicantGender) => { ok: boolean; reason?: string };
   approveMatchingApplication: (postId: string, applicationId: string) => void;
   rejectMatchingApplication: (postId: string, applicationId: string) => void;
@@ -1121,6 +1129,48 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [isCourtBlockedByPension, getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
+  const createMatchingPostFromReservation = useCallback(
+    (input: {
+      reservationId: string;
+      ntrpRequirement: NTRP | 'any';
+      genderRequirement: GenderRequirement;
+      maxPlayers: number;
+      gameType: GameType;
+      description: string;
+    }) => {
+      const res = reservations.find((r) => r.id === input.reservationId);
+      if (!res) return { ok: false, reason: '예약을 찾을 수 없습니다.' };
+      if (res.type !== 'court') return { ok: false, reason: '코트 예약만 매칭 모집 가능합니다.' };
+      if (res.status !== '예약완료') return { ok: false, reason: '예약완료 건만 매칭 모집 가능합니다.' };
+      if (matchingPosts.some((p) => p.reservationIds.includes(res.id))) {
+        return { ok: false, reason: '이미 해당 예약으로 매칭글이 등록되어 있습니다.' };
+      }
+      const post: MatchingPost = {
+        id: crypto.randomUUID(),
+        reservationId: res.id,
+        reservationIds: [res.id],
+        userId: currentUserId,
+        date: res.date,
+        time: res.timeSlot || '',
+        court: res.targetId as CourtName,
+        ntrpRequirement: input.ntrpRequirement,
+        genderRequirement: input.genderRequirement,
+        maxPlayers: input.maxPlayers,
+        gameType: input.gameType,
+        description: input.description.slice(0, 500),
+        status: '모집중',
+        courtApproved: true,
+        applications: [],
+        createdAt: Date.now(),
+      };
+      setMatchingPosts((prev) => [post, ...prev]);
+      syncMatchingPost(post);
+      pushToast('매칭 모집글이 등록되었습니다.');
+      return { ok: true, post };
+    },
+    [reservations, matchingPosts, currentUserId, pushToast, syncMatchingPost],
+  );
+
   const applyMatching = useCallback(
     (postId: string, intro: string, gender?: ApplicantGender) => {
       const post = matchingPosts.find((p) => p.id === postId);
@@ -1348,6 +1398,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     approveReservation,
     rejectReservation,
     createMatchingPost,
+    createMatchingPostFromReservation,
     applyMatching,
     approveMatchingApplication,
     rejectMatchingApplication,

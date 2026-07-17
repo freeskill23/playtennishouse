@@ -5,11 +5,9 @@ import {
   Users,
   Clock,
   Phone,
-  XCircle,
   Plus,
   Hand,
   CheckCircle2,
-  Trash2,
   LogOut,
   Pencil,
   KeyRound,
@@ -36,13 +34,11 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     currentUser,
     reservations,
     matchingPosts,
-    cancelReservation,
-    createMatchingPost,
+    createMatchingPostFromReservation,
     getUser,
     updateCurrentUser,
   } = useApp();
   const { signOut, updateProfile, changePassword, uploadProfileImage } = useAuth();
-  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [matchingTarget, setMatchingTarget] = useState<string | null>(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [pwChangeOpen, setPwChangeOpen] = useState(false);
@@ -74,7 +70,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
 
   const handleCreateMatching = () => {
     if (!matchingTarget) return;
-    const res = createMatchingPost({ reservationId: matchingTarget, ...form });
+    const res = createMatchingPostFromReservation({ reservationId: matchingTarget, ...form });
     if (res.ok) {
       setMatchingTarget(null);
       setForm({
@@ -176,15 +172,6 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                       <StatusBadge status={r.status} />
                     </div>
                   </div>
-                  {(r.status === '신청' || r.status === '입금대기' || r.status === '승인대기' || r.status === '예약완료') && (
-                    <button
-                      onClick={() => setCancelTarget(r.id)}
-                      className="text-rose-500 hover:bg-rose-50 rounded-lg p-1.5 transition"
-                      aria-label="취소"
-                    >
-                      <XCircle size={18} />
-                    </button>
-                  )}
                 </div>
               </div>
             ))}
@@ -261,30 +248,6 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
           </div>
         )}
       </div>
-
-      {/* Cancel confirm */}
-      <Modal
-        open={!!cancelTarget}
-        onClose={() => setCancelTarget(null)}
-        title="예약 취소"
-        size="sm"
-        footer={
-          <>
-            <button className="btn-ghost" onClick={() => setCancelTarget(null)}>아니오</button>
-            <button
-              className="btn-danger"
-              onClick={() => {
-                if (cancelTarget) cancelReservation(cancelTarget);
-                setCancelTarget(null);
-              }}
-            >
-              <Trash2 size={16} /> 취소하기
-            </button>
-          </>
-        }
-      >
-        <p className="text-sm text-navy-800">정말 예약을 취소하시겠어요? 취소 후 복구할 수 없으며, 대기자가 있을 경우 자동 승격됩니다.</p>
-      </Modal>
 
       {/* Matching form */}
       <Modal
