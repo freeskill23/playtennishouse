@@ -45,7 +45,7 @@ const GENDER_LABEL: Record<GenderRequirement, string> = {
 type DetailKind = 'myMatching' | 'joinedMatching' | 'court' | 'pension' | null;
 
 export function HomeScreen({ go }: { go: (k: string) => void }) {
-  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl } = useApp();
+  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl, setFocusMatchingPostId } = useApp();
   const [detail, setDetail] = useState<DetailKind>(null);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -233,7 +233,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         size="md"
         footer={<button className="btn-ghost" onClick={() => setDetail(null)}>닫기</button>}
       >
-        <MatchingList posts={myMatchingPosts} getUser={getUser} emptyText="내가 만든 매칭이 없습니다" />
+        <MatchingList posts={myMatchingPosts} getUser={getUser} emptyText="내가 만든 매칭이 없습니다" onItemClick={(postId) => { setFocusMatchingPostId(postId); setDetail(null); go('matching'); }} />
       </Modal>
 
       <Modal
@@ -273,10 +273,12 @@ function MatchingList({
   posts,
   getUser,
   emptyText,
+  onItemClick,
 }: {
   posts: MatchingPost[];
   getUser: (id: string) => { name: string; profileImg: string } | undefined;
   emptyText: string;
+  onItemClick?: (postId: string) => void;
 }) {
   if (posts.length === 0) {
     return <EmptyState icon={<Users size={28} />} title={emptyText} />;
@@ -287,7 +289,11 @@ function MatchingList({
         const host = getUser(p.userId);
         const approved = p.applications.filter((a) => a.status === '승인').length;
         return (
-          <div key={p.id} className="rounded-2xl border border-slate-100 p-4">
+          <button
+            key={p.id}
+            onClick={() => onItemClick?.(p.id)}
+            className="rounded-2xl border border-slate-100 p-4 w-full text-left hover:border-navy-200 hover:shadow-sm transition-all"
+          >
             <div className="flex items-center gap-2.5">
               <img src={host?.profileImg} className="w-10 h-10 rounded-xl object-cover" alt="" />
               <div className="flex-1 min-w-0">
@@ -308,7 +314,7 @@ function MatchingList({
               <span className="chip bg-slate-100 text-slate-600">NTRP {p.ntrpRequirement === 'any' ? '무관' : `${p.ntrpRequirement}+`}</span>
               <span className="chip bg-slate-100 text-slate-600"><Users size={11} /> {approved + 1}/{p.maxPlayers}</span>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>

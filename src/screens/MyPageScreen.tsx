@@ -209,13 +209,6 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <StatBox label="예약" value={myReservations.filter((r) => r.status !== '취소').length} icon={<Ticket size={16} />} tone="navy" />
-        <StatBox label="모집 매칭" value={myMatchings.length} icon={<Users size={16} />} tone="volt" />
-        <StatBox label="신청 매칭" value={myAppliedMatchings.length} icon={<Hand size={16} />} tone="sky" />
-      </div>
-
       {/* My reservations - grouped by category */}
       <div>
         <SectionTitle title="내 예약" subtitle="예약 및 대기 내역" />
@@ -817,24 +810,4 @@ function PasswordChangeModal({
   );
 }
 
-function StatBox({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  tone: 'navy' | 'volt' | 'sky';
-}) {
-  const toneCls =
-    tone === 'navy' ? 'bg-navy-50 text-navy-700' : tone === 'volt' ? 'bg-volt-100 text-volt-700' : 'bg-sky-50 text-sky-700';
-  return (
-    <div className="card p-3.5">
-      <div className={`w-8 h-8 rounded-lg ${toneCls} flex items-center justify-center mb-1.5`}>{icon}</div>
-      <p className="text-xl font-extrabold text-navy-900">{value}</p>
-      <p className="text-xs text-slate-500">{label}</p>
-    </div>
-  );
-}
+

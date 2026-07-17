@@ -57,6 +57,7 @@ type ReservationRow = {
   created_at: number;
   matching_post_id: string | null;
   batch_id: string | null;
+  updated_at?: string | null;
 };
 
 function rowToReservation(r: ReservationRow): Reservation {
@@ -76,6 +77,7 @@ function rowToReservation(r: ReservationRow): Reservation {
     createdAt: r.created_at,
     matchingPostId: r.matching_post_id || undefined,
     batchId: r.batch_id || undefined,
+    updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
   };
 }
 
@@ -222,6 +224,10 @@ interface AppState {
   ) => 'available' | 'booked' | 'pending' | 'blocked';
   getReservationsByDate: (date: string) => Reservation[];
   getMatchingsByDate: (date: string) => MatchingPost[];
+
+  // cross-screen navigation: focus a matching post's applicant management
+  focusMatchingPostId: string | null;
+  setFocusMatchingPostId: (id: string | null) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -459,9 +465,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       return;
     }
     if (data) {
-      setReservations(data.map((r) => rowToReservation(r as ReservationRow)));
+      const rows = data.map((r) => rowToReservation(r as ReservationRow));
+      const now = Date.now();
+      const toPurge = rows.filter((r) => r.status === '취소' && r.updatedAt && now - r.updatedAt > 24 * 60 * 60 * 1000);
+      if (toPurge.length > 0) {
+        setReservations(rows.filter((r) => !toPurge.find((p) => p.id === r.id)));
+        toPurge.forEach((r) => deleteReservationFromSupabase(r.id));
+      } else {
+        setReservations(rows);
+      }
     }
-  }, []);
+  }, [deleteReservationFromSupabase]);
 
   useEffect(() => {
     if (!supabaseConfigured) return;
@@ -482,6 +496,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       clearInterval(poll);
     };
   }, [loadReservations]);
+
+  // Purge fully-cancelled reservations older than 24 hours from local state
+  useEffect(() => {
+    const purge = () => {
+      const now = Date.now();
+      setReservations((prev) => prev.filter((r) => !(r.status === '취소' && r.updatedAt && now - r.updatedAt > 24 * 60 * 60 * 1000)));
+    };
+    purge();
+    const interval = setInterval(purge, 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   // ===== Toast helpers =====
   const pushToast = useCallback((message: string, kind: Toast['kind'] = 'success') => {
     const id = uid('toast');
@@ -528,6 +553,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
+  const [focusMatchingPostId, setFocusMatchingPostId] = useState<string | null>(null);
 
   // Load all settings (pension prices, overrides, banner, logo) from Supabase
   useEffect(() => {
@@ -1048,7 +1074,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           pushToast(`${getUser(next.userId)?.name}님 입금 시간 초과, 다음 대기자에게 이양`, 'error');
           // recursively promote
           setTimeout(() => promoteNextWaiting({ ...cur, status: '취소' }), 50);
-          return prev.map((r) => (r.id === next.id ? { ...r, status: '취소', depositTimeoutUntil: null } : r));
+          return prev.map((r) => (r.id === next.id ? { ...r, status: '취소', depositTimeoutUntil: null, updatedAt: Date.now() } : r));
         });
       }, 2 * 60 * 60 * 1000);
     },
@@ -1060,7 +1086,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (id: string) => {
       const target = reservations.find((r) => r.id === id);
       if (!target) return;
-      const cancelled: Reservation = { ...target, status: '취소' as ReservationStatus, depositTimeoutUntil: null };
+      const cancelled: Reservation = { ...target, status: '취소' as ReservationStatus, depositTimeoutUntil: null, updatedAt: Date.now() };
       setReservations((prev) =>
         prev.map((r) => (r.id === id ? cancelled : r)),
       );
@@ -1162,7 +1188,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (id: string) => {
       const target = reservations.find((r) => r.id === id);
       if (!target) return;
-      const rejected: Reservation = { ...target, status: '취소' as ReservationStatus };
+      const rejected: Reservation = { ...target, status: '취소' as ReservationStatus, updatedAt: Date.now() };
       setReservations((prev) =>
         prev.map((r) => (r.id === id ? rejected : r)),
       );
@@ -1448,7 +1474,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         setReservations((prev) =>
           prev.map((r) => {
             if (!post.reservationIds.includes(r.id)) return r;
-            const cancelled = { ...r, status: '취소' as ReservationStatus };
+            const cancelled = { ...r, status: '취소' as ReservationStatus, updatedAt: Date.now() };
             upsertReservationToSupabase(cancelled);
             return cancelled;
           }),
@@ -1568,7 +1594,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           });
           pushToast(`${getUser(cur.userId)?.name}님 입금 시간 초과, 다음 대기자에게 이양`, 'error');
           setTimeout(() => promoteNextWaiting({ ...cur, status: '취소' }), 50);
-          return prev.map((r) => (r.id === id ? { ...r, status: '취소' as ReservationStatus, depositTimeoutUntil: null } : r));
+          return prev.map((r) => (r.id === id ? { ...r, status: '취소' as ReservationStatus, depositTimeoutUntil: null, updatedAt: Date.now() } : r));
         });
       }
     };
@@ -1641,6 +1667,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     getCourtSlotStatus,
     getReservationsByDate,
     getMatchingsByDate,
+    focusMatchingPostId,
+    setFocusMatchingPostId,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

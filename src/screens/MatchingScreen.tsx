@@ -57,6 +57,8 @@ export function MatchingScreen() {
     getCourtSlotStatus,
     isCourtBlockedByPension,
     tempHolidays,
+    focusMatchingPostId,
+    setFocusMatchingPostId,
   } = useApp();
   const [filterNtrp, setFilterNtrp] = useState<NTRP | 'any'>('any');
   const [filterGender, setFilterGender] = useState<GenderRequirement | 'all'>('all');
@@ -66,6 +68,14 @@ export function MatchingScreen() {
   const [contactModal, setContactModal] = useState<{ name: string; phone: string } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const selectedPost = selectedPostId ? matchingPosts.find((p) => p.id === selectedPostId) ?? null : null;
+
+  // Auto-open management modal when navigated from HomeScreen
+  useEffect(() => {
+    if (focusMatchingPostId) {
+      setSelectedPostId(focusMatchingPostId);
+      setFocusMatchingPostId(null);
+    }
+  }, [focusMatchingPostId, setFocusMatchingPostId]);
 
   useEffect(() => {
     const today = new Date();
