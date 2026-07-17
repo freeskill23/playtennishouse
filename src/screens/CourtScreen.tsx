@@ -10,8 +10,8 @@ import { COURT_TIME_SLOTS } from '../types';
 import type { CourtName } from '../types';
 
 const COURTS: { name: CourtName; desc: string; color: string }[] = [
-  { name: 'A코트', desc: '하드 코트 · 조명 완비 · 펜션 인접', color: 'bg-volt-500' },
-  { name: 'B코트', desc: '하드 코트 · 넓은 관람석 · 야간 조명', color: 'bg-navy-700' },
+  { name: 'A코트', desc: '인조잔디, 야간조명, 락커룸, 샤워실, 정식규격사이즈', color: 'bg-volt-500' },
+  { name: 'B코트', desc: '인조잔디, 야간조명, 락커룸, 샤워실, 정식규격사이즈', color: 'bg-navy-700' },
 ];
 
 export function CourtScreen() {
