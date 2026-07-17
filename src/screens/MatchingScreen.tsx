@@ -387,7 +387,12 @@ function ApplyOrManageModal({
                     <div className="flex items-center gap-3">
                       <img src={u?.profileImg} className="w-10 h-10 rounded-lg object-cover" alt="" />
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-navy-900 text-sm">{u?.name}</p>
+                        <p className="font-bold text-navy-900 text-sm">
+                          {u?.name}
+                          {app.status === '승인' && u?.phone && (
+                            <span className="ml-2 text-volt-700 font-medium normal-case">{u.phone}</span>
+                          )}
+                        </p>
                         <p className="text-xs text-slate-500">
                           NTRP {u?.ntrp} · {u?.career}{app.gender ? ` · ${app.gender === 'male' ? '남성' : '여성'}` : ''}
                         </p>
