@@ -156,9 +156,7 @@ export function AdminMembersScreen() {
       alert('동의한 회원이 없습니다.');
       return;
     }
-    const lines = consented.map((m) => `${m.name}\t${m.phone}`);
-    const header = `# 플테하 광고문자 발송목록\n# 생성일: ${new Date().toLocaleString('ko-KR')}\n# 동의 회원 수: ${consented.length}명\n# 형식: 이름\t전화번호\n\n`;
-    const content = header + lines.join('\n') + '\n';
+    const content = consented.map((m) => m.phone).join('\n') + '\n';
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
