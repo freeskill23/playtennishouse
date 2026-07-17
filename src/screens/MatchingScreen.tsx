@@ -53,6 +53,7 @@ export function MatchingScreen() {
     rejectMatchingApplication,
     createMatchingPost,
     closeMatching,
+    deleteMatchingPost,
     getCourtSlotStatus,
     isCourtBlockedByPension,
   } = useApp();
@@ -64,14 +65,39 @@ export function MatchingScreen() {
   const [contactModal, setContactModal] = useState<{ name: string; phone: string } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const filtered = useMemo(() => {
-    return matchingPosts.filter((p) => {
-      if (p.status !== '대관대기' && p.status !== '모집중' && p.status !== '모집완료') return false;
-      if (filterNtrp !== 'any' && p.ntrpRequirement !== 'any' && p.ntrpRequirement !== filterNtrp) return false;
-      if (filterGender !== 'all' && p.genderRequirement !== filterGender) return false;
-      if (filterDate && p.date !== filterDate) return false;
-      return true;
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    matchingPosts.forEach((p) => {
+      if (new Date(p.date) < twoDaysAgo) {
+        deleteMatchingPost(p.id);
+      }
     });
+  }, []);
+
+  const filtered = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+    return matchingPosts
+      .filter((p) => {
+        if (p.status !== '대관대기' && p.status !== '모집중' && p.status !== '모집완료') return false;
+        if (filterNtrp !== 'any' && p.ntrpRequirement !== 'any' && p.ntrpRequirement !== filterNtrp) return false;
+        if (filterGender !== 'all' && p.genderRequirement !== filterGender) return false;
+        if (filterDate && p.date !== filterDate) return false;
+        const postDate = new Date(p.date);
+        if (postDate < twoDaysAgo) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const da = a.date + ' ' + a.time.split('-')[0];
+        const db = b.date + ' ' + b.time.split('-')[0];
+        return da.localeCompare(db);
+      });
   }, [matchingPosts, filterNtrp, filterGender, filterDate]);
 
   const handleApply = (post: MatchingPost, intro: string, gender?: ApplicantGender) => {
@@ -235,9 +261,9 @@ export function MatchingScreen() {
                     <button
                       onClick={() => setSelectedPost(post)}
                       className="btn-primary flex-1"
-                      disabled={approvedCount >= post.maxPlayers - 1 || !post.courtApproved}
+                      disabled={post.status === '모집완료' || approvedCount >= post.maxPlayers - 1 || !post.courtApproved}
                     >
-                      <UserPlus size={16} /> {post.courtApproved ? '매칭 신청하기' : '대관 승인 대기 중'}
+                      <UserPlus size={16} /> {post.status === '모집완료' ? '모집 완료' : post.courtApproved ? '매칭 신청하기' : '대관 승인 대기 중'}
                     </button>
                   )}
                 </div>
