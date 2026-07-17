@@ -20,7 +20,10 @@ import type { MatchingPost, GameType, GenderRequirement } from '../../types';
 const GAME_TYPE_LABEL: Record<GameType, string> = {
   singles: '단식',
   doubles: '복식',
-  mixed: '혼성',
+  mixed: '혼복',
+  women_doubles: '여복',
+  men_doubles: '남복',
+  any: '무관',
 };
 const GENDER_LABEL: Record<GenderRequirement, string> = {
   male: '남성',

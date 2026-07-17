@@ -57,7 +57,7 @@ export interface Reservation {
 }
 
 export type MatchingStatus = '모집중' | '모집완료' | '종료';
-export type GameType = 'singles' | 'doubles' | 'mixed';
+export type GameType = 'singles' | 'doubles' | 'mixed' | 'women_doubles' | 'men_doubles' | 'any';
 export type GenderRequirement = 'male' | 'female' | 'any';
 
 export interface MatchingApplication {

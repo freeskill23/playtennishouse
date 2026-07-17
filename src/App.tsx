@@ -150,21 +150,28 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function useTabHistory<T extends string>(initial: T) {
-  const [tab, setTab] = useState<T>(initial);
+function useTabHistory<T extends string>(initial: T, storageKey: string) {
+  const [tab, setTab] = useState<T>(() => {
+    const saved = sessionStorage.getItem(storageKey);
+    return (saved as T) || initial;
+  });
 
   useEffect(() => {
-    window.history.replaceState({ tab: initial, idx: 0 }, '');
+    window.history.replaceState({ tab, idx: 0 }, '');
     const onPop = (e: PopStateEvent) => {
       const st = e.state as { tab?: T } | null;
-      if (st?.tab) setTab(st.tab);
+      if (st?.tab) {
+        setTab(st.tab);
+        sessionStorage.setItem(storageKey, st.tab);
+      }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [initial]);
+  }, [tab, storageKey]);
 
   const go = (k: T) => {
     setTab(k);
+    sessionStorage.setItem(storageKey, k);
     window.history.pushState({ tab: k }, '');
   };
 
@@ -174,7 +181,7 @@ function useTabHistory<T extends string>(initial: T) {
 function UserShell() {
   const { currentUser, logoImageUrl } = useApp();
   const { signOut } = useAuth();
-  const { tab, go: goRaw } = useTabHistory<UserTab>('home');
+  const { tab, go: goRaw } = useTabHistory<UserTab>('home', 'user_tab');
   const [mobileMenu, setMobileMenu] = useState(false);
 
   const go = (k: string) => {
@@ -281,7 +288,7 @@ function UserShell() {
 function AdminShell() {
   const { notifications, logoImageUrl } = useApp();
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === '1');
-  const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard');
+  const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard', 'admin_tab');
   const [mobileMenu, setMobileMenu] = useState(false);
 
   if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;

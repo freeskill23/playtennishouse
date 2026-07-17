@@ -329,14 +329,14 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
           </div>
           <div>
             <label className="label">게임 유형</label>
-            <div className="flex gap-1.5">
-              {(['singles', 'doubles', 'mixed'] as const).map((g) => (
+            <div className="flex gap-1.5 flex-wrap">
+              {(['singles', 'doubles', 'mixed', 'women_doubles', 'men_doubles', 'any'] as const).map((g) => (
                 <button
                   key={g}
                   onClick={() => setForm((f) => ({ ...f, gameType: g }))}
                   className={`chip ${form.gameType === g ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600'}`}
                 >
-                  {g === 'singles' ? '단식' : g === 'doubles' ? '복식' : '혼성'}
+                  {g === 'singles' ? '단식' : g === 'doubles' ? '복식' : g === 'mixed' ? '혼복' : g === 'women_doubles' ? '여복' : g === 'men_doubles' ? '남복' : '무관'}
                 </button>
               ))}
             </div>

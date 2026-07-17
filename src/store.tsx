@@ -267,6 +267,58 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
   const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(initialMatchingPosts);
+
+  const syncMatchingPost = useCallback(async (post: MatchingPost) => {
+    if (!supabaseConfigured) return;
+    const { error } = await supabase.from('matching_posts').upsert({
+      id: post.id,
+      reservation_id: post.reservationId,
+      user_id: post.userId,
+      date: post.date,
+      time: post.time,
+      court: post.court,
+      ntrp_requirement: post.ntrpRequirement,
+      gender_requirement: post.genderRequirement,
+      max_players: post.maxPlayers,
+      game_type: post.gameType,
+      description: post.description,
+      status: post.status,
+      applications: post.applications,
+      created_at: post.createdAt,
+    });
+    if (error) console.error('matching_posts sync failed', error);
+  }, []);
+
+  // Load matching posts from Supabase so they survive refresh
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase
+        .from('matching_posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        setMatchingPosts(
+          data.map((p) => ({
+            id: p.id as string,
+            reservationId: p.reservation_id as string,
+            userId: p.user_id as string,
+            date: p.date as string,
+            time: p.time as string,
+            court: p.court as CourtName,
+            ntrpRequirement: p.ntrp_requirement as NTRP | 'any',
+            genderRequirement: p.gender_requirement as GenderRequirement,
+            maxPlayers: p.max_players as number,
+            gameType: p.game_type as GameType,
+            description: p.description as string,
+            status: p.status as MatchingStatus,
+            applications: (p.applications as MatchingApplication[]) || [],
+            createdAt: p.created_at as number,
+          })),
+        );
+      }
+    })();
+  }, []);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
 
   // Load notices from Supabase so admin edits are shared across sessions
@@ -982,6 +1034,26 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
       };
       setMatchingPosts((prev) => [post, ...prev]);
+      if (supabaseConfigured) {
+        supabase.from('matching_posts').upsert({
+          id: post.id,
+          reservation_id: post.reservationId,
+          user_id: post.userId,
+          date: post.date,
+          time: post.time,
+          court: post.court,
+          ntrp_requirement: post.ntrpRequirement,
+          gender_requirement: post.genderRequirement,
+          max_players: post.maxPlayers,
+          game_type: post.gameType,
+          description: post.description,
+          status: post.status,
+          applications: post.applications,
+          created_at: post.createdAt,
+        }).then(({ error }) => {
+          if (error) console.error('matching_posts upsert failed', error);
+        });
+      }
       addNotification({
         kind: 'matching_new',
         title: '새 매칭 모집',
@@ -1014,9 +1086,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         intro: intro.slice(0, 100),
       };
       setMatchingPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId ? { ...p, applications: [...p.applications, app] } : p,
-        ),
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const updated = { ...p, applications: [...p.applications, app] };
+          syncMatchingPost(updated);
+          return updated;
+        }),
       );
       pushToast('매칭 신청 완료! 호스트 승인 후 연락처가 공개됩니다.');
       return { ok: true };
@@ -1044,7 +1119,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
               targetUserId: app.userId,
             });
           }
-          return { ...p, applications: apps, status };
+          const updated = { ...p, applications: apps, status };
+          syncMatchingPost(updated);
+          return updated;
         }),
       );
       pushToast('매칭 신청을 승인했습니다.');
@@ -1069,7 +1146,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
               targetUserId: app.userId,
             });
           }
-          return { ...p, applications: apps };
+          const updated = { ...p, applications: apps };
+          syncMatchingPost(updated);
+          return updated;
         }),
       );
       pushToast('매칭 신청을 거절했습니다.', 'info');
@@ -1080,7 +1159,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const closeMatching = useCallback(
     (postId: string) => {
       setMatchingPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, status: '종료' } : p)),
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const updated = { ...p, status: '종료' as const };
+          syncMatchingPost(updated);
+          return updated;
+        }),
       );
       pushToast('매칭을 종료했습니다.', 'info');
     },
