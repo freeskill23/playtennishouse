@@ -62,9 +62,10 @@ export function MatchingScreen() {
   const [filterGender, setFilterGender] = useState<GenderRequirement | 'all'>('all');
   const [filterDate, setFilterDate] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<MatchingPost | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [contactModal, setContactModal] = useState<{ name: string; phone: string } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const selectedPost = selectedPostId ? matchingPosts.find((p) => p.id === selectedPostId) ?? null : null;
 
   useEffect(() => {
     const today = new Date();
@@ -103,7 +104,7 @@ export function MatchingScreen() {
 
   const handleApply = (post: MatchingPost, intro: string, gender?: ApplicantGender) => {
     const res = applyMatching(post.id, intro, gender);
-    if (res.ok) setSelectedPost(null);
+    if (res.ok) setSelectedPostId(null);
   };
 
   const handleApprove = (post: MatchingPost, appId: string) => {
@@ -236,7 +237,7 @@ export function MatchingScreen() {
                 <div className="mt-4 flex gap-2">
                   {isHost ? (
                     <button
-                      onClick={() => setSelectedPost(post)}
+                      onClick={() => setSelectedPostId(post.id)}
                       className="btn-navy flex-1"
                     >
                       <MessageSquare size={16} /> 신청자 관리 ({post.applications.filter(a => a.status === '대기').length})
@@ -263,7 +264,7 @@ export function MatchingScreen() {
                     )
                   ) : (
                     <button
-                      onClick={() => setSelectedPost(post)}
+                      onClick={() => setSelectedPostId(post.id)}
                       className="btn-primary flex-1"
                       disabled={post.status === '모집완료' || approvedCount >= post.maxPlayers - 1 || !post.courtApproved}
                     >
@@ -280,7 +281,7 @@ export function MatchingScreen() {
       {/* Detail / apply modal */}
       <Modal
         open={!!selectedPost}
-        onClose={() => setSelectedPost(null)}
+        onClose={() => setSelectedPostId(null)}
         title={selectedPost && selectedPost.userId === currentUser.id ? '신청자 관리' : '매칭 신청'}
         size={selectedPost && selectedPost.userId === currentUser.id ? 'md' : 'sm'}
       >
@@ -295,7 +296,7 @@ export function MatchingScreen() {
             onShowContact={(name, phone) => setContactModal({ name, phone })}
             onCloseMatching={(postId) => {
               closeMatching(postId);
-              setSelectedPost(null);
+              setSelectedPostId(null);
             }}
           />
         )}

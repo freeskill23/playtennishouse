@@ -235,11 +235,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const uploadProfileImage = useCallback(
     async (file: File) => {
       if (!user) return { ok: false, error: '로그인이 필요합니다.' };
-      const ext = file.name.split('.').pop() || 'jpg';
+      const MAX_SIZE = 512;
+      const QUALITY = 0.85;
+      const resized = await new Promise<File | null>((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let { width, height } = img;
+          if (width > height && width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => resolve(blob ? new File([blob], 'avatar.jpg', { type: 'image/jpeg' }) : null),
+            'image/jpeg',
+            QUALITY,
+          );
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+      });
+      const finalFile = resized || file;
+      const ext = finalFile.name.split('.').pop() || 'jpg';
       const path = `${user.id}/avatar-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from('profile-images')
-        .upload(path, file, { cacheControl: '3600', upsert: true });
+        .upload(path, finalFile, { cacheControl: '3600', upsert: true });
       if (upErr) return { ok: false, error: upErr.message };
       const { data } = supabase.storage.from('profile-images').getPublicUrl(path);
       return { ok: true, url: data.publicUrl };
