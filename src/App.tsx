@@ -21,19 +21,21 @@ import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Images } from 'lucide-react';
 import { HomeScreen } from './screens/HomeScreen';
 import { PensionScreen } from './screens/PensionScreen';
 import { CourtScreen } from './screens/CourtScreen';
 import { MatchingScreen } from './screens/MatchingScreen';
 import { MyPageScreen } from './screens/MyPageScreen';
 import { NoticesScreen } from './screens/NoticesScreen';
+import { GalleryScreen } from './screens/GalleryScreen';
 import { AdminDashboardScreen } from './screens/admin/AdminDashboardScreen';
 import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
 import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
 import { AdminNotificationScreen } from './screens/admin/AdminNotificationScreen';
 import { AdminMembersScreen } from './screens/admin/AdminMembersScreen';
 import { AdminMatchingScreen } from './screens/admin/AdminMatchingScreen';
+import { AdminGalleryScreen } from './screens/admin/AdminGalleryScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import type { AuthUser } from './lib/auth';
 
@@ -52,8 +54,8 @@ const ADMIN_AUTH_USER: AuthUser = {
   bio: '플테하 운영진',
 };
 
-type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'notification';
+type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'mypage';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'notification';
 
 const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
@@ -61,6 +63,7 @@ const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'court', label: '코트예약', icon: CalendarRange },
   { key: 'matching', label: '매칭', icon: Users },
   { key: 'notices', label: '공지', icon: Megaphone },
+  { key: 'gallery', label: '갤러리', icon: Images },
   { key: 'mypage', label: '내예약', icon: Ticket },
 ];
 
@@ -70,6 +73,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'members', label: '회원목록', icon: Users },
   { key: 'matching', label: '매칭관리', icon: Users },
   { key: 'notice', label: '공지관리', icon: Megaphone },
+  { key: 'gallery', label: '갤러리관리', icon: Images },
   { key: 'notification', label: '알림로그', icon: Bell },
 ];
 
@@ -268,6 +272,7 @@ function UserShell() {
         {tab === 'court' && <CourtScreen />}
         {tab === 'matching' && <MatchingScreen />}
         {tab === 'notices' && <NoticesScreen />}
+        {tab === 'gallery' && <GalleryScreen />}
         {tab === 'mypage' && <MyPageScreen go={go} />}
       </main>
 
@@ -384,6 +389,7 @@ function AdminShell() {
         {tab === 'members' && <AdminMembersScreen />}
         {tab === 'matching' && <AdminMatchingScreen />}
         {tab === 'notice' && <AdminNoticeScreen />}
+        {tab === 'gallery' && <AdminGalleryScreen />}
         {tab === 'notification' && <AdminNotificationScreen />}
       </main>
 

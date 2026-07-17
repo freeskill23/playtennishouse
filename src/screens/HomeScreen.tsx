@@ -45,15 +45,20 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
   const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl } = useApp();
   const [detail, setDetail] = useState<DetailKind>(null);
 
-  const myMatchingPosts = matchingPosts.filter((m) => m.userId === currentUser.id);
-  const joinedMatchings = matchingPosts.filter((m) =>
-    m.applications.some((a) => a.userId === currentUser.id && a.status === '승인'),
+  const today = new Date().toISOString().slice(0, 10);
+  const isUpcoming = (date: string) => date >= today;
+
+  const myMatchingPosts = matchingPosts.filter((m) => m.userId === currentUser.id && isUpcoming(m.date));
+  const joinedMatchings = matchingPosts.filter(
+    (m) =>
+      m.applications.some((a) => a.userId === currentUser.id && a.status === '승인') &&
+      isUpcoming(m.date),
   );
   const myCourtReservations = reservations.filter(
-    (r) => r.userId === currentUser.id && r.type === 'court' && r.status !== '취소',
+    (r) => r.userId === currentUser.id && r.type === 'court' && r.status !== '취소' && isUpcoming(r.date),
   );
   const myPensionReservations = reservations.filter(
-    (r) => r.userId === currentUser.id && r.type === 'pension' && r.status !== '취소',
+    (r) => r.userId === currentUser.id && r.type === 'pension' && r.status !== '취소' && isUpcoming(r.date),
   );
 
   const cards = [

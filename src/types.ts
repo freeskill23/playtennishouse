@@ -93,6 +93,13 @@ export interface MatchingPost {
   createdAt: number;
 }
 
+export interface GalleryItem {
+  id: string;
+  imageUrl: string;
+  summary: string;
+  createdAt: number;
+}
+
 export type NoticeType = '이벤트' | '우천' | '환불' | '이용수칙';
 
 export interface Notice {

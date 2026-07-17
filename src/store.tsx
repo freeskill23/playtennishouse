@@ -13,6 +13,7 @@ import type {
   Reservation,
   MatchingPost,
   Notice,
+  GalleryItem,
   AppNotification,
   ReservationType,
   ReservationStatus,
@@ -114,6 +115,7 @@ interface AppState {
   reservations: Reservation[];
   matchingPosts: MatchingPost[];
   notices: Notice[];
+  galleryItems: GalleryItem[];
   notifications: AppNotification[];
 
   // derived helpers
@@ -165,6 +167,10 @@ interface AppState {
   // notices
   createNotice: (n: { title: string; content: string; type: NoticeType }) => void;
   deleteNotice: (id: string) => void;
+
+  // gallery
+  createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
+  deleteGalleryItem: (id: string) => void;
 
   // notifications
   markNotificationRead: (id: string) => void;
@@ -369,6 +375,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     };
   }, [loadMatchingPosts]);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
   // Load notices from Supabase so admin edits are shared across sessions
   useEffect(() => {
@@ -386,6 +393,27 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             content: n.content as string,
             type: n.type as NoticeType,
             createdAt: n.created_at as number,
+          })),
+        );
+      }
+    })();
+  }, []);
+
+  // Load gallery items from Supabase
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase
+        .from('gallery_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        setGalleryItems(
+          data.map((g) => ({
+            id: g.id as string,
+            imageUrl: g.image_url as string,
+            summary: g.summary as string,
+            createdAt: g.created_at as number,
           })),
         );
       }
@@ -1336,6 +1364,44 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  // ===== Gallery =====
+  const createGalleryItem = useCallback(
+    (input: { imageUrl: string; summary: string }) => {
+      const item: GalleryItem = {
+        id: uid('g'),
+        imageUrl: input.imageUrl,
+        summary: input.summary,
+        createdAt: Date.now(),
+      };
+      setGalleryItems((prev) => [item, ...prev]);
+      if (supabaseConfigured) {
+        supabase.from('gallery_items').insert({
+          id: item.id,
+          image_url: item.imageUrl,
+          summary: item.summary,
+          created_at: item.createdAt,
+        }).then(({ error }) => {
+          if (error) pushToast('갤러리 저장 실패: ' + error.message, 'error');
+        });
+      }
+      pushToast('갤러리가 등록되었습니다.');
+    },
+    [pushToast],
+  );
+
+  const deleteGalleryItem = useCallback(
+    (id: string) => {
+      setGalleryItems((prev) => prev.filter((g) => g.id !== id));
+      if (supabaseConfigured) {
+        supabase.from('gallery_items').delete().eq('id', id).then(({ error }) => {
+          if (error) pushToast('갤러리 삭제 실패: ' + error.message, 'error');
+        });
+      }
+      pushToast('갤러리가 삭제되었습니다.', 'info');
+    },
+    [pushToast],
+  );
+
   // ===== Notifications =====
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -1387,6 +1453,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     reservations,
     matchingPosts,
     notices,
+    galleryItems,
     notifications,
     currentUser,
     getUser,
@@ -1406,6 +1473,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     deleteMatchingPost,
     createNotice,
     deleteNotice,
+    createGalleryItem,
+    deleteGalleryItem,
     markNotificationRead,
     markAllNotificationsRead,
     toasts,
