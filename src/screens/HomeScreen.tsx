@@ -5,6 +5,7 @@ import {
   Users,
   Megaphone,
   Ticket,
+  Images,
   Hand,
   CheckCircle2,
   Clock,
@@ -22,6 +23,7 @@ const QUICK_MENUS = [
   { key: 'court', label: '코트예약', icon: CalendarRange, color: 'bg-navy-700', desc: '2시간 단위' },
   { key: 'matching', label: '매칭', icon: Users, color: 'bg-sky-500', desc: '메이트 모집' },
   { key: 'notices', label: '공지', icon: Megaphone, color: 'bg-clay-400', desc: '이벤트·안내' },
+  { key: 'gallery', label: '갤러리', icon: Images, color: 'bg-amber-500', desc: '플테하 순간' },
   { key: 'mypage', label: '내예약', icon: Ticket, color: 'bg-rose-500', desc: '예약·매칭 내역' },
 ] as const;
 
