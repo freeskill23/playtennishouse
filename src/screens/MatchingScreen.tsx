@@ -307,6 +307,7 @@ export function MatchingScreen() {
         bankAccount={BANK_ACCOUNT}
         userName={currentUser.name}
         userPhone={currentUser.phone}
+        tempHolidays={tempHolidays}
       />
 
       {/* Contact modal */}
@@ -538,6 +539,7 @@ function CreateMatchingModal({
   bankAccount: { bank: string; number: string; holder: string };
   userName: string;
   userPhone: string;
+  tempHolidays: string[];
 }) {
   const [date, setDate] = useState(todayYMD());
   const [court, setCourt] = useState<CourtName>('A코트');
