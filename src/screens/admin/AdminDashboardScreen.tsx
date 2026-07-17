@@ -46,6 +46,7 @@ export function AdminDashboardScreen() {
     tempHolidays,
     toggleHoliday,
     isHoliday,
+    reservations,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [date, setDate] = useState(todayYMD());
@@ -62,7 +63,7 @@ export function AdminDashboardScreen() {
     setRoomEdits(Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])));
   }, [rooms]);
 
-  const dayReservations = getReservationsByDate(date);
+  const dayReservations = reservations.filter((r) => r.date === date);
   const dayMatchings = getMatchingsByDate(date);
 
   const pensionReservations = dayReservations.filter((r) => r.type === 'pension');
@@ -635,8 +636,11 @@ export function AdminDashboardScreen() {
               <div className="space-y-1">
                 {COURT_TIME_SLOTS.map((slot) => {
                   const status = getCourtSlotStatus(date, court, slot);
-                  const res = courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null);
+                  const res = courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status !== '취소')
+                    || courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status === '취소')
+                    || null;
                   const u = res ? getUser(res.userId) : null;
+                  const isCancelled = res?.status === '취소';
                   return (
                     <div
                       key={slot}
@@ -647,17 +651,19 @@ export function AdminDashboardScreen() {
                             ? 'bg-amber-50 text-navy-900'
                             : status === 'blocked'
                               ? 'bg-slate-100 text-slate-400'
-                              : 'bg-slate-50 text-slate-500'
+                              : isCancelled
+                                ? 'bg-rose-50 text-rose-400'
+                                : 'bg-slate-50 text-slate-500'
                       }`}
                     >
                       <Clock size={13} className="shrink-0" />
-                      <span className="font-semibold w-28 shrink-0">{slot}</span>
-                      {status === 'available' && <span className="text-xs">예약가능</span>}
+                      <span className={`font-semibold w-28 shrink-0 ${isCancelled ? 'line-through' : ''}`}>{slot}</span>
+                      {status === 'available' && !isCancelled && <span className="text-xs">예약가능</span>}
                       {status === 'blocked' && (
                         <span className="text-xs flex items-center gap-1"><Lock size={11} /> 펜션전용</span>
                       )}
                       {res && u && (
-                        <span className="flex-1 min-w-0 truncate text-xs">
+                        <span className={`flex-1 min-w-0 truncate text-xs ${isCancelled ? 'line-through' : ''}`}>
                           {u.name} {res.capacity ? `· ${res.capacity}명` : ''}
                         </span>
                       )}
