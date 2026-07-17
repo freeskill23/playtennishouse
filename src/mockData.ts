@@ -174,6 +174,7 @@ export const initialMatchingPosts: MatchingPost[] = [
   {
     id: 'm1',
     reservationId: 'r1',
+    reservationIds: ['r1'],
     userId: 'u1',
     date: addDays(2),
     time: '15:00-17:00',
@@ -184,6 +185,7 @@ export const initialMatchingPosts: MatchingPost[] = [
     gameType: 'doubles',
     description: 'A동 묵는 분들 같이 복식 한 게임 어때요! 편하게 신청주세요.',
     status: '모집중',
+    courtApproved: true,
     applications: [
       {
         id: 'a1',
@@ -191,6 +193,7 @@ export const initialMatchingPosts: MatchingPost[] = [
         status: '대기',
         appliedAt: Date.now() - 3600000,
         intro: 'NTRP 3.0 복식 즐겨요. 잘 부탁드립니다!',
+        gender: 'male',
       },
     ],
     createdAt: Date.now() - 7200000,
@@ -198,6 +201,7 @@ export const initialMatchingPosts: MatchingPost[] = [
   {
     id: 'm2',
     reservationId: 'r2',
+    reservationIds: ['r2'],
     userId: 'u2',
     date: addDays(3),
     time: '15:00-17:00',
@@ -208,6 +212,7 @@ export const initialMatchingPosts: MatchingPost[] = [
     gameType: 'doubles',
     description: '여성분 복식 메이트 구합니다. NTRP 3.5 이상.',
     status: '모집중',
+    courtApproved: true,
     applications: [],
     createdAt: Date.now() - 1800000,
   },

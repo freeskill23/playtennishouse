@@ -94,6 +94,11 @@ export function AdminMatchingScreen() {
                       <span className={`chip ${post.status === '모집중' ? 'bg-volt-100 text-volt-800' : post.status === '모집완료' ? 'bg-navy-100 text-navy-700' : 'bg-slate-100 text-slate-500'}`}>
                         {post.status}
                       </span>
+                      {!post.courtApproved && (
+                        <span className="chip bg-amber-100 text-amber-700">
+                          <Clock size={11} /> 대관 승인 대기
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-500">
                       <span className="flex items-center gap-1"><Calendar size={12} /> {post.date}</span>
@@ -171,7 +176,7 @@ export function AdminMatchingScreen() {
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-navy-900 text-sm">{u?.name}</p>
                             <p className="text-xs text-slate-500">
-                              NTRP {u?.ntrp} · {u?.career} · {u?.phone}
+                              NTRP {u?.ntrp} · {u?.career} · {u?.phone}{app.gender ? ` · ${app.gender === 'male' ? '남성' : '여성'}` : ''}
                             </p>
                           </div>
                           {app.status === '승인' ? (

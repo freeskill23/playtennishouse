@@ -60,12 +60,15 @@ export type MatchingStatus = '모집중' | '모집완료' | '종료';
 export type GameType = 'singles' | 'doubles' | 'mixed' | 'women_doubles' | 'men_doubles' | 'any';
 export type GenderRequirement = 'male' | 'female' | 'any';
 
+export type ApplicantGender = 'male' | 'female';
+
 export interface MatchingApplication {
   id: string;
   userId: string;
   status: '대기' | '승인' | '거절';
   appliedAt: number;
   intro: string; // 한줄 소개
+  gender?: ApplicantGender; // 신청자 성별
 }
 
 export const MATCHING_MAX_PLAYERS = 6;
@@ -73,6 +76,7 @@ export const MATCHING_MAX_PLAYERS = 6;
 export interface MatchingPost {
   id: string;
   reservationId: string;
+  reservationIds: string[];
   userId: string;
   date: string;
   time: string;
@@ -83,6 +87,7 @@ export interface MatchingPost {
   gameType: GameType;
   description: string;
   status: MatchingStatus;
+  courtApproved: boolean;
   applications: MatchingApplication[];
   createdAt: number;
 }

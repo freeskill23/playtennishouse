@@ -214,7 +214,7 @@ export function AdminApprovalScreen() {
                     <img src={u?.profileImg} className="w-10 h-10 rounded-lg object-cover" alt="" />
                     <div className="flex-1">
                       <p className="font-bold text-navy-900 text-sm">{u?.name}</p>
-                      <p className="text-xs text-slate-500">NTRP {u?.ntrp} · {u?.career} · {u?.phone}</p>
+                      <p className="text-xs text-slate-500">NTRP {u?.ntrp} · {u?.career} · {u?.phone}{app.gender ? ` · ${app.gender === 'male' ? '남성' : '여성'}` : ''}</p>
                     </div>
                     <button
                       onClick={() => {

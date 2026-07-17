@@ -20,6 +20,7 @@ import type {
   RoomName,
   NoticeType,
   MatchingApplication,
+  ApplicantGender,
   GameType,
   GenderRequirement,
   NTRP,
@@ -144,7 +145,7 @@ interface AppState {
     gameType: GameType;
     description: string;
   }) => { ok: boolean; reason?: string; post?: MatchingPost };
-  applyMatching: (postId: string, intro: string) => { ok: boolean; reason?: string };
+  applyMatching: (postId: string, intro: string, gender?: ApplicantGender) => { ok: boolean; reason?: string };
   approveMatchingApplication: (postId: string, applicationId: string) => void;
   rejectMatchingApplication: (postId: string, applicationId: string) => void;
   closeMatching: (postId: string) => void;
@@ -273,6 +274,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const { error } = await supabase.from('matching_posts').upsert({
       id: post.id,
       reservation_id: post.reservationId,
+      reservation_ids: post.reservationIds,
       user_id: post.userId,
       date: post.date,
       time: post.time,
@@ -283,6 +285,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       game_type: post.gameType,
       description: post.description,
       status: post.status,
+      court_approved: post.courtApproved,
       applications: post.applications,
       created_at: post.createdAt,
     });
@@ -302,6 +305,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           data.map((p) => ({
             id: p.id as string,
             reservationId: p.reservation_id as string,
+            reservationIds: (p.reservation_ids as string[]) || [],
             userId: p.user_id as string,
             date: p.date as string,
             time: p.time as string,
@@ -312,6 +316,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             gameType: p.game_type as GameType,
             description: p.description as string,
             status: p.status as MatchingStatus,
+            courtApproved: (p.court_approved as boolean) ?? false,
             applications: (p.applications as MatchingApplication[]) || [],
             createdAt: p.created_at as number,
           })),
@@ -942,10 +947,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         const updated = prev.map((r) => (r.id === id ? { ...r, status: '예약완료' as ReservationStatus } : r));
         const approved = updated.find((r) => r.id === id);
         if (approved) upsertReservationToSupabase(approved);
+
+        // Activate matching post if this reservation belongs to one
+        setMatchingPosts((mpPrev) => {
+          const mp = mpPrev.find((p) => p.reservationIds.includes(id));
+          if (!mp || mp.courtApproved) return mpPrev;
+          const allApproved = mp.reservationIds.every((rid) =>
+            updated.find((r) => r.id === rid)?.status === '예약완료',
+          );
+          if (!allApproved) return mpPrev;
+          const activated = { ...mp, courtApproved: true };
+          syncMatchingPost(activated);
+          return mpPrev.map((p) => (p.id === mp.id ? activated : p));
+        });
+
         return updated;
       });
     },
-    [addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
   );
 
   const rejectReservation = useCallback(
@@ -1017,9 +1036,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       newReservations.forEach((r) => upsertReservationToSupabase(r));
 
       const reservationId = newReservations[0].id;
+      const reservationIds = newReservations.map((r) => r.id);
       const post: MatchingPost = {
         id: uid('m'),
         reservationId,
+        reservationIds,
         userId: currentUserId,
         date: input.date,
         time: input.timeSlots.join(', '),
@@ -1030,30 +1051,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         gameType: input.gameType,
         description: input.description,
         status: '모집중',
+        courtApproved: false,
         applications: [],
         createdAt: Date.now(),
       };
       setMatchingPosts((prev) => [post, ...prev]);
-      if (supabaseConfigured) {
-        supabase.from('matching_posts').upsert({
-          id: post.id,
-          reservation_id: post.reservationId,
-          user_id: post.userId,
-          date: post.date,
-          time: post.time,
-          court: post.court,
-          ntrp_requirement: post.ntrpRequirement,
-          gender_requirement: post.genderRequirement,
-          max_players: post.maxPlayers,
-          game_type: post.gameType,
-          description: post.description,
-          status: post.status,
-          applications: post.applications,
-          created_at: post.createdAt,
-        }).then(({ error }) => {
-          if (error) console.error('matching_posts upsert failed', error);
-        });
-      }
+      syncMatchingPost(post);
       addNotification({
         kind: 'matching_new',
         title: '새 매칭 모집',
@@ -1067,9 +1070,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   const applyMatching = useCallback(
-    (postId: string, intro: string) => {
+    (postId: string, intro: string, gender?: ApplicantGender) => {
       const post = matchingPosts.find((p) => p.id === postId);
       if (!post) return { ok: false, reason: '매칭글을 찾을 수 없습니다.' };
+      if (!post.courtApproved) return { ok: false, reason: '아직 코트 대관 승인 대기 중입니다. 관리자 승인 후 신청 가능합니다.' };
       if (post.userId === currentUserId) return { ok: false, reason: '본인 매칭글에는 신청할 수 없습니다.' };
       if (post.applications.some((a) => a.userId === currentUserId)) {
         return { ok: false, reason: '이미 신청한 매칭입니다.' };
@@ -1084,6 +1088,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         status: '대기',
         appliedAt: Date.now(),
         intro: intro.slice(0, 100),
+        gender,
       };
       setMatchingPosts((prev) =>
         prev.map((p) => {

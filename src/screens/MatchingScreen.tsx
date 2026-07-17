@@ -24,7 +24,7 @@ import { Calendar as CalendarPicker, todayYMD } from '../components/Calendar';
 import { BANK_ACCOUNT } from '../mockData';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from '../types';
 import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
-import type { MatchingPost, CourtName, NTRP, GameType, GenderRequirement } from '../types';
+import type { MatchingPost, CourtName, NTRP, GameType, GenderRequirement, ApplicantGender } from '../types';
 
 const NTRP_OPTIONS: (NTRP | 'any')[] = ['any', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5'];
 const GAME_TYPE_LABEL: Record<GameType, string> = {
@@ -73,8 +73,8 @@ export function MatchingScreen() {
     });
   }, [matchingPosts, filterNtrp, filterGender, filterDate]);
 
-  const handleApply = (post: MatchingPost, intro: string) => {
-    const res = applyMatching(post.id, intro);
+  const handleApply = (post: MatchingPost, intro: string, gender?: ApplicantGender) => {
+    const res = applyMatching(post.id, intro, gender);
     if (res.ok) setSelectedPost(null);
   };
 
@@ -171,6 +171,11 @@ export function MatchingScreen() {
                       <span className={`chip ${post.status === '모집중' ? 'bg-volt-100 text-volt-800' : 'bg-navy-100 text-navy-700'}`}>
                         {post.status}
                       </span>
+                      {!post.courtApproved && (
+                        <span className="chip bg-amber-100 text-amber-700">
+                          <Clock size={12} /> 대관 승인 대기
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
                       <span className="flex items-center gap-1"><Calendar size={12} /> {post.date}</span>
@@ -229,9 +234,9 @@ export function MatchingScreen() {
                     <button
                       onClick={() => setSelectedPost(post)}
                       className="btn-primary flex-1"
-                      disabled={approvedCount >= post.maxPlayers - 1}
+                      disabled={approvedCount >= post.maxPlayers - 1 || !post.courtApproved}
                     >
-                      <UserPlus size={16} /> 매칭 신청하기
+                      <UserPlus size={16} /> {post.courtApproved ? '매칭 신청하기' : '대관 승인 대기 중'}
                     </button>
                   )}
                 </div>
@@ -310,11 +315,12 @@ function ApplyOrManageModal({
   post: MatchingPost;
   isHost: boolean;
   getUser: (id: string) => { name: string; profileImg: string; ntrp: string; career: string; phone: string } | undefined;
-  onApply: (post: MatchingPost, intro: string) => void;
+  onApply: (post: MatchingPost, intro: string, gender?: ApplicantGender) => void;
   onApprove: (post: MatchingPost, appId: string) => void;
   onReject: (postId: string, appId: string) => void;
 }) {
   const [intro, setIntro] = useState('');
+  const [gender, setGender] = useState<ApplicantGender | ''>('');
 
   if (isHost) {
     return (
@@ -339,7 +345,7 @@ function ApplyOrManageModal({
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-navy-900 text-sm">{u?.name}</p>
                         <p className="text-xs text-slate-500">
-                          NTRP {u?.ntrp} · {u?.career}
+                          NTRP {u?.ntrp} · {u?.career}{app.gender ? ` · ${app.gender === 'male' ? '남성' : '여성'}` : ''}
                         </p>
                       </div>
                       {app.status === '승인' ? (
@@ -392,6 +398,25 @@ function ApplyOrManageModal({
         <p>게임 유형: {GAME_TYPE_LABEL[post.gameType]}</p>
       </div>
       <div>
+        <p className="text-sm font-bold text-navy-800 mb-1.5">성별</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setGender('male')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${gender === 'male' ? 'bg-navy-900 text-white border-navy-900' : 'bg-white text-slate-600 border-slate-200 hover:border-navy-300'}`}
+          >
+            남성
+          </button>
+          <button
+            type="button"
+            onClick={() => setGender('female')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${gender === 'female' ? 'bg-navy-900 text-white border-navy-900' : 'bg-white text-slate-600 border-slate-200 hover:border-navy-300'}`}
+          >
+            여성
+          </button>
+        </div>
+      </div>
+      <div>
         <p className="text-sm font-bold text-navy-800 mb-1.5">한줄 소개</p>
         <textarea
           value={intro}
@@ -405,8 +430,8 @@ function ApplyOrManageModal({
       <p className="text-xs text-slate-400">* 호스트 승인 후 연락처가 공개됩니다.</p>
       <button
         className="btn-primary w-full"
-        onClick={() => onApply(post, intro)}
-        disabled={!intro.trim() || !!post.applications.find((a) => a.userId === post.userId)}
+        onClick={() => onApply(post, intro, gender || undefined)}
+        disabled={!intro.trim() || !gender || !!post.applications.find((a) => a.userId === post.userId)}
       >
         <UserPlus size={16} /> 신청하기
       </button>
