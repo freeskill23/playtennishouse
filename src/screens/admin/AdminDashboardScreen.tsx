@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   BedDouble,
   CalendarRange,
@@ -48,6 +48,11 @@ export function AdminDashboardScreen() {
   const [roomEdits, setRoomEdits] = useState(() =>
     Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])),
   );
+
+  // Sync roomEdits when rooms load/update from Supabase
+  useEffect(() => {
+    setRoomEdits(Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])));
+  }, [rooms]);
 
   const dayReservations = getReservationsByDate(date);
   const dayMatchings = getMatchingsByDate(date);
@@ -438,9 +443,23 @@ export function AdminDashboardScreen() {
         dayRender={(d) => {
           const res = getReservationsByDate(d);
           if (res.length === 0) return null;
-          const hasCompleted = res.some((r) => r.status === '예약완료');
-          if (hasCompleted) return <span className="w-1.5 h-1.5 rounded-full bg-volt-500" />;
-          return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />;
+          const pensionRes = res.filter((r) => r.type === 'pension');
+          if (pensionRes.length === 0) {
+            const hasCompleted = res.some((r) => r.status === '예약완료');
+            if (hasCompleted) return <span className="w-1.5 h-1.5 rounded-full bg-volt-500" />;
+            return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />;
+          }
+          const hasA = pensionRes.some((r) => r.targetId === 'roomA');
+          const hasB = pensionRes.some((r) => r.targetId === 'roomB');
+          let label = '';
+          if (hasA && hasB) label = 'AB동';
+          else if (hasA) label = 'A동';
+          else if (hasB) label = 'B동';
+          return (
+            <span className="text-[8px] font-bold leading-none text-volt-700 bg-volt-100 rounded px-1 py-0.5">
+              {label}예약
+            </span>
+          );
         }}
       />
 

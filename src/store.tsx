@@ -265,6 +265,28 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
   const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(initialMatchingPosts);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
+
+  // Load notices from Supabase so admin edits are shared across sessions
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase
+        .from('notices')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        setNotices(
+          data.map((n) => ({
+            id: n.id as string,
+            title: n.title as string,
+            content: n.content as string,
+            type: n.type as NoticeType,
+            createdAt: n.created_at as number,
+          })),
+        );
+      }
+    })();
+  }, []);
   const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -336,6 +358,27 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionWeekdayPrice, setPensionWeekdayPrice] = useState(PENSION_WEEKDAY_PRICE);
   const [pensionWeekendPrice, setPensionWeekendPrice] = useState(PENSION_WEEKEND_PRICE);
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
+  const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
+  const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
+
+  // Load all settings (pension prices, overrides, banner, logo) from Supabase
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase
+        .from('settings')
+        .select('banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides')
+        .eq('id', 1)
+        .maybeSingle();
+      if (data) {
+        setBannerImageUrl(data.banner_image_url);
+        setLogoImageUrl(data.logo_image_url);
+        if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
+        if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
+        if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
+      }
+    })();
+  }, []);
 
   // Load rooms from Supabase so admin edits are shared across sessions
   useEffect(() => {
@@ -383,17 +426,52 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (weekday: number, weekend: number) => {
       setPensionWeekdayPrice(weekday);
       setPensionWeekendPrice(weekend);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            banner_image_url: bannerImageUrl,
+            logo_image_url: logoImageUrl,
+            pension_weekday_price: weekday,
+            pension_weekend_price: weekend,
+            pension_price_overrides: pensionPriceOverrides,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('펜션 요금 저장 실패', 'error');
+          });
+      }
       pushToast('펜션 기본 요금이 변경되었습니다.');
     },
-    [pushToast],
+    [pushToast, pensionPriceOverrides, bannerImageUrl, logoImageUrl],
   );
 
   const setPensionPriceForDate = useCallback(
     (dateStr: string, price: number) => {
-      setPensionPriceOverrides((prev) => ({ ...prev, [dateStr]: price }));
+      setPensionPriceOverrides((prev) => {
+        const next = { ...prev, [dateStr]: price };
+        if (supabaseConfigured) {
+          supabase
+            .from('settings')
+            .upsert({
+              id: 1,
+              banner_image_url: bannerImageUrl,
+              logo_image_url: logoImageUrl,
+              pension_weekday_price: pensionWeekdayPrice,
+              pension_weekend_price: pensionWeekendPrice,
+              pension_price_overrides: next,
+              updated_at: new Date().toISOString(),
+            })
+            .then(({ error }) => {
+              if (error) pushToast('개별 요금 저장 실패', 'error');
+            });
+        }
+        return next;
+      });
       pushToast(`${dateStr} 요금이 설정되었습니다.`);
     },
-    [pushToast],
+    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, logoImageUrl],
   );
 
   const removePensionPriceOverride = useCallback(
@@ -401,31 +479,75 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       setPensionPriceOverrides((prev) => {
         const next = { ...prev };
         delete next[dateStr];
+        if (supabaseConfigured) {
+          supabase
+            .from('settings')
+            .upsert({
+              id: 1,
+              banner_image_url: bannerImageUrl,
+              logo_image_url: logoImageUrl,
+              pension_weekday_price: pensionWeekdayPrice,
+              pension_weekend_price: pensionWeekendPrice,
+              pension_price_overrides: next,
+              updated_at: new Date().toISOString(),
+            })
+            .then(({ error }) => {
+              if (error) pushToast('개별 요금 삭제 실패', 'error');
+            });
+        }
         return next;
       });
       pushToast(`${dateStr} 개별 요금이 삭제되었습니다.`, 'info');
     },
-    [pushToast],
+    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, logoImageUrl],
   );
-
-  const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
 
   const updateBannerImage = useCallback(
     (url: string | null) => {
       setBannerImageUrl(url);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            banner_image_url: url,
+            logo_image_url: logoImageUrl,
+            pension_weekday_price: pensionWeekdayPrice,
+            pension_weekend_price: pensionWeekendPrice,
+            pension_price_overrides: pensionPriceOverrides,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('배너 이미지 저장 실패', 'error');
+          });
+      }
       pushToast(url ? '배너 이미지가 변경되었습니다.' : '배너 이미지가 초기화되었습니다.');
     },
-    [pushToast],
+    [pushToast, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides],
   );
-
-  const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
 
   const updateLogoImage = useCallback(
     (url: string | null) => {
       setLogoImageUrl(url);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            banner_image_url: bannerImageUrl,
+            logo_image_url: url,
+            pension_weekday_price: pensionWeekdayPrice,
+            pension_weekend_price: pensionWeekendPrice,
+            pension_price_overrides: pensionPriceOverrides,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('로고 이미지 저장 실패', 'error');
+          });
+      }
       pushToast(url ? '로고 이미지가 변경되었습니다.' : '로고 이미지가 초기화되었습니다.');
     },
-    [pushToast],
+    [pushToast, bannerImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides],
   );
 
   // ===== Business rule: mutual exclusion =====
@@ -930,6 +1052,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
       };
       setNotices((prev) => [notice, ...prev]);
+      if (supabaseConfigured) {
+        supabase.from('notices').insert({
+          id: notice.id,
+          title: notice.title,
+          content: notice.content,
+          type: notice.type,
+          created_at: notice.createdAt,
+        }).then(({ error }) => {
+          if (error) pushToast('공지 저장 실패: ' + error.message, 'error');
+        });
+      }
       addNotification({
         kind: 'notice_new',
         title: '새 공지사항',
@@ -943,6 +1076,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const deleteNotice = useCallback(
     (id: string) => {
       setNotices((prev) => prev.filter((n) => n.id !== id));
+      if (supabaseConfigured) {
+        supabase.from('notices').delete().eq('id', id).then(({ error }) => {
+          if (error) pushToast('공지 삭제 실패: ' + error.message, 'error');
+        });
+      }
       pushToast('공지사항이 삭제되었습니다.', 'info');
     },
     [pushToast],
