@@ -1045,152 +1045,148 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // ===== Cancel reservation =====
   const cancelReservation = useCallback(
     (id: string) => {
-      setReservations((prev) => {
-        const target = prev.find((r) => r.id === id);
-        if (!target) return prev;
-        const updated = prev.map((r) =>
-          r.id === id ? { ...r, status: '취소' as ReservationStatus, depositTimeoutUntil: null } : r,
-        );
-        // If it was a primary completed/pending reservation, promote next waiting
-        if (target.waitingSequence === null && target.status === '예약완료') {
-          setTimeout(() => promoteNextWaiting(target), 30);
-        }
-        addNotification({
-          kind: 'reservation_cancelled',
-          title: '예약 취소',
-          body: `${getUser(target.userId)?.name}님의 ${target.targetLabel} 예약이 취소되었습니다.`,
-          targetUserId: target.userId,
-        });
-        pushToast('예약이 취소되었습니다.', 'info');
-        const cancelled = updated.find((r) => r.id === id);
-        if (cancelled) upsertReservationToSupabase(cancelled);
-        return updated;
+      const target = reservations.find((r) => r.id === id);
+      if (!target) return;
+      const cancelled: Reservation = { ...target, status: '취소' as ReservationStatus, depositTimeoutUntil: null };
+      setReservations((prev) =>
+        prev.map((r) => (r.id === id ? cancelled : r)),
+      );
+      upsertReservationToSupabase(cancelled);
+      if (target.waitingSequence === null && target.status === '예약완료') {
+        setTimeout(() => promoteNextWaiting(target), 30);
+      }
+      addNotification({
+        kind: 'reservation_cancelled',
+        title: '예약 취소',
+        body: `${getUser(target.userId)?.name}님의 ${target.targetLabel} 예약이 취소되었습니다.`,
+        targetUserId: target.userId,
       });
+      pushToast('예약이 취소되었습니다.', 'info');
     },
-    [promoteNextWaiting, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [reservations, promoteNextWaiting, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Approve reservation (admin) =====
   const approveReservation = useCallback(
     (id: string) => {
-      setReservations((prev) => {
-        const target = prev.find((r) => r.id === id);
-        if (!target) return prev;
-        addNotification({
-          kind: 'reservation_approved',
-          title: '예약 승인 완료',
-          body: `${getUser(target.userId)?.name}님의 ${target.targetLabel} 예약이 승인(예약완료) 처리되었습니다.`,
-          targetUserId: target.userId,
-        });
-        pushToast(`${getUser(target.userId)?.name}님 예약 승인 완료`);
-        const updated = prev.map((r) => (r.id === id ? { ...r, status: '예약완료' as ReservationStatus } : r));
-        const approved = updated.find((r) => r.id === id);
-        if (approved) upsertReservationToSupabase(approved);
+      const target = reservations.find((r) => r.id === id);
+      if (!target) return;
+      const approved: Reservation = { ...target, status: '예약완료' as ReservationStatus };
+      setReservations((prev) =>
+        prev.map((r) => (r.id === id ? approved : r)),
+      );
+      upsertReservationToSupabase(approved);
+      addNotification({
+        kind: 'reservation_approved',
+        title: '예약 승인 완료',
+        body: `${getUser(target.userId)?.name}님의 ${target.targetLabel} 예약이 승인(예약완료) 처리되었습니다.`,
+        targetUserId: target.userId,
+      });
+      pushToast(`${getUser(target.userId)?.name}님 예약 승인 완료`);
 
-        // Activate matching post if this reservation belongs to one
-        setMatchingPosts((mpPrev) => {
-          const mp = mpPrev.find((p) => p.reservationIds.includes(id));
-          if (!mp || mp.courtApproved) return mpPrev;
-          const allApproved = mp.reservationIds.every((rid) =>
-            updated.find((r) => r.id === rid)?.status === '예약완료',
-          );
-          if (!allApproved) return mpPrev;
-          const activated = { ...mp, courtApproved: true, status: '모집중' as MatchingStatus };
-          syncMatchingPost(activated);
-          return mpPrev.map((p) => (p.id === mp.id ? activated : p));
-        });
-
-        return updated;
+      // Activate matching post if this reservation belongs to one
+      setMatchingPosts((mpPrev) => {
+        const mp = mpPrev.find((p) => p.reservationIds.includes(id));
+        if (!mp || mp.courtApproved) return mpPrev;
+        const allApproved = mp.reservationIds.every((rid) =>
+          rid === id ? true : reservations.find((r) => r.id === rid)?.status === '예약완료',
+        );
+        if (!allApproved) return mpPrev;
+        const activated = { ...mp, courtApproved: true, status: '모집중' as MatchingStatus };
+        syncMatchingPost(activated);
+        return mpPrev.map((p) => (p.id === mp.id ? activated : p));
       });
     },
-    [addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
+    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
   );
 
   // ===== Approve multiple reservations at once (admin) =====
   const approveReservations = useCallback(
     (ids: string[]) => {
       if (ids.length === 0) return;
-      setReservations((prev) => {
-        const targets = prev.filter((r) => ids.includes(r.id));
-        if (targets.length === 0) return prev;
-        const firstName = getUser(targets[0].userId)?.name || '회원';
-        addNotification({
-          kind: 'reservation_approved',
-          title: '예약 승인 완료',
-          body: `${firstName}님의 예약 ${targets.length}건이 승인(예약완료) 처리되었습니다.`,
-          targetUserId: targets[0].userId,
-        });
-        pushToast(`${firstName}님 예약 ${targets.length}건 승인 완료`);
-        const updated = prev.map((r) =>
-          ids.includes(r.id) ? { ...r, status: '예약완료' as ReservationStatus } : r,
-        );
-        for (const id of ids) {
-          const approved = updated.find((r) => r.id === id);
-          if (approved) upsertReservationToSupabase(approved);
+      const targets = reservations.filter((r) => ids.includes(r.id));
+      if (targets.length === 0) return;
+      const firstName = getUser(targets[0].userId)?.name || '회원';
+      addNotification({
+        kind: 'reservation_approved',
+        title: '예약 승인 완료',
+        body: `${firstName}님의 예약 ${targets.length}건이 승인(예약완료) 처리되었습니다.`,
+        targetUserId: targets[0].userId,
+      });
+      pushToast(`${firstName}님 예약 ${targets.length}건 승인 완료`);
+      const approvedMap = new Map<string, Reservation>();
+      setReservations((prev) =>
+        prev.map((r) => {
+          if (!ids.includes(r.id)) return r;
+          const approved = { ...r, status: '예약완료' as ReservationStatus };
+          approvedMap.set(r.id, approved);
+          return approved;
+        }),
+      );
+      for (const id of ids) {
+        const approved = approvedMap.get(id);
+        if (approved) upsertReservationToSupabase(approved);
+      }
+
+      // Activate matching posts if all their reservations are now approved
+      setMatchingPosts((mpPrev) => {
+        let next = mpPrev;
+        for (const mp of mpPrev) {
+          if (mp.courtApproved) continue;
+          const allApproved = mp.reservationIds.every((rid) => {
+            const approved = approvedMap.get(rid);
+            if (approved) return approved.status === '예약완료';
+            return reservations.find((r) => r.id === rid)?.status === '예약완료';
+          });
+          if (!allApproved) continue;
+          const activated = { ...mp, courtApproved: true, status: '모집중' as MatchingStatus };
+          syncMatchingPost(activated);
+          next = next.map((p) => (p.id === mp.id ? activated : p));
         }
-
-        // Activate matching posts if all their reservations are now approved
-        setMatchingPosts((mpPrev) => {
-          let next = mpPrev;
-          for (const mp of mpPrev) {
-            if (mp.courtApproved) continue;
-            const allApproved = mp.reservationIds.every((rid) =>
-              updated.find((r) => r.id === rid)?.status === '예약완료',
-            );
-            if (!allApproved) continue;
-            const activated = { ...mp, courtApproved: true, status: '모집중' as MatchingStatus };
-            syncMatchingPost(activated);
-            next = next.map((p) => (p.id === mp.id ? activated : p));
-          }
-          return next;
-        });
-
-        return updated;
+        return next;
       });
     },
-    [addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
+    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
   );
 
   const rejectReservation = useCallback(
     (id: string) => {
-      setReservations((prev) => {
-        const target = prev.find((r) => r.id === id);
-        if (!target) return prev;
-        addNotification({
-          kind: 'reservation_rejected',
-          title: '예약 거절',
-          body: `${getUser(target.userId)?.name}님의 ${target.targetLabel} 예약 신청이 거절되었습니다.`,
-          targetUserId: target.userId,
-        });
-        pushToast(`${getUser(target.userId)?.name}님 예약 거절 처리`, 'error');
-        const updated = prev.map((r) => (r.id === id ? { ...r, status: '취소' as ReservationStatus } : r));
-        const rejected = updated.find((r) => r.id === id);
-        if (rejected) upsertReservationToSupabase(rejected);
-
-        // If this reservation belongs to a matching post, remove the matching post
-        if (target.matchingPostId) {
-          setMatchingPosts((mpPrev) => {
-            const mp = mpPrev.find((p) => p.id === target.matchingPostId);
-            if (!mp) return mpPrev;
-            if (supabaseConfigured) {
-              supabase.from('matching_posts').delete().eq('id', mp.id).then(({ error }) => {
-                if (error) pushToast('매칭 삭제 실패: ' + error.message, 'error');
-              });
-            }
-            addNotification({
-              kind: 'reservation_rejected',
-              title: '매칭글 삭제',
-              body: '대관 승인이 거절되어 매칭글이 삭제되었습니다.',
-              targetUserId: mp.userId,
-            });
-            return mpPrev.filter((p) => p.id !== mp.id);
-          });
-        }
-
-        return updated;
+      const target = reservations.find((r) => r.id === id);
+      if (!target) return;
+      const rejected: Reservation = { ...target, status: '취소' as ReservationStatus };
+      setReservations((prev) =>
+        prev.map((r) => (r.id === id ? rejected : r)),
+      );
+      upsertReservationToSupabase(rejected);
+      addNotification({
+        kind: 'reservation_rejected',
+        title: '예약 거절',
+        body: `${getUser(target.userId)?.name}님의 ${target.targetLabel} 예약 신청이 거절되었습니다.`,
+        targetUserId: target.userId,
       });
+      pushToast(`${getUser(target.userId)?.name}님 예약 거절 처리`, 'error');
+
+      // If this reservation belongs to a matching post, remove the matching post
+      if (target.matchingPostId) {
+        setMatchingPosts((mpPrev) => {
+          const mp = mpPrev.find((p) => p.id === target.matchingPostId);
+          if (!mp) return mpPrev;
+          if (supabaseConfigured) {
+            supabase.from('matching_posts').delete().eq('id', mp.id).then(({ error }) => {
+              if (error) pushToast('매칭 삭제 실패: ' + error.message, 'error');
+            });
+          }
+          addNotification({
+            kind: 'reservation_rejected',
+            title: '매칭글 삭제',
+            body: '대관 승인이 거절되어 매칭글이 삭제되었습니다.',
+            targetUserId: mp.userId,
+          });
+          return mpPrev.filter((p) => p.id !== mp.id);
+        });
+      }
     },
-    [addNotification, getUser, pushToast, upsertReservationToSupabase, supabaseConfigured],
+    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, supabaseConfigured],
   );
 
   // ===== Matching =====

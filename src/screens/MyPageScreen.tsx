@@ -69,10 +69,12 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
   const [pwChangeOpen, setPwChangeOpen] = useState(false);
 
   const myReservations = reservations.filter((r) => r.userId === currentUser.id);
-  const myMatchings = matchingPosts.filter((m) => m.userId === currentUser.id);
-  const myAppliedMatchings = matchingPosts.filter((m) =>
-    m.applications.some((a) => a.userId === currentUser.id),
-  );
+  const myMatchings = matchingPosts
+    .filter((m) => m.userId === currentUser.id)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const myAppliedMatchings = matchingPosts
+    .filter((m) => m.applications.some((a) => a.userId === currentUser.id))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   // Group reservations by date + targetLabel (e.g. 7/17 A코트) so consecutive slots collapse into one row
   const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}`;
@@ -85,7 +87,11 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
       map.set(key, arr);
     }
     for (const arr of map.values()) arr.sort((a, b) => (a.timeSlot || '').localeCompare(b.timeSlot || ''));
-    return Array.from(map.entries()).sort(([, a], [, b]) => (a[0].createdAt < b[0].createdAt ? 1 : -1));
+    return Array.from(map.entries()).sort(([, a], [, b]) => {
+      const aKey = `${a[0].date}|${a[0].timeSlot || ''}`;
+      const bKey = `${b[0].date}|${b[0].timeSlot || ''}`;
+      return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+    });
   })();
 
   // Group eligible reservations by date + court
