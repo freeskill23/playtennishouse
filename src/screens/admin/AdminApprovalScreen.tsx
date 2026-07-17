@@ -83,6 +83,10 @@ export function AdminApprovalScreen() {
                         {r.timeSlot && <span>· {r.timeSlot}</span>}
                         {r.capacity && <span>· {r.capacity}명</span>}
                       </div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs">
+                        <Phone size={12} className="text-slate-400" />
+                        <span className="font-semibold text-navy-700">{u?.phone || '연락처 없음'}</span>
+                      </div>
                       <div className="flex items-center gap-2 mt-2">
                         <StatusBadge status={r.status} />
                         <span className="chip bg-slate-100 text-slate-600">
