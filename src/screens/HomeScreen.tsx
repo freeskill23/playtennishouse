@@ -115,7 +115,11 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         )}
         <div className="relative p-6 sm:p-8">
           <div className="flex items-center gap-3">
-            <Logo size={44} imageUrl={logoImageUrl} />
+            <img
+              src={currentUser.profileImg}
+              alt={currentUser.name}
+              className="w-11 h-11 rounded-xl object-cover ring-2 ring-white/20"
+            />
           </div>
           <p className="mt-3 text-lg font-bold text-white">{currentUser.name}님 플테하에서 오늘도 즐테하세요!</p>
         </div>
