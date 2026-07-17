@@ -127,7 +127,7 @@ export const initialReservations: Reservation[] = [
     waitingSequence: null,
     amount: COURT_SLOT_PRICE,
     createdAt: Date.now() - 86400000 * 2,
-    matchingPostId: 'm2',
+    matchingPostId: undefined,
   },
   {
     id: 'r3',
@@ -171,53 +171,7 @@ export const initialReservations: Reservation[] = [
 ];
 
 // ===== Matching posts =====
-export const initialMatchingPosts: MatchingPost[] = [
-  {
-    id: 'm1',
-    reservationId: 'r1',
-    reservationIds: ['r1'],
-    userId: 'u1',
-    date: addDays(2),
-    time: '15:00-17:00',
-    court: 'A코트',
-    ntrpRequirement: '3.0',
-    genderRequirement: 'any',
-    maxPlayers: 4,
-    gameType: 'doubles',
-    description: 'A동 묵는 분들 같이 복식 한 게임 어때요! 편하게 신청주세요.',
-    status: '모집중',
-    courtApproved: true,
-    applications: [
-      {
-        id: 'a1',
-        userId: 'u2',
-        status: '대기',
-        appliedAt: Date.now() - 3600000,
-        intro: 'NTRP 3.0 복식 즐겨요. 잘 부탁드립니다!',
-        gender: 'male',
-      },
-    ],
-    createdAt: Date.now() - 7200000,
-  },
-  {
-    id: 'm2',
-    reservationId: 'r2',
-    reservationIds: ['r2'],
-    userId: 'u2',
-    date: addDays(3),
-    time: '15:00-17:00',
-    court: 'B코트',
-    ntrpRequirement: '3.5',
-    genderRequirement: 'female',
-    maxPlayers: 4,
-    gameType: 'doubles',
-    description: '여성분 복식 메이트 구합니다. NTRP 3.5 이상.',
-    status: '모집중',
-    courtApproved: true,
-    applications: [],
-    createdAt: Date.now() - 1800000,
-  },
-];
+export const initialMatchingPosts: MatchingPost[] = [];
 
 // ===== Notices =====
 export const initialNotices: Notice[] = [
@@ -256,15 +210,6 @@ export const initialNotifications: AppNotification[] = [
     body: '이서연님이 B동 펜션 예약을 신청했습니다.',
     targetUserId: 'u2',
     createdAt: Date.now() - 3600000 * 2,
-    read: false,
-  },
-  {
-    id: 'nt2',
-    kind: 'matching_new',
-    title: '새 매칭 모집',
-    body: '김테니스님이 복식 메이트를 모집합니다.',
-    targetUserId: 'u1',
-    createdAt: Date.now() - 7200000,
     read: false,
   },
   {

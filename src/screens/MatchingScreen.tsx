@@ -717,7 +717,7 @@ function CreateMatchingModal({
           <div>
             <p className="text-xs font-bold text-slate-500 mb-1.5">모집 인원 (본인 포함, 최대 {MATCHING_MAX_PLAYERS}명)</p>
             <div className="flex flex-wrap gap-1.5">
-              {[2, 3, 4, 5, 6].map((n) => (
+              {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <Pill key={n} active={maxPlayers === n} onClick={() => setMaxPlayers(n)}>{n}명</Pill>
               ))}
             </div>

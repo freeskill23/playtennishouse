@@ -72,7 +72,7 @@ export interface MatchingApplication {
   gender?: ApplicantGender; // 신청자 성별
 }
 
-export const MATCHING_MAX_PLAYERS = 6;
+export const MATCHING_MAX_PLAYERS = 8;
 
 export interface MatchingPost {
   id: string;
