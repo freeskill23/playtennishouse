@@ -22,6 +22,7 @@ export function CourtScreen() {
     currentUser,
     reservations,
     requestWaiting,
+    tempHolidays,
   } = useApp();
   const [date, setDate] = useState(todayYMD());
   const [court, setCourt] = useState<CourtName>('A코트');
@@ -66,13 +67,13 @@ export function CourtScreen() {
   };
 
   const sortedSlots = [...selectedSlots].sort();
-  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPrice(date, slot), 0);
+  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPrice(date, slot, tempHolidays), 0);
 
   return (
     <div className="space-y-5 pb-4">
       <SectionTitle
         title="코트 예약"
-        subtitle="2시간 단위 · 09:00 ~ 21:00 · 여러 시간대 선택 가능"
+        subtitle="1시간 단위 · 05:00 ~ 24:00 · 여러 시간대 선택 가능"
         right={
           <div className="flex flex-col items-end gap-1">
             <span className="chip bg-navy-50 text-navy-700">
@@ -140,7 +141,7 @@ export function CourtScreen() {
       {/* Time slots */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
-          <SectionTitle title="시간대 선택" subtitle={`${court} · 2시간 단위 · 복수 선택`} />
+          <SectionTitle title="시간대 선택" subtitle={`${court} · 1시간 단위 · 복수 선택`} />
           {selectedSlots.length > 0 && (
             <button
               onClick={() => setSelectedSlots([])}

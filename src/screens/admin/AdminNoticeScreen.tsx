@@ -16,6 +16,7 @@ import type { NoticeType } from '../../types';
 import type { LucideIcon } from 'lucide-react';
 
 const ICONS: Record<string, LucideIcon> = {
+  Megaphone,
   PartyPopper,
   CloudRain,
   RotateCcw,
@@ -54,7 +55,7 @@ export function AdminNoticeScreen() {
           <div>
             <label className="label">공지 유형</label>
             <div className="flex flex-wrap gap-1.5">
-              {(['이벤트', '우천', '환불', '이용수칙'] as NoticeType[]).map((t) => {
+              {(['일반공지', '이벤트', '우천', '환불', '이용수칙'] as NoticeType[]).map((t) => {
                 const Icon = ICONS[NOTICE_META[t].icon];
                 return (
                   <button

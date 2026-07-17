@@ -56,6 +56,7 @@ export function MatchingScreen() {
     deleteMatchingPost,
     getCourtSlotStatus,
     isCourtBlockedByPension,
+    tempHolidays,
   } = useApp();
   const [filterNtrp, setFilterNtrp] = useState<NTRP | 'any'>('any');
   const [filterGender, setFilterGender] = useState<GenderRequirement | 'all'>('all');
@@ -559,7 +560,7 @@ function CreateMatchingModal({
   };
 
   const sortedSlots = [...selectedSlots].sort();
-  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPrice(date, slot), 0);
+  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPrice(date, slot, tempHolidays), 0);
 
   const handleSubmit = () => {
     const res = onCreate({
@@ -649,7 +650,7 @@ function CreateMatchingModal({
           {/* Time slots */}
           {!blockedByPension && (
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-1.5">시간대 선택 (2시간 단위 · 복수 선택)</p>
+              <p className="text-xs font-bold text-slate-500 mb-1.5">시간대 선택 (1시간 단위 · 복수 선택)</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {COURT_TIME_SLOTS.map((s) => {
                   const status = getCourtSlotStatus(date, court, s);

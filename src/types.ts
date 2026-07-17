@@ -100,7 +100,7 @@ export interface GalleryItem {
   createdAt: number;
 }
 
-export type NoticeType = '이벤트' | '우천' | '환불' | '이용수칙';
+export type NoticeType = '일반공지' | '이벤트' | '우천' | '환불' | '이용수칙';
 
 export interface Notice {
   id: string;
@@ -133,15 +133,25 @@ export interface AppNotification {
 }
 
 export const COURT_TIME_SLOTS = [
-  '05:00-07:00',
-  '07:00-09:00',
-  '09:00-11:00',
-  '11:00-13:00',
-  '13:00-15:00',
-  '15:00-17:00',
-  '17:00-19:00',
-  '19:00-21:00',
-  '21:00-23:00',
+  '05:00-06:00',
+  '06:00-07:00',
+  '07:00-08:00',
+  '08:00-09:00',
+  '09:00-10:00',
+  '10:00-11:00',
+  '11:00-12:00',
+  '12:00-13:00',
+  '13:00-14:00',
+  '14:00-15:00',
+  '15:00-16:00',
+  '16:00-17:00',
+  '17:00-18:00',
+  '18:00-19:00',
+  '19:00-20:00',
+  '20:00-21:00',
+  '21:00-22:00',
+  '22:00-23:00',
+  '23:00-24:00',
 ] as const;
 
 export const STATUS_META: Record<
@@ -157,6 +167,7 @@ export const STATUS_META: Record<
 };
 
 export const NOTICE_META: Record<NoticeType, { cls: string; icon: string }> = {
+  일반공지: { cls: 'bg-slate-100 text-slate-600', icon: 'Megaphone' },
   이벤트: { cls: 'bg-volt-100 text-volt-800', icon: 'PartyPopper' },
   우천: { cls: 'bg-sky-100 text-sky-700', icon: 'CloudRain' },
   환불: { cls: 'bg-amber-100 text-amber-700', icon: 'RotateCcw' },

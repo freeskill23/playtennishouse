@@ -15,6 +15,7 @@ import type { Notice, NoticeType } from '../types';
 import type { LucideIcon } from 'lucide-react';
 
 const ICONS: Record<string, LucideIcon> = {
+  Megaphone,
   PartyPopper,
   CloudRain,
   RotateCcw,
@@ -30,10 +31,10 @@ export function NoticesScreen() {
 
   return (
     <div className="space-y-5 pb-4">
-      <SectionTitle title="공지사항" subtitle="이벤트 · 우천 · 환불 · 이용수칙 안내" />
+      <SectionTitle title="공지사항" subtitle="일반공지 · 이벤트 · 우천 · 환불 · 이용수칙 안내" />
 
       <div className="flex flex-wrap gap-1.5">
-        {(['all', '이벤트', '우천', '환불', '이용수칙'] as const).map((t) => (
+        {(['all', '일반공지', '이벤트', '우천', '환불', '이용수칙'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setFilter(t)}

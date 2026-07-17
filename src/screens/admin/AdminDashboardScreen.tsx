@@ -12,6 +12,8 @@ import {
   Save,
   ImageIcon,
   XCircle,
+  CalendarPlus,
+  CalendarMinus,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -41,6 +43,9 @@ export function AdminDashboardScreen() {
     updateLogoImage,
     updateRoom,
     cancelReservation,
+    tempHolidays,
+    toggleHoliday,
+    isHoliday,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [date, setDate] = useState(todayYMD());
@@ -72,6 +77,8 @@ export function AdminDashboardScreen() {
   const currentDatePrice = getPensionPrice(date);
   const hasOverride = pensionPriceOverrides[date] != null;
   const sortedOverrides = Object.entries(pensionPriceOverrides).sort(([a], [b]) => a.localeCompare(b));
+  const selectedIsTempHoliday = tempHolidays.includes(date);
+  const sortedTempHolidays = [...tempHolidays].sort();
 
   return (
     <div className="space-y-5 pb-4">
@@ -238,6 +245,78 @@ export function AdminDashboardScreen() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Temporary holiday control */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+            <CalendarRange size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-navy-900 text-sm">임시 공휴일 설정</h3>
+            <p className="text-xs text-slate-400">선택한 날짜를 임시 공휴일로 지정하면 평일도 주말·공휴일 요금이 적용됩니다</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm font-bold text-navy-900">{date}</span>
+          <span className="text-xs text-slate-400">
+            {isHoliday(date) ? '(공휴일 요금 적용)' : '(평일 요금 적용)'}
+          </span>
+          <button
+            onClick={() => toggleHoliday(date)}
+            className={`ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              selectedIsTempHoliday
+                ? 'bg-rose-100 text-rose-600 hover:bg-rose-200'
+                : 'bg-amber-500 text-white hover:bg-amber-400'
+            }`}
+          >
+            {selectedIsTempHoliday ? (
+              <><CalendarMinus size={14} /> 임시 공휴일 해제</>
+            ) : (
+              <><CalendarPlus size={14} /> 임시 공휴일 지정</>
+            )}
+          </button>
+        </div>
+
+        {sortedTempHolidays.length > 0 && (
+          <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+            <p className="text-xs font-bold text-navy-500 mb-2">지정된 임시 공휴일 목록</p>
+            <div className="flex flex-wrap gap-2">
+              {sortedTempHolidays.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDate(d)}
+                  className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    date === d
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-white text-navy-700 border border-navy-100 hover:border-amber-300'
+                  }`}
+                >
+                  <span>{d}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleHoliday(d);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                        toggleHoliday(d);
+                      }
+                    }}
+                    className="ml-0.5 text-slate-300 hover:text-rose-500 transition cursor-pointer"
+                  >
+                    ×
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Banner image control */}

@@ -198,6 +198,11 @@ interface AppState {
   logoImageUrl: string | null;
   updateLogoImage: (url: string | null) => void;
 
+  // temporary holidays
+  tempHolidays: string[];
+  toggleHoliday: (dateStr: string) => void;
+  isHoliday: (dateStr: string) => boolean;
+
   // queries
   isPensionBlockedByCourt: (date: string) => boolean;
   isCourtBlockedByPension: (date: string, court: CourtName) => boolean;
@@ -506,6 +511,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
+  const [tempHolidays, setTempHolidays] = useState<string[]>([]);
 
   // Load all settings (pension prices, overrides, banner, logo) from Supabase
   useEffect(() => {
@@ -513,7 +519,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (async () => {
       const { data } = await supabase
         .from('settings')
-        .select('banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides')
+        .select('banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays')
         .eq('id', 1)
         .maybeSingle();
       if (data) {
@@ -522,6 +528,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
         if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
         if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
+        if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
       }
     })();
   }, []);
@@ -563,9 +570,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const getPensionPrice = useCallback(
     (dateStr: string) => {
       if (pensionPriceOverrides[dateStr] != null) return pensionPriceOverrides[dateStr];
-      return isWeekendOrHoliday(dateStr) ? pensionWeekendPrice : pensionWeekdayPrice;
+      const isHolidayDate = isWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr);
+      return isHolidayDate ? pensionWeekendPrice : pensionWeekdayPrice;
     },
-    [pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides],
+    [pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
   );
 
   const updatePensionPrice = useCallback(
@@ -582,6 +590,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             pension_weekday_price: weekday,
             pension_weekend_price: weekend,
             pension_price_overrides: pensionPriceOverrides,
+            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -590,7 +599,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast('펜션 기본 요금이 변경되었습니다.');
     },
-    [pushToast, pensionPriceOverrides, bannerImageUrl, logoImageUrl],
+    [pushToast, pensionPriceOverrides, bannerImageUrl, logoImageUrl, tempHolidays],
   );
 
   const setPensionPriceForDate = useCallback(
@@ -635,6 +644,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
               pension_weekday_price: pensionWeekdayPrice,
               pension_weekend_price: pensionWeekendPrice,
               pension_price_overrides: next,
+              temp_holidays: tempHolidays,
               updated_at: new Date().toISOString(),
             })
             .then(({ error }) => {
@@ -645,7 +655,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       pushToast(`${dateStr} 개별 요금이 삭제되었습니다.`, 'info');
     },
-    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, logoImageUrl],
+    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, logoImageUrl, tempHolidays],
   );
 
   const updateBannerImage = useCallback(
@@ -661,6 +671,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             pension_weekday_price: pensionWeekdayPrice,
             pension_weekend_price: pensionWeekendPrice,
             pension_price_overrides: pensionPriceOverrides,
+            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -669,7 +680,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast(url ? '배너 이미지가 변경되었습니다.' : '배너 이미지가 초기화되었습니다.');
     },
-    [pushToast, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides],
+    [pushToast, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
   );
 
   const updateLogoImage = useCallback(
@@ -685,6 +696,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             pension_weekday_price: pensionWeekdayPrice,
             pension_weekend_price: pensionWeekendPrice,
             pension_price_overrides: pensionPriceOverrides,
+            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -693,7 +705,41 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast(url ? '로고 이미지가 변경되었습니다.' : '로고 이미지가 초기화되었습니다.');
     },
-    [pushToast, bannerImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides],
+    [pushToast, bannerImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
+  );
+
+  const toggleHoliday = useCallback(
+    (dateStr: string) => {
+      setTempHolidays((prev) => {
+        const next = prev.includes(dateStr)
+          ? prev.filter((d) => d !== dateStr)
+          : [...prev, dateStr].sort();
+        if (supabaseConfigured) {
+          supabase
+            .from('settings')
+            .upsert({
+              id: 1,
+              banner_image_url: bannerImageUrl,
+              logo_image_url: logoImageUrl,
+              pension_weekday_price: pensionWeekdayPrice,
+              pension_weekend_price: pensionWeekendPrice,
+              pension_price_overrides: pensionPriceOverrides,
+              temp_holidays: next,
+              updated_at: new Date().toISOString(),
+            })
+            .then(({ error }) => {
+              if (error) pushToast('임시 공휴일 저장 실패', 'error');
+            });
+        }
+        return next;
+      });
+    },
+    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, logoImageUrl, pensionPriceOverrides],
+  );
+
+  const isHoliday = useCallback(
+    (dateStr: string): boolean => isWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr),
+    [tempHolidays],
   );
 
   // ===== Business rule: mutual exclusion =====
@@ -881,7 +927,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         timeSlot: slot,
         status: '신청',
         waitingSequence: null,
-        amount: getCourtSlotPrice(input.date, slot),
+        amount: getCourtSlotPrice(input.date, slot, tempHolidays),
         createdAt: Date.now(),
       }));
       setReservations((prev) => [...prev, ...newReservations]);
@@ -1116,7 +1162,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         timeSlot: slot,
         status: '신청',
         waitingSequence: null,
-        amount: getCourtSlotPrice(input.date, slot),
+        amount: getCourtSlotPrice(input.date, slot, tempHolidays),
         createdAt: Date.now(),
         matchingPostId,
       }));
@@ -1491,6 +1537,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateBannerImage,
     logoImageUrl,
     updateLogoImage,
+    tempHolidays,
+    toggleHoliday,
+    isHoliday,
     isPensionBlockedByCourt,
     isCourtBlockedByPension,
     getPensionStatusForDate,
