@@ -251,7 +251,7 @@ export function AdminMatchingScreen() {
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              삭제 후 복구할 수 없으며, 연결된 예약은 유지됩니다.
+              삭제 후 복구할 수 없으며, 연결된 코트 대관 예약도 함께 취소됩니다.
             </p>
           </div>
         )}

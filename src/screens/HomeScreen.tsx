@@ -58,7 +58,11 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
       isUpcoming(m.date),
   );
   const myCourtReservations = reservations.filter(
-    (r) => r.userId === currentUser.id && r.type === 'court' && isUpcoming(r.date),
+    (r) =>
+      r.userId === currentUser.id &&
+      r.type === 'court' &&
+      !r.matchingPostId &&
+      isUpcoming(r.date),
   );
   const myPensionReservations = reservations.filter(
     (r) => r.userId === currentUser.id && r.type === 'pension' && r.status !== '취소' && isUpcoming(r.date),

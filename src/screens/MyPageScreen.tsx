@@ -96,7 +96,11 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
 
   // Group eligible reservations by date + court
   const eligibleReservations = myReservations.filter(
-    (r) => r.status === '예약완료' && r.waitingSequence === null && r.type === 'court',
+    (r) =>
+      r.status === '예약완료' &&
+      r.waitingSequence === null &&
+      r.type === 'court' &&
+      !matchingPosts.some((mp) => mp.reservationIds.includes(r.id)),
   );
   const eligibleBatchGroups = (() => {
     const map = new Map<string, Reservation[]>();

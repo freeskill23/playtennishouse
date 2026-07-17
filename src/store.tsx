@@ -1437,15 +1437,26 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const deleteMatchingPost = useCallback(
     (postId: string) => {
+      const post = matchingPosts.find((p) => p.id === postId);
       setMatchingPosts((prev) => prev.filter((p) => p.id !== postId));
       if (supabaseConfigured) {
         supabase.from('matching_posts').delete().eq('id', postId).then(({ error }) => {
           if (error) pushToast('매칭 삭제 실패: ' + error.message, 'error');
         });
       }
+      if (post && post.reservationIds.length > 0) {
+        setReservations((prev) =>
+          prev.map((r) => {
+            if (!post.reservationIds.includes(r.id)) return r;
+            const cancelled = { ...r, status: '취소' as ReservationStatus };
+            upsertReservationToSupabase(cancelled);
+            return cancelled;
+          }),
+        );
+      }
       pushToast('매칭글이 삭제되었습니다.', 'info');
     },
-    [pushToast],
+    [matchingPosts, upsertReservationToSupabase, pushToast],
   );
 
   // ===== Notices =====
