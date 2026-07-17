@@ -146,14 +146,35 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function useTabHistory<T extends string>(initial: T) {
+  const [tab, setTab] = useState<T>(initial);
+
+  useEffect(() => {
+    window.history.replaceState({ tab: initial, idx: 0 }, '');
+    const onPop = (e: PopStateEvent) => {
+      const st = e.state as { tab?: T } | null;
+      if (st?.tab) setTab(st.tab);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [initial]);
+
+  const go = (k: T) => {
+    setTab(k);
+    window.history.pushState({ tab: k }, '');
+  };
+
+  return { tab, go };
+}
+
 function UserShell() {
   const { currentUser, logoImageUrl } = useApp();
   const { signOut } = useAuth();
-  const [tab, setTab] = useState<UserTab>('home');
+  const { tab, go: goRaw } = useTabHistory<UserTab>('home');
   const [mobileMenu, setMobileMenu] = useState(false);
 
   const go = (k: string) => {
-    setTab(k as UserTab);
+    goRaw(k as UserTab);
     setMobileMenu(false);
   };
 
@@ -163,7 +184,7 @@ function UserShell() {
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
           <button onClick={() => go('home')} className="shrink-0 flex items-center gap-2">
             <Logo size={36} imageUrl={logoImageUrl} />
-            <span className="text-lg font-extrabold tracking-tight text-black">PALY TENNIS HOUSE</span>
+            <span className="text-lg font-extrabold tracking-tight text-black">PLAY TENNIS HOUSE</span>
           </button>
           <nav className="hidden md:flex items-center gap-1">
             {USER_NAV.map((n) => {
@@ -256,7 +277,7 @@ function UserShell() {
 function AdminShell() {
   const { notifications, logoImageUrl } = useApp();
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === '1');
-  const [tab, setTab] = useState<AdminTab>('dashboard');
+  const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard');
   const [mobileMenu, setMobileMenu] = useState(false);
 
   if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;
@@ -264,7 +285,7 @@ function AdminShell() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const go = (k: string) => {
-    setTab(k as AdminTab);
+    goRaw(k as AdminTab);
     setMobileMenu(false);
   };
 

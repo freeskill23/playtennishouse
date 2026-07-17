@@ -34,7 +34,60 @@ import {
   initialNotifications,
 } from './mockData';
 import type { AuthUser } from './lib/auth';
+import { supabase, supabaseConfigured } from './lib/supabase';
 import { isWeekendOrHoliday, COURT_SLOT_PRICE, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
+
+type ReservationRow = {
+  id: string;
+  type: ReservationType;
+  user_id: string;
+  target_id: string;
+  target_label: string;
+  date: string;
+  time_slot: string | null;
+  capacity: number | null;
+  status: ReservationStatus;
+  waiting_sequence: number | null;
+  deposit_timeout_until: number | null;
+  amount: number;
+  created_at: number;
+};
+
+function rowToReservation(r: ReservationRow): Reservation {
+  return {
+    id: r.id,
+    type: r.type,
+    userId: r.user_id,
+    targetId: r.target_id,
+    targetLabel: r.target_label,
+    date: r.date,
+    timeSlot: r.time_slot || undefined,
+    capacity: r.capacity || undefined,
+    status: r.status,
+    waitingSequence: r.waiting_sequence,
+    depositTimeoutUntil: r.deposit_timeout_until,
+    amount: r.amount,
+    createdAt: r.created_at,
+  };
+}
+
+function reservationToRow(r: Reservation): ReservationRow {
+  return {
+    id: r.id,
+    type: r.type,
+    user_id: r.userId,
+    target_id: r.targetId,
+    target_label: r.targetLabel,
+    date: r.date,
+    time_slot: r.timeSlot || null,
+    capacity: r.capacity || null,
+    status: r.status,
+    waiting_sequence: r.waitingSequence,
+    deposit_timeout_until: r.depositTimeoutUntil || null,
+    amount: r.amount,
+    created_at: r.createdAt,
+  };
+}
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -71,8 +124,8 @@ interface AppState {
   createCourtReservation: (input: {
     court: CourtName;
     date: string;
-    timeSlot: string;
-  }) => { ok: boolean; reason?: string; reservation?: Reservation };
+    timeSlots: string[];
+  }) => { ok: boolean; reason?: string; reservations?: Reservation[] };
   requestWaiting: (reservationId: string) => { ok: boolean; sequence?: number };
   cancelReservation: (id: string) => void;
   approveReservation: (id: string) => void;
@@ -173,6 +226,29 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // ===== Supabase reservation persistence =====
+  const upsertReservationToSupabase = useCallback(async (r: Reservation) => {
+    if (!supabaseConfigured) return;
+    await supabase.from('reservations').upsert(reservationToRow(r));
+  }, []);
+
+  const deleteReservationFromSupabase = useCallback(async (id: string) => {
+    if (!supabaseConfigured) return;
+    await supabase.from('reservations').delete().eq('id', id);
+  }, []);
+
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase
+        .from('reservations')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (data && data.length > 0) {
+        setReservations(data.map((r) => rowToReservation(r as ReservationRow)));
+      }
+    })();
+  }, []);
   // ===== Toast helpers =====
   const pushToast = useCallback((message: string, kind: Toast['kind'] = 'success') => {
     const id = uid('toast');
@@ -419,6 +495,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       };
 
       setReservations((prev) => [...prev, reservation]);
+      upsertReservationToSupabase(reservation);
       addNotification({
         kind: 'reservation_new',
         title: '새 펜션 예약 신청',
@@ -432,47 +509,55 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       );
       return { ok: true, reservation };
     },
-    [rooms, reservations, currentUserId, isPensionBlockedByCourt, addNotification, getUser, pushToast],
+    [rooms, reservations, currentUserId, isPensionBlockedByCourt, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Create court reservation =====
   const createCourtReservation = useCallback(
-    (input: { court: CourtName; date: string; timeSlot: string }) => {
-      if (!COURT_TIME_SLOTS.includes(input.timeSlot as (typeof COURT_TIME_SLOTS)[number])) {
-        return { ok: false, reason: '잘못된 시간대입니다.' };
+    (input: { court: CourtName; date: string; timeSlots: string[] }) => {
+      if (input.timeSlots.length === 0) {
+        return { ok: false, reason: '시간대를 선택해주세요.' };
+      }
+      for (const slot of input.timeSlots) {
+        if (!COURT_TIME_SLOTS.includes(slot as (typeof COURT_TIME_SLOTS)[number])) {
+          return { ok: false, reason: '잘못된 시간대입니다.' };
+        }
       }
       if (isCourtBlockedByPension(input.date, input.court)) {
         return { ok: false, reason: '해당 날짜에 펜션 예약이 완료되어 코트 이용이 불가합니다.' };
       }
-      const slotStatus = getCourtSlotStatus(input.date, input.court, input.timeSlot);
-      if (slotStatus === 'booked' || slotStatus === 'pending') {
-        return { ok: false, reason: '이미 예약되었거나 신청 중인 시간대입니다.' };
+      for (const slot of input.timeSlots) {
+        const slotStatus = getCourtSlotStatus(input.date, input.court, slot);
+        if (slotStatus === 'booked' || slotStatus === 'pending') {
+          return { ok: false, reason: `${slot}은(는) 이미 예약되었거나 신청 중인 시간대입니다.` };
+        }
       }
 
-      const reservation: Reservation = {
+      const newReservations: Reservation[] = input.timeSlots.map((slot) => ({
         id: uid('r'),
         type: 'court',
         userId: currentUserId,
         targetId: input.court,
         targetLabel: input.court,
         date: input.date,
-        timeSlot: input.timeSlot,
+        timeSlot: slot,
         status: '신청',
         waitingSequence: null,
         amount: COURT_SLOT_PRICE,
         createdAt: Date.now(),
-      };
-      setReservations((prev) => [...prev, reservation]);
+      }));
+      setReservations((prev) => [...prev, ...newReservations]);
+      newReservations.forEach((r) => upsertReservationToSupabase(r));
       addNotification({
         kind: 'reservation_new',
         title: '새 코트 예약 신청',
-        body: `${getUser(currentUserId)?.name}님이 ${input.court} ${input.timeSlot} 예약을 신청했습니다.`,
+        body: `${getUser(currentUserId)?.name}님이 ${input.court} ${input.timeSlots.join(', ')} 예약을 신청했습니다.`,
         targetUserId: currentUserId,
       });
-      pushToast('코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.');
-      return { ok: true, reservation };
+      pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
+      return { ok: true, reservations: newReservations };
     },
-    [isCourtBlockedByPension, getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast],
+    [isCourtBlockedByPension, getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Waiting request =====
@@ -500,10 +585,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
       };
       setReservations((prev) => [...prev, newWaiting]);
+      upsertReservationToSupabase(newWaiting);
       pushToast(`대기 신청 완료! 대기 ${seq}순위`);
       return { ok: true, sequence: seq };
     },
-    [reservations, currentUserId, pushToast],
+    [reservations, currentUserId, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Waiting handoff with timeout =====
@@ -533,6 +619,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             : r,
         ),
       );
+      upsertReservationToSupabase({ ...next, status: '입금대기', waitingSequence: null, depositTimeoutUntil: timeoutUntil });
       addNotification({
         kind: 'waiting_promoted',
         title: '대기 1순위 승격',
@@ -561,7 +648,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         });
       }, 2 * 60 * 60 * 1000);
     },
-    [reservations, addNotification, getUser, pushToast],
+    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Cancel reservation =====
@@ -584,10 +671,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           targetUserId: target.userId,
         });
         pushToast('예약이 취소되었습니다.', 'info');
+        const cancelled = updated.find((r) => r.id === id);
+        if (cancelled) upsertReservationToSupabase(cancelled);
         return updated;
       });
     },
-    [promoteNextWaiting, addNotification, getUser, pushToast],
+    [promoteNextWaiting, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Approve reservation (admin) =====
@@ -603,10 +692,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           targetUserId: target.userId,
         });
         pushToast(`${getUser(target.userId)?.name}님 예약 승인 완료`);
-        return prev.map((r) => (r.id === id ? { ...r, status: '예약완료' as ReservationStatus } : r));
+        const updated = prev.map((r) => (r.id === id ? { ...r, status: '예약완료' as ReservationStatus } : r));
+        const approved = updated.find((r) => r.id === id);
+        if (approved) upsertReservationToSupabase(approved);
+        return updated;
       });
     },
-    [addNotification, getUser, pushToast],
+    [addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   const rejectReservation = useCallback(
@@ -621,10 +713,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           targetUserId: target.userId,
         });
         pushToast(`${getUser(target.userId)?.name}님 예약 거절 처리`, 'error');
-        return prev.map((r) => (r.id === id ? { ...r, status: '취소' as ReservationStatus } : r));
+        const updated = prev.map((r) => (r.id === id ? { ...r, status: '취소' as ReservationStatus } : r));
+        const rejected = updated.find((r) => r.id === id);
+        if (rejected) upsertReservationToSupabase(rejected);
+        return updated;
       });
     },
-    [addNotification, getUser, pushToast],
+    [addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Matching =====

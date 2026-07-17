@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarRange, Wallet, Clock, AlertTriangle, CheckCircle2, Lock } from 'lucide-react';
+import { CalendarRange, Wallet, Clock, AlertTriangle, CheckCircle2, Lock, Plus, Minus } from 'lucide-react';
 import { useApp } from '../store';
 import { Calendar, todayYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
@@ -25,15 +25,29 @@ export function CourtScreen() {
   } = useApp();
   const [date, setDate] = useState(todayYMD());
   const [court, setCourt] = useState<CourtName>('A코트');
-  const [slot, setSlot] = useState<string | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [errorReason, setErrorReason] = useState<string | null>(null);
 
   const blockedByPension = isCourtBlockedByPension(date, court);
 
+  const toggleSlot = (s: string) => {
+    setSelectedSlots((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+    );
+    setErrorReason(null);
+  };
+
   const handleReserve = () => {
-    if (!slot) return;
-    const res = createCourtReservation({ court, date, timeSlot: slot });
-    if (res.ok) setModalOpen(true);
+    if (selectedSlots.length === 0) return;
+    const res = createCourtReservation({ court, date, timeSlots: selectedSlots });
+    if (res.ok) {
+      setModalOpen(true);
+      setSelectedSlots([]);
+      setErrorReason(null);
+    } else {
+      setErrorReason(res.reason || '예약에 실패했습니다.');
+    }
   };
 
   const handleWaiting = () => {
@@ -42,7 +56,7 @@ export function CourtScreen() {
         r.type === 'court' &&
         r.date === date &&
         r.targetId === court &&
-        r.timeSlot === slot &&
+        r.timeSlot === selectedSlots[0] &&
         r.waitingSequence === null &&
         r.status !== '취소',
     );
@@ -51,14 +65,17 @@ export function CourtScreen() {
     }
   };
 
+  const sortedSlots = [...selectedSlots].sort();
+  const totalAmount = COURT_SLOT_PRICE * selectedSlots.length;
+
   return (
     <div className="space-y-5 pb-4">
       <SectionTitle
         title="코트 예약"
-        subtitle="2시간 단위 · 09:00 ~ 21:00"
+        subtitle="2시간 단위 · 09:00 ~ 21:00 · 여러 시간대 선택 가능"
         right={
           <span className="chip bg-navy-50 text-navy-700">
-            <CalendarRange size={14} /> 20,000원 / 1시간
+            <CalendarRange size={14} /> {formatWon(COURT_SLOT_PRICE)} / 1시간
           </span>
         }
       />
@@ -84,7 +101,7 @@ export function CourtScreen() {
           return (
             <button
               key={c.name}
-              onClick={() => setCourt(c.name)}
+              onClick={() => { setCourt(c.name); setSelectedSlots([]); setErrorReason(null); }}
               className={`card p-4 text-left transition-all ${
                 isSel ? 'ring-2 ring-volt-500 -translate-y-0.5' : 'hover:border-navy-200'
               }`}
@@ -117,17 +134,27 @@ export function CourtScreen() {
 
       {/* Time slots */}
       <div className="card p-5">
-        <SectionTitle title="시간대 선택" subtitle={`${court} · 2시간 단위`} />
+        <div className="flex items-center justify-between mb-3">
+          <SectionTitle title="시간대 선택" subtitle={`${court} · 2시간 단위 · 복수 선택`} />
+          {selectedSlots.length > 0 && (
+            <button
+              onClick={() => setSelectedSlots([])}
+              className="text-xs font-bold text-slate-400 hover:text-rose-500 transition"
+            >
+              선택 해제
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {COURT_TIME_SLOTS.map((s) => {
             const status = getCourtSlotStatus(date, court, s);
-            const isSel = slot === s;
+            const isSel = selectedSlots.includes(s);
             const disabled = status !== 'available';
             return (
               <button
                 key={s}
                 disabled={disabled}
-                onClick={() => setSlot(s)}
+                onClick={() => toggleSlot(s)}
                 className={`relative rounded-xl p-3 text-sm font-bold transition-all border ${
                   isSel
                     ? 'bg-navy-900 text-white border-navy-900 shadow-navy'
@@ -140,40 +167,66 @@ export function CourtScreen() {
               >
                 <div className="flex items-center justify-between">
                   <span>{s}</span>
-                  {status === 'booked' && <Lock size={13} />}
-                  {status === 'pending' && <Clock size={13} />}
+                  {isSel ? (
+                    <Minus size={13} />
+                  ) : status === 'booked' ? (
+                    <Lock size={13} />
+                  ) : status === 'pending' ? (
+                    <Clock size={13} />
+                  ) : (
+                    <Plus size={13} className="opacity-40" />
+                  )}
                 </div>
                 <p className="text-[10px] font-medium mt-0.5 opacity-70">
-                  {status === 'available'
-                    ? '예약가능'
-                    : status === 'booked'
-                      ? '예약완료'
-                      : status === 'pending'
-                        ? '신청중'
-                        : '펜션전용'}
+                  {isSel
+                    ? '선택됨'
+                    : status === 'available'
+                      ? '예약가능'
+                      : status === 'booked'
+                        ? '예약완료'
+                        : status === 'pending'
+                          ? '신청중'
+                          : '펜션전용'}
                 </p>
               </button>
             );
           })}
         </div>
 
-        {slot && !blockedByPension && (
+        {errorReason && (
+          <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 p-3.5 flex items-start gap-2 animate-slide-up">
+            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+            <p className="text-sm text-rose-800">{errorReason}</p>
+          </div>
+        )}
+
+        {sortedSlots.length > 0 && !blockedByPension && (
           <div className="mt-4 space-y-2 animate-slide-up">
-            <div className="rounded-xl bg-navy-50 p-3.5 flex items-center justify-between">
-              <div>
-                <p className="font-bold text-navy-900">{court} · {slot}</p>
+            <div className="rounded-xl bg-navy-50 p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-navy-900">{court}</p>
                 <p className="text-xs text-slate-500">{date}</p>
               </div>
-              <p className="font-extrabold text-navy-900">{formatWon(COURT_SLOT_PRICE)}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {sortedSlots.map((s) => (
+                  <span key={s} className="chip bg-white text-navy-800 border border-navy-100">
+                    <Clock size={11} /> {s}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-navy-100">
+                <p className="text-xs text-slate-500">총 {selectedSlots.length}시간대</p>
+                <p className="font-extrabold text-navy-900">{formatWon(totalAmount)}</p>
+              </div>
             </div>
             <button onClick={handleReserve} className="btn-primary w-full py-3 text-base">
-              <Wallet size={18} /> 입금 신청하기
+              <Wallet size={18} /> 입금 신청하기 ({formatWon(totalAmount)})
             </button>
           </div>
         )}
 
         {/* Waiting for booked/pending slot */}
-        {slot && (getCourtSlotStatus(date, court, slot) === 'booked' || getCourtSlotStatus(date, court, slot) === 'pending') && !blockedByPension && (
+        {selectedSlots.length === 1 && (getCourtSlotStatus(date, court, selectedSlots[0]) === 'booked' || getCourtSlotStatus(date, court, selectedSlots[0]) === 'pending') && !blockedByPension && (
           <div className="mt-4 space-y-2 animate-slide-up">
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 flex items-start gap-2">
               <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
@@ -212,9 +265,17 @@ export function CourtScreen() {
           </div>
           <div className="text-sm text-slate-600 space-y-2">
             <p><span className="font-bold text-navy-800">예약자:</span> {currentUser.name} ({currentUser.phone})</p>
-            <p><span className="font-bold text-navy-800">코트:</span> {court} · {slot}</p>
+            <p><span className="font-bold text-navy-800">코트:</span> {court}</p>
+            <div>
+              <p className="font-bold text-navy-800">시간대:</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {sortedSlots.map((s) => (
+                  <span key={s} className="chip bg-navy-50 text-navy-700">{s}</span>
+                ))}
+              </div>
+            </div>
             <p><span className="font-bold text-navy-800">날짜:</span> {date}</p>
-            <p><span className="font-bold text-navy-800">금액:</span> {formatWon(COURT_SLOT_PRICE)}</p>
+            <p><span className="font-bold text-navy-800">금액:</span> {formatWon(totalAmount)}</p>
           </div>
         </div>
       </Modal>
