@@ -1377,19 +1377,21 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   const rejectMatchingApplication = useCallback(
-    (postId: string, applicationId: string) => {
+    (postId: string, applicationId: string, reason?: string) => {
       setMatchingPosts((prev) =>
         prev.map((p) => {
           if (p.id !== postId) return p;
           const apps = p.applications.map((a) =>
-            a.id === applicationId ? { ...a, status: '거절' as const } : a,
+            a.id === applicationId ? { ...a, status: '거절' as const, rejectReason: reason?.slice(0, 100) } : a,
           );
           const app = apps.find((a) => a.id === applicationId);
           if (app) {
             addNotification({
               kind: 'matching_rejected',
               title: '매칭 신청 거절',
-              body: `${getUser(p.userId)?.name}님이 회원님의 매칭 신청을 거절했습니다.`,
+              body: reason?.trim()
+                ? `${getUser(p.userId)?.name}님이 회원님의 매칭 신청을 거절했습니다. 사유: ${reason.trim()}`
+                : `${getUser(p.userId)?.name}님이 회원님의 매칭 신청을 거절했습니다.`,
               targetUserId: app.userId,
             });
           }

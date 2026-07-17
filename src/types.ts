@@ -70,6 +70,7 @@ export interface MatchingApplication {
   appliedAt: number;
   intro: string; // 한줄 소개
   gender?: ApplicantGender; // 신청자 성별
+  rejectReason?: string; // 거절 사유 (한줄 메시지)
 }
 
 export const MATCHING_MAX_PLAYERS = 8;
@@ -119,6 +120,7 @@ export type NotificationKind =
   | 'waiting_timeout'
   | 'matching_new'
   | 'matching_approved'
+  | 'matching_rejected'
   | 'matching_completed'
   | 'notice_new';
 

@@ -250,8 +250,11 @@ export function MatchingScreen() {
                         <Phone size={16} /> 연락처 보기
                       </button>
                     ) : myApp.status === '거절' ? (
-                      <button disabled className="btn-ghost flex-1">
-                        <X size={16} /> 거절됨
+                      <button disabled className="btn-ghost flex-1 flex flex-col items-center gap-0.5">
+                        <span className="flex items-center gap-1.5"><X size={16} /> 거절됨</span>
+                        {myApp.rejectReason && (
+                          <span className="text-[11px] text-rose-500 font-medium normal-case">사유: {myApp.rejectReason}</span>
+                        )}
                       </button>
                     ) : (
                       <button disabled className="btn-ghost flex-1">
@@ -289,6 +292,7 @@ export function MatchingScreen() {
             onApply={handleApply}
             onApprove={handleApprove}
             onReject={rejectMatchingApplication}
+            onShowContact={(name, phone) => setContactModal({ name, phone })}
             onCloseMatching={(postId) => {
               closeMatching(postId);
               setSelectedPost(null);
@@ -351,12 +355,15 @@ function ApplyOrManageModal({
   getUser: (id: string) => { name: string; profileImg: string; ntrp: string; career: string; phone: string } | undefined;
   onApply: (post: MatchingPost, intro: string, gender?: ApplicantGender) => void;
   onApprove: (post: MatchingPost, appId: string) => void;
-  onReject: (postId: string, appId: string) => void;
+  onReject: (postId: string, appId: string, reason?: string) => void;
   onCloseMatching: (postId: string) => void;
+  onShowContact: (name: string, phone: string) => void;
 }) {
   const [intro, setIntro] = useState('');
   const [gender, setGender] = useState<ApplicantGender | ''>('');
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [rejectingAppId, setRejectingAppId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   if (isHost) {
     return (
@@ -385,9 +392,41 @@ function ApplyOrManageModal({
                         </p>
                       </div>
                       {app.status === '승인' ? (
-                        <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 승인됨</span>
+                        <button
+                          onClick={() => onShowContact(u?.name || '', u?.phone || '')}
+                          className="chip bg-volt-100 text-volt-800 hover:bg-volt-200 transition-colors cursor-pointer"
+                          title="연락처 보기"
+                        >
+                          <CheckCircle2 size={12} /> 승인됨 · 연락처
+                        </button>
                       ) : app.status === '거절' ? (
                         <span className="chip bg-rose-100 text-rose-700"><X size={12} /> 거절됨</span>
+                      ) : rejectingAppId === app.id ? (
+                        <div className="flex flex-col gap-1.5 w-full max-w-[200px]">
+                          <input
+                            type="text"
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="거절 사유 (한줄 메시지)"
+                            maxLength={100}
+                            className="input text-xs py-1.5 px-2"
+                            autoFocus
+                          />
+                          <div className="flex gap-1.5 justify-end">
+                            <button
+                              onClick={() => { setRejectingAppId(null); setRejectReason(''); }}
+                              className="btn-ghost text-xs py-1 px-2"
+                            >
+                              취소
+                            </button>
+                            <button
+                              onClick={() => { onReject(post.id, app.id, rejectReason); setRejectingAppId(null); setRejectReason(''); }}
+                              className="btn-primary text-xs py-1 px-2 bg-rose-600 hover:bg-rose-700"
+                            >
+                              거절
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="flex gap-1.5">
                           <button
@@ -397,7 +436,7 @@ function ApplyOrManageModal({
                             승인
                           </button>
                           <button
-                            onClick={() => onReject(post.id, app.id)}
+                            onClick={() => { setRejectingAppId(app.id); setRejectReason(''); }}
                             className="btn-ghost text-sm py-1.5 px-3 text-rose-600 hover:bg-rose-50"
                           >
                             거절
@@ -408,6 +447,11 @@ function ApplyOrManageModal({
                     {app.intro && (
                       <p className="text-xs text-slate-600 mt-2 pl-13 border-l-2 border-slate-100 ml-13">
                         "{app.intro}"
+                      </p>
+                    )}
+                    {app.status === '거절' && app.rejectReason && (
+                      <p className="text-xs text-rose-600 mt-1.5 pl-13 border-l-2 border-rose-200 ml-13">
+                        거절 사유: "{app.rejectReason}"
                       </p>
                     )}
                   </div>
