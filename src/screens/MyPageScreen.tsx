@@ -142,7 +142,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         <StatBox label="신청 매칭" value={myAppliedMatchings.length} icon={<Hand size={16} />} tone="sky" />
       </div>
 
-      {/* My reservations */}
+      {/* My reservations - grouped by date */}
       <div>
         <SectionTitle title="내 예약" subtitle="예약 및 대기 내역" />
         {myReservations.length === 0 ? (
@@ -152,52 +152,87 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
             action={<button className="btn-primary" onClick={() => go('pension')}>펜션 예약하러 가기</button>}
           />
         ) : (
-          <div className="space-y-2">
-            {myReservations.map((r) => (
-              <div key={r.id} className="card p-4">
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.type === 'pension' ? 'bg-volt-100 text-volt-700' : 'bg-navy-50 text-navy-700'}`}>
-                    {r.type === 'pension' ? <BedDouble size={18} /> : <CalendarRange size={18} />}
+          <div className="space-y-3">
+            {Object.entries(
+              myReservations.reduce<Record<string, typeof myReservations>>((acc, r) => {
+                (acc[r.date] ||= []).push(r);
+                return acc;
+              }, {}),
+            )
+              .sort(([a], [b]) => (a < b ? 1 : -1))
+              .map(([date, items]) => (
+                <div key={date}>
+                  <div className="flex items-center gap-2 px-1 mb-1.5">
+                    <CalendarRange size={14} className="text-volt-600" />
+                    <span className="text-sm font-bold text-navy-900">{date}</span>
+                    <span className="text-xs text-slate-400">({items.length}건)</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-navy-900">{r.targetLabel}</p>
-                      {r.type === 'court' && r.timeSlot && <span className="chip bg-slate-100 text-slate-600">{r.timeSlot}</span>}
-                      {r.waitingSequence && <span className="chip bg-amber-100 text-amber-700">대기 {r.waitingSequence}순위</span>}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {r.date}{r.capacity && ` · ${r.capacity}명`} · {r.amount.toLocaleString()}원
-                    </p>
-                    <div className="mt-2">
-                      <StatusBadge status={r.status} />
-                    </div>
+                  <div className="space-y-2">
+                    {items.map((r) => (
+                      <div key={r.id} className="card p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.type === 'pension' ? 'bg-volt-100 text-volt-700' : 'bg-navy-50 text-navy-700'}`}>
+                            {r.type === 'pension' ? <BedDouble size={18} /> : <CalendarRange size={18} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-navy-900">{r.targetLabel}</p>
+                              {r.type === 'court' && r.timeSlot && <span className="chip bg-slate-100 text-slate-600">{r.timeSlot}</span>}
+                              {r.waitingSequence && <span className="chip bg-amber-100 text-amber-700">대기 {r.waitingSequence}순위</span>}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {r.capacity && `${r.capacity}명`} · {r.amount.toLocaleString()}원
+                            </p>
+                            <div className="mt-2">
+                              <StatusBadge status={r.status} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
 
-      {/* Create matching */}
+      {/* Create matching - grouped by date */}
       {eligibleReservations.length > 0 && (
         <div>
           <SectionTitle title="매칭글 작성" subtitle="예약완료 건으로 메이트를 모집하세요" />
-          <div className="space-y-2">
-            {eligibleReservations.map((r) => (
-              <div key={r.id} className="card p-4 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.type === 'pension' ? 'bg-volt-100 text-volt-700' : 'bg-navy-50 text-navy-700'}`}>
-                  {r.type === 'pension' ? <BedDouble size={18} /> : <CalendarRange size={18} />}
+          <div className="space-y-3">
+            {Object.entries(
+              eligibleReservations.reduce<Record<string, typeof eligibleReservations>>((acc, r) => {
+                (acc[r.date] ||= []).push(r);
+                return acc;
+              }, {}),
+            )
+              .sort(([a], [b]) => (a < b ? 1 : -1))
+              .map(([date, items]) => (
+                <div key={date}>
+                  <div className="flex items-center gap-2 px-1 mb-1.5">
+                    <CalendarRange size={14} className="text-volt-600" />
+                    <span className="text-sm font-bold text-navy-900">{date}</span>
+                    <span className="text-xs text-slate-400">({items.length}건)</span>
+                  </div>
+                  <div className="space-y-2">
+                    {items.map((r) => (
+                      <div key={r.id} className="card p-4 flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.type === 'pension' ? 'bg-volt-100 text-volt-700' : 'bg-navy-50 text-navy-700'}`}>
+                          {r.type === 'pension' ? <BedDouble size={18} /> : <CalendarRange size={18} />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-navy-900">{r.targetLabel} {r.type === 'court' && r.timeSlot}</p>
+                        </div>
+                        <button onClick={() => setMatchingTarget(r.id)} className="btn-primary text-sm py-2 px-3">
+                          <Plus size={16} /> 매칭 모집
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-navy-900">{r.targetLabel} {r.type === 'court' && r.timeSlot}</p>
-                  <p className="text-xs text-slate-500">{r.date}</p>
-                </div>
-                <button onClick={() => setMatchingTarget(r.id)} className="btn-primary text-sm py-2 px-3">
-                  <Plus size={16} /> 매칭 모집
-                </button>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
       )}
