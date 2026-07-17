@@ -1128,18 +1128,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       pushToast(`${firstName}님 예약 ${targets.length}건 승인 완료`);
       const approvedMap = new Map<string, Reservation>();
-      setReservations((prev) =>
-        prev.map((r) => {
-          if (!ids.includes(r.id)) return r;
-          const approved = { ...r, status: '예약완료' as ReservationStatus };
-          approvedMap.set(r.id, approved);
-          return approved;
-        }),
-      );
-      for (const id of ids) {
-        const approved = approvedMap.get(id);
-        if (approved) upsertReservationToSupabase(approved);
+      for (const r of targets) {
+        const approved = { ...r, status: '예약완료' as ReservationStatus };
+        approvedMap.set(r.id, approved);
+        upsertReservationToSupabase(approved);
       }
+      setReservations((prev) =>
+        prev.map((r) => (ids.includes(r.id) ? approvedMap.get(r.id)! : r)),
+      );
 
       // Activate matching posts if all their reservations are now approved
       setMatchingPosts((mpPrev) => {
