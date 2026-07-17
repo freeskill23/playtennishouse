@@ -161,7 +161,7 @@ export function AdminMembersScreen() {
   };
 
   const handleExportSmsList = () => {
-    const consented = members.filter(
+    const consented = filtered.filter(
       (m) => m.marketing_consent && m.phone && !m.is_bad_member,
     );
     if (consented.length === 0) {

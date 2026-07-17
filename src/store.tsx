@@ -137,6 +137,7 @@ interface AppState {
   requestWaiting: (reservationId: string) => { ok: boolean; sequence?: number };
   cancelReservation: (id: string) => void;
   approveReservation: (id: string) => void;
+  approveReservations: (ids: string[]) => void;
   rejectReservation: (id: string) => void;
 
   // matching
@@ -1098,6 +1099,51 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
   );
 
+  // ===== Approve multiple reservations at once (admin) =====
+  const approveReservations = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      setReservations((prev) => {
+        const targets = prev.filter((r) => ids.includes(r.id));
+        if (targets.length === 0) return prev;
+        const firstName = getUser(targets[0].userId)?.name || '회원';
+        addNotification({
+          kind: 'reservation_approved',
+          title: '예약 승인 완료',
+          body: `${firstName}님의 예약 ${targets.length}건이 승인(예약완료) 처리되었습니다.`,
+          targetUserId: targets[0].userId,
+        });
+        pushToast(`${firstName}님 예약 ${targets.length}건 승인 완료`);
+        const updated = prev.map((r) =>
+          ids.includes(r.id) ? { ...r, status: '예약완료' as ReservationStatus } : r,
+        );
+        for (const id of ids) {
+          const approved = updated.find((r) => r.id === id);
+          if (approved) upsertReservationToSupabase(approved);
+        }
+
+        // Activate matching posts if all their reservations are now approved
+        setMatchingPosts((mpPrev) => {
+          let next = mpPrev;
+          for (const mp of mpPrev) {
+            if (mp.courtApproved) continue;
+            const allApproved = mp.reservationIds.every((rid) =>
+              updated.find((r) => r.id === rid)?.status === '예약완료',
+            );
+            if (!allApproved) continue;
+            const activated = { ...mp, courtApproved: true, status: '모집중' as MatchingStatus };
+            syncMatchingPost(activated);
+            next = next.map((p) => (p.id === mp.id ? activated : p));
+          }
+          return next;
+        });
+
+        return updated;
+      });
+    },
+    [addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
+  );
+
   const rejectReservation = useCallback(
     (id: string) => {
       setReservations((prev) => {
@@ -1508,6 +1554,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     requestWaiting,
     cancelReservation,
     approveReservation,
+    approveReservations,
     rejectReservation,
     createMatchingPost,
     createMatchingPostFromReservation,
