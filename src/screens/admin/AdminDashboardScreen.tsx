@@ -526,22 +526,26 @@ export function AdminDashboardScreen() {
           const res = getReservationsByDate(d);
           if (res.length === 0) return null;
           const pensionRes = res.filter((r) => r.type === 'pension');
-          if (pensionRes.length === 0) {
-            const hasCompleted = res.some((r) => r.status === '예약완료');
-            if (hasCompleted) return <span className="w-1.5 h-1.5 rounded-full bg-volt-500" />;
-            return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />;
+          if (pensionRes.length > 0) {
+            const hasA = pensionRes.some((r) => r.targetId === 'roomA');
+            const hasB = pensionRes.some((r) => r.targetId === 'roomB');
+            let label = '';
+            if (hasA && hasB) label = 'AB동';
+            else if (hasA) label = 'A동';
+            else if (hasB) label = 'B동';
+            return (
+              <span className="text-[8px] font-bold leading-none text-volt-700 bg-volt-100 rounded px-1 py-0.5">
+                {label}예약
+              </span>
+            );
           }
-          const hasA = pensionRes.some((r) => r.targetId === 'roomA');
-          const hasB = pensionRes.some((r) => r.targetId === 'roomB');
-          let label = '';
-          if (hasA && hasB) label = 'AB동';
-          else if (hasA) label = 'A동';
-          else if (hasB) label = 'B동';
-          return (
-            <span className="text-[8px] font-bold leading-none text-volt-700 bg-volt-100 rounded px-1 py-0.5">
-              {label}예약
-            </span>
-          );
+          const aBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'booked');
+          const bBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'booked');
+          if (aBooked || bBooked) return <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />;
+          const aPending = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'pending');
+          const bPending = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'pending');
+          if (aPending || bPending) return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />;
+          return null;
         }}
       />
 
