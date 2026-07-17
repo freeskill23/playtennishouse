@@ -11,6 +11,7 @@ import {
   Clock,
   MapPin,
   User,
+  Phone,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { Logo } from '../components/Logo';
@@ -276,7 +277,7 @@ function MatchingList({
   onItemClick,
 }: {
   posts: MatchingPost[];
-  getUser: (id: string) => { name: string; profileImg: string } | undefined;
+  getUser: (id: string) => { name: string; profileImg: string; phone: string } | undefined;
   emptyText: string;
   onItemClick?: (postId: string) => void;
 }) {
@@ -297,7 +298,14 @@ function MatchingList({
             <div className="flex items-center gap-2.5">
               <img src={host?.profileImg} className="w-10 h-10 rounded-xl object-cover" alt="" />
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-navy-900">{host?.name}</p>
+                <p className="font-bold text-navy-900">
+                  {host?.name}
+                  {host?.phone && (
+                    <span className="ml-2 text-xs font-normal text-slate-500 flex items-center gap-0.5">
+                      <Phone size={11} /> {host.phone}
+                    </span>
+                  )}
+                </p>
                 <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-slate-500">
                   <span className="flex items-center gap-1"><CalendarRange size={11} /> {p.date}</span>
                   <span className="flex items-center gap-1"><Clock size={11} /> {p.time}</span>

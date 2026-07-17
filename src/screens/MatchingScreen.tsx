@@ -149,6 +149,38 @@ export function MatchingScreen() {
         }
       />
 
+      {/* Calendar for date filtering */}
+      <div className="card p-4">
+        <CalendarPicker
+          value={filterDate || todayYMD()}
+          selected={filterDate}
+          onChange={(ymd) => setFilterDate(ymd)}
+          minDate={todayYMD()}
+          maxDate={addDaysYMD(30)}
+          dayRender={(ymd) => {
+            const count = matchingPosts.filter((p) =>
+              p.date === ymd && (p.status === '대관대기' || p.status === '모집중' || p.status === '모집완료')
+            ).length;
+            return count > 0 ? (
+              <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-volt-500" />
+            ) : null;
+          }}
+        />
+        {filterDate && (
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+            <p className="text-sm font-bold text-navy-900">
+              {filterDate} 매칭
+            </p>
+            <button
+              onClick={() => setFilterDate('')}
+              className="chip bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+            >
+              <X size={12} /> 전체 보기
+            </button>
+          </div>
+        )}
+      </div>
+
       {showFilters && (
         <div className="card p-4 space-y-3 animate-slide-up">
           <div>

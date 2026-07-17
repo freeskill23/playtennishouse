@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -30,20 +30,33 @@ export function Calendar({
   minDate,
   maxDate,
   dayRender,
+  selected,
+  onMonthChange,
 }: {
   value: string;
   onChange: (ymd: string) => void;
   minDate?: string;
   maxDate?: string;
   dayRender?: (ymd: string) => React.ReactNode;
+  selected?: string;
+  onMonthChange?: (ymd: string) => void;
 }) {
-  const base = useMemo(() => {
+  const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date(value || todayYMD());
     return new Date(d.getFullYear(), d.getMonth(), 1);
-  }, [value]);
+  });
 
-  const year = base.getFullYear();
-  const month = base.getMonth();
+  useEffect(() => {
+    if (!value) return;
+    const d = new Date(value);
+    const newMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    if (newMonth.getTime() !== viewMonth.getTime()) {
+      setViewMonth(newMonth);
+    }
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const year = viewMonth.getFullYear();
+  const month = viewMonth.getMonth();
 
   const days = useMemo(() => {
     const first = new Date(year, month, 1);
@@ -60,11 +73,13 @@ export function Calendar({
 
   const prevMonth = () => {
     const d = new Date(year, month - 1, 1);
-    onChange(toYMD(d));
+    setViewMonth(d);
+    onMonthChange?.(toYMD(d));
   };
   const nextMonth = () => {
     const d = new Date(year, month + 1, 1);
-    onChange(toYMD(d));
+    setViewMonth(d);
+    onMonthChange?.(toYMD(d));
   };
 
   const today = todayYMD();
@@ -106,7 +121,7 @@ export function Calendar({
         {days.map((d, i) => {
           if (!d) return <div key={i} />;
           const isToday = d === today;
-          const isSelected = d === value;
+          const isSelected = selected !== undefined ? d === selected : d === value;
           const disabled = (minDate ? d < minDate : false) || (maxDate ? d > maxDate : false);
           return (
             <button
