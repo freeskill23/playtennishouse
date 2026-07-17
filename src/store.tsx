@@ -337,9 +337,35 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionWeekendPrice, setPensionWeekendPrice] = useState(PENSION_WEEKEND_PRICE);
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
 
+  // Load rooms from Supabase so admin edits are shared across sessions
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase.from('rooms').select('*');
+      if (!data || data.length === 0) return;
+      setRooms(
+        data.map((r) => ({
+          id: r.id as string,
+          name: r.name as RoomName,
+          maxCapacity: r.max_capacity as number,
+          description: r.description as string,
+          pricePerNight: r.price_per_night as number,
+        })),
+      );
+    })();
+  }, []);
+
   const updateRoom = useCallback(
     (id: string, patch: Partial<Pick<Room, 'maxCapacity' | 'description'>>) => {
       setRooms((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+      if (supabaseConfigured) {
+        const row: Record<string, unknown> = { id, updated_at: new Date().toISOString() };
+        if (patch.maxCapacity != null) row.max_capacity = patch.maxCapacity;
+        if (patch.description != null) row.description = patch.description;
+        supabase.from('rooms').update(row).eq('id', id).then(({ error }) => {
+          if (error) pushToast('객실 정보 저장 실패', 'error');
+        });
+      }
       pushToast('객실 정보가 변경되었습니다.');
     },
     [pushToast],

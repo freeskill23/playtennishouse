@@ -117,12 +117,15 @@ export interface AppNotification {
 }
 
 export const COURT_TIME_SLOTS = [
+  '05:00-07:00',
+  '07:00-09:00',
   '09:00-11:00',
   '11:00-13:00',
   '13:00-15:00',
   '15:00-17:00',
   '17:00-19:00',
   '19:00-21:00',
+  '21:00-23:00',
 ] as const;
 
 export const STATUS_META: Record<
