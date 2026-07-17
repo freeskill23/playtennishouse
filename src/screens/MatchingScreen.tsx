@@ -605,21 +605,12 @@ function CreateMatchingModal({
 
   const blockedByPension = isCourtBlockedByPension(date, court);
 
+  const slotStartHour = (slot: string) => parseInt(slot.split(':')[0], 10);
   const toggleSlot = (s: string) => {
-    setSelectedSlots((prev) => {
-      if (prev.includes(s)) return prev.filter((x) => x !== s);
-      const next = [...prev, s].sort();
-      const hours = next.map((t) => parseInt(t, 10));
-      for (let i = 1; i < hours.length; i++) {
-        if (hours[i] - hours[i - 1] !== 1) {
-          return prev;
-        }
-      }
-      return next;
-    });
-    const willAdd = !selectedSlots.includes(s);
-    if (willAdd) {
-      const hours = [...selectedSlots, s].sort().map((t) => parseInt(t, 10));
+    const removing = selectedSlots.includes(s);
+    if (removing) {
+      const remaining = selectedSlots.filter((x) => x !== s).sort();
+      const hours = remaining.map(slotStartHour);
       let contiguous = true;
       for (let i = 1; i < hours.length; i++) {
         if (hours[i] - hours[i - 1] !== 1) { contiguous = false; break; }
@@ -628,7 +619,20 @@ function CreateMatchingModal({
         setError('예약 신청은 시간을 붙여서 예약해주시기 바랍니다');
         return;
       }
+      setSelectedSlots(remaining);
+      setError(null);
+      return;
     }
+    const hours = [...selectedSlots, s].sort().map(slotStartHour);
+    let contiguous = true;
+    for (let i = 1; i < hours.length; i++) {
+      if (hours[i] - hours[i - 1] !== 1) { contiguous = false; break; }
+    }
+    if (!contiguous) {
+      setError('예약 신청은 시간을 붙여서 예약해주시기 바랍니다');
+      return;
+    }
+    setSelectedSlots([...selectedSlots, s].sort());
     setError(null);
   };
 
