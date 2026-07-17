@@ -77,10 +77,10 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   // Group reservations by date + targetLabel (e.g. 7/17 A코트) so consecutive slots collapse into one row
-  const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}`;
-  const batchGroups = (() => {
+  const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}|${r.matchingPostId || ''}`;
+  const buildBatchGroups = (list: Reservation[]) => {
     const map = new Map<string, Reservation[]>();
-    for (const r of myReservations) {
+    for (const r of list) {
       const key = groupKey(r);
       const arr = map.get(key) || [];
       arr.push(r);
@@ -92,7 +92,16 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
       const bKey = `${b[0].date}|${b[0].timeSlot || ''}`;
       return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
     });
-  })();
+  };
+  const courtBatchGroups = buildBatchGroups(
+    myReservations.filter((r) => r.type === 'court' && !r.matchingPostId),
+  );
+  const matchingBatchGroups = buildBatchGroups(
+    myReservations.filter((r) => r.type === 'court' && !!r.matchingPostId),
+  );
+  const pensionBatchGroups = buildBatchGroups(
+    myReservations.filter((r) => r.type === 'pension'),
+  );
 
   // Group eligible reservations by date + court
   const eligibleReservations = myReservations.filter(
@@ -207,7 +216,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         <StatBox label="신청 매칭" value={myAppliedMatchings.length} icon={<Hand size={16} />} tone="sky" />
       </div>
 
-      {/* My reservations - grouped by batch */}
+      {/* My reservations - grouped by category */}
       <div>
         <SectionTitle title="내 예약" subtitle="예약 및 대기 내역" />
         {myReservations.length === 0 ? (
@@ -217,56 +226,74 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
             action={<button className="btn-primary" onClick={() => go('pension')}>펜션 예약하러 가기</button>}
           />
         ) : (
-          <div className="space-y-3">
-            {batchGroups.map(([groupKeyVal, items]) => {
-              const date = items[0].date;
-              const isCourt = items[0].type === 'court';
-              const activeItems = items.filter((r) => r.status !== '취소');
-              const cancelledItems = items.filter((r) => r.status === '취소');
-              const hasPartialCancel = isCourt && cancelledItems.length > 0 && activeItems.length > 0;
-              const allCancelled = cancelledItems.length === items.length;
-              const activeTimeRange = isCourt ? mergeTimeSlots(activeItems.map((r) => r.timeSlot || '').filter(Boolean)) : '';
-              const fullTimeRange = isCourt ? mergeTimeSlots(items.map((r) => r.timeSlot || '').filter(Boolean)) : '';
-              const displayTimeRange = hasPartialCancel ? activeTimeRange : fullTimeRange;
-              const activeHours = isCourt ? activeItems.length : 0;
-              const totalAmount = items.reduce((sum, r) => sum + r.amount, 0);
-              const hasWaiting = items.some((r) => r.waitingSequence);
-              const statuses = Array.from(new Set(activeItems.map((r) => r.status)));
+          <div className="space-y-4">
+            {([
+              { label: '코트 예약', groups: courtBatchGroups, icon: <CalendarRange size={14} /> },
+              { label: '매칭', groups: matchingBatchGroups, icon: <Users size={14} /> },
+              { label: '펜션 예약', groups: pensionBatchGroups, icon: <BedDouble size={14} /> },
+            ] as const).map((sec) => {
+              if (sec.groups.length === 0) return null;
               return (
-                <div key={groupKeyVal} className="card p-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isCourt ? 'bg-navy-50 text-navy-700' : 'bg-volt-100 text-volt-700'}`}>
-                      {isCourt ? <CalendarRange size={18} /> : <BedDouble size={18} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-volt-600">{date}</span>
-                        <p className="font-bold text-navy-900">{items[0].targetLabel}</p>
-                        {isCourt && displayTimeRange && <span className="chip bg-slate-100 text-slate-600">{timeWithDuration(displayTimeRange)}</span>}
-                        {hasWaiting && <span className="chip bg-amber-100 text-amber-700">대기</span>}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {isCourt && `${activeHours}시간`} · {totalAmount.toLocaleString()}원
-                      </p>
-                      {hasPartialCancel && (
-                        <p className="text-xs text-rose-500 mt-0.5">
-                          {cancelledItems.length}시간 취소됨
-                        </p>
-                      )}
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {hasPartialCancel && (
-                          <span className="chip bg-rose-100 text-rose-600">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                            일부취소
-                          </span>
-                        )}
-                        {allCancelled ? (
-                          <StatusBadge status="취소" />
-                        ) : (
-                          statuses.map((s) => <StatusBadge key={s} status={s} />)
-                        )}
-                      </div>
-                    </div>
+                <div key={sec.label}>
+                  <div className="flex items-center gap-1.5 px-1 mb-2 text-slate-600">
+                    {sec.icon}
+                    <span className="text-sm font-bold">{sec.label}</span>
+                    <span className="text-xs text-slate-400">({sec.groups.length})</span>
+                  </div>
+                  <div className="space-y-3">
+                    {sec.groups.map(([groupKeyVal, items]) => {
+                      const date = items[0].date;
+                      const isCourt = items[0].type === 'court';
+                      const activeItems = items.filter((r) => r.status !== '취소');
+                      const cancelledItems = items.filter((r) => r.status === '취소');
+                      const hasPartialCancel = isCourt && cancelledItems.length > 0 && activeItems.length > 0;
+                      const allCancelled = cancelledItems.length === items.length;
+                      const activeTimeRange = isCourt ? mergeTimeSlots(activeItems.map((r) => r.timeSlot || '').filter(Boolean)) : '';
+                      const fullTimeRange = isCourt ? mergeTimeSlots(items.map((r) => r.timeSlot || '').filter(Boolean)) : '';
+                      const displayTimeRange = hasPartialCancel ? activeTimeRange : fullTimeRange;
+                      const activeHours = isCourt ? activeItems.length : 0;
+                      const totalAmount = items.reduce((sum, r) => sum + r.amount, 0);
+                      const hasWaiting = items.some((r) => r.waitingSequence);
+                      const statuses = Array.from(new Set(activeItems.map((r) => r.status)));
+                      return (
+                        <div key={groupKeyVal} className="card p-4">
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isCourt ? 'bg-navy-50 text-navy-700' : 'bg-volt-100 text-volt-700'}`}>
+                              {isCourt ? <CalendarRange size={18} /> : <BedDouble size={18} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-volt-600">{date}</span>
+                                <p className="font-bold text-navy-900">{items[0].targetLabel}</p>
+                                {isCourt && displayTimeRange && <span className="chip bg-slate-100 text-slate-600">{timeWithDuration(displayTimeRange)}</span>}
+                                {hasWaiting && <span className="chip bg-amber-100 text-amber-700">대기</span>}
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {isCourt && `${activeHours}시간`} · {totalAmount.toLocaleString()}원
+                              </p>
+                              {hasPartialCancel && (
+                                <p className="text-xs text-rose-500 mt-0.5">
+                                  {cancelledItems.length}시간 취소됨
+                                </p>
+                              )}
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {hasPartialCancel && (
+                                  <span className="chip bg-rose-100 text-rose-600">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                    일부취소
+                                  </span>
+                                )}
+                                {allCancelled ? (
+                                  <StatusBadge status="취소" />
+                                ) : (
+                                  statuses.map((s) => <StatusBadge key={s} status={s} />)
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
