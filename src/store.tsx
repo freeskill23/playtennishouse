@@ -66,7 +66,7 @@ function rowToReservation(r: ReservationRow): Reservation {
     userId: r.user_id,
     targetId: r.target_id,
     targetLabel: r.target_label,
-    date: r.date,
+    date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().slice(0, 10),
     timeSlot: r.time_slot || undefined,
     capacity: r.capacity || undefined,
     status: r.status,
@@ -377,9 +377,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           loadMatchingPosts();
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') console.warn('[matching_realtime]', status);
+      });
+    const poll = setInterval(() => loadMatchingPosts(), 15000);
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(poll);
     };
   }, [loadMatchingPosts]);
   const [notices, setNotices] = useState<Notice[]>(initialNotices);
@@ -435,7 +439,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // ===== Supabase reservation persistence =====
   const upsertReservationToSupabase = useCallback(async (r: Reservation) => {
     if (!supabaseConfigured) return;
-    await supabase.from('reservations').upsert(reservationToRow(r));
+    const { error } = await supabase.from('reservations').upsert(reservationToRow(r));
+    if (error) console.error('[upsertReservation]', error.message, r.id);
   }, []);
 
   const deleteReservationFromSupabase = useCallback(async (id: string) => {
@@ -445,11 +450,15 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const loadReservations = useCallback(async () => {
     if (!supabaseConfigured) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('reservations')
       .select('*')
       .order('created_at', { ascending: true });
-    if (data && data.length > 0) {
+    if (error) {
+      console.error('[loadReservations]', error.message);
+      return;
+    }
+    if (data) {
       setReservations(data.map((r) => rowToReservation(r as ReservationRow)));
     }
   }, []);
@@ -464,9 +473,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         { event: '*', schema: 'public', table: 'reservations' },
         () => loadReservations(),
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') console.warn('[reservations_realtime]', status);
+      });
+    const poll = setInterval(() => loadReservations(), 15000);
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(poll);
     };
   }, [loadReservations]);
   // ===== Toast helpers =====
