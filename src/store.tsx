@@ -228,46 +228,60 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   });
 
   // Load all profiles from Supabase so admin can resolve any user's name/phone
+  const loadProfiles = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data } = await supabase.from('profiles').select('*');
+    if (!data) return;
+    setUsers((prev) => {
+      const existingIds = new Set(prev.map((u) => u.id));
+      const loaded: User[] = data
+        .filter((p) => !existingIds.has(p.id))
+        .map((p) => ({
+          id: p.id as string,
+          name: (p.name as string) || '사용자',
+          nickname: (p.nickname as string) || '',
+          phone: (p.phone as string) || '',
+          profileImg:
+            (p.profile_img as string) ||
+            'https://images.pexels.com/photos/6457544/pexels-photo-6457544.jpeg?auto=compress&cs=tinysrgb&w=200',
+          career: (p.career as string) || '0년',
+          ntrp: (p.ntrp as NTRP) || '2.0',
+          hand: (p.hand as Hand) || 'right',
+          gamePreference: (p.game_preference as GamePreference) || 'any',
+          bio: (p.bio as string) || '',
+          isAdmin: false,
+        }));
+      // Also update existing entries with fresh profile data
+      const updated = prev.map((u) => {
+        const fresh = data.find((p) => p.id === u.id);
+        if (!fresh) return u;
+        return {
+          ...u,
+          name: (fresh.name as string) || u.name,
+          nickname: (fresh.nickname as string) || u.nickname,
+          phone: (fresh.phone as string) || u.phone,
+          profileImg: (fresh.profile_img as string) || u.profileImg,
+        };
+      });
+      return [...updated, ...loaded];
+    });
+  }, []);
+
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase.from('profiles').select('*');
-      if (!data) return;
-      setUsers((prev) => {
-        const existingIds = new Set(prev.map((u) => u.id));
-        const loaded: User[] = data
-          .filter((p) => !existingIds.has(p.id))
-          .map((p) => ({
-            id: p.id as string,
-            name: (p.name as string) || '사용자',
-            nickname: (p.nickname as string) || '',
-            phone: (p.phone as string) || '',
-            profileImg:
-              (p.profile_img as string) ||
-              'https://images.pexels.com/photos/6457544/pexels-photo-6457544.jpeg?auto=compress&cs=tinysrgb&w=200',
-            career: (p.career as string) || '0년',
-            ntrp: (p.ntrp as NTRP) || '2.0',
-            hand: (p.hand as Hand) || 'right',
-            gamePreference: (p.game_preference as GamePreference) || 'any',
-            bio: (p.bio as string) || '',
-            isAdmin: false,
-          }));
-        // Also update existing entries with fresh profile data
-        const updated = prev.map((u) => {
-          const fresh = data.find((p) => p.id === u.id);
-          if (!fresh) return u;
-          return {
-            ...u,
-            name: (fresh.name as string) || u.name,
-            nickname: (fresh.nickname as string) || u.nickname,
-            phone: (fresh.phone as string) || u.phone,
-            profileImg: (fresh.profile_img as string) || u.profileImg,
-          };
-        });
-        return [...updated, ...loaded];
-      });
-    })();
-  }, []);
+    loadProfiles();
+    const channel = supabase
+      .channel('profiles_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles' },
+        () => loadProfiles(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadProfiles]);
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
   const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
   const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(initialMatchingPosts);
@@ -384,18 +398,32 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     await supabase.from('reservations').delete().eq('id', id);
   }, []);
 
+  const loadReservations = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data } = await supabase
+      .from('reservations')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (data && data.length > 0) {
+      setReservations(data.map((r) => rowToReservation(r as ReservationRow)));
+    }
+  }, []);
+
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase
-        .from('reservations')
-        .select('*')
-        .order('created_at', { ascending: true });
-      if (data && data.length > 0) {
-        setReservations(data.map((r) => rowToReservation(r as ReservationRow)));
-      }
-    })();
-  }, []);
+    loadReservations();
+    const channel = supabase
+      .channel('reservations_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reservations' },
+        () => loadReservations(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadReservations]);
   // ===== Toast helpers =====
   const pushToast = useCallback((message: string, kind: Toast['kind'] = 'success') => {
     const id = uid('toast');
