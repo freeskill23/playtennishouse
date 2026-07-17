@@ -52,6 +52,7 @@ export function MatchingScreen() {
     approveMatchingApplication,
     rejectMatchingApplication,
     createMatchingPost,
+    closeMatching,
     getCourtSlotStatus,
     isCourtBlockedByPension,
   } = useApp();
@@ -65,7 +66,7 @@ export function MatchingScreen() {
 
   const filtered = useMemo(() => {
     return matchingPosts.filter((p) => {
-      if (p.status !== '모집중' && p.status !== '모집완료') return false;
+      if (p.status !== '대관대기' && p.status !== '모집중' && p.status !== '모집완료') return false;
       if (filterNtrp !== 'any' && p.ntrpRequirement !== 'any' && p.ntrpRequirement !== filterNtrp) return false;
       if (filterGender !== 'all' && p.genderRequirement !== filterGender) return false;
       if (filterDate && p.date !== filterDate) return false;
@@ -168,7 +169,7 @@ export function MatchingScreen() {
                       <p className="font-bold text-navy-900">{host?.name}</p>
                       <span className="chip bg-navy-50 text-navy-700">NTRP {host?.ntrp}</span>
                       <span className="chip bg-slate-100 text-slate-600">{post.court}</span>
-                      <span className={`chip ${post.status === '모집중' ? 'bg-volt-100 text-volt-800' : 'bg-navy-100 text-navy-700'}`}>
+                      <span className={`chip ${post.status === '모집중' ? 'bg-volt-100 text-volt-800' : post.status === '대관대기' ? 'bg-amber-100 text-amber-700' : 'bg-navy-100 text-navy-700'}`}>
                         {post.status}
                       </span>
                       {!post.courtApproved && (
@@ -261,6 +262,7 @@ export function MatchingScreen() {
             onApply={handleApply}
             onApprove={handleApprove}
             onReject={rejectMatchingApplication}
+            onCloseMatching={closeMatching}
           />
         )}
       </Modal>
@@ -318,6 +320,7 @@ function ApplyOrManageModal({
   onApply: (post: MatchingPost, intro: string, gender?: ApplicantGender) => void;
   onApprove: (post: MatchingPost, appId: string) => void;
   onReject: (postId: string, appId: string) => void;
+  onCloseMatching: (postId: string) => void;
 }) {
   const [intro, setIntro] = useState('');
   const [gender, setGender] = useState<ApplicantGender | ''>('');
@@ -380,6 +383,15 @@ function ApplyOrManageModal({
             </div>
           )}
         </div>
+
+        {post.status === '모집중' && (
+          <button
+            onClick={() => onCloseMatching(post.id)}
+            className="btn-navy w-full text-sm py-2.5"
+          >
+            <CheckCircle2 size={16} /> 매칭 완료하기
+          </button>
+        )}
       </div>
     );
   }

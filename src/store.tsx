@@ -54,6 +54,7 @@ type ReservationRow = {
   deposit_timeout_until: number | null;
   amount: number;
   created_at: number;
+  matching_post_id: string | null;
 };
 
 function rowToReservation(r: ReservationRow): Reservation {
@@ -71,6 +72,7 @@ function rowToReservation(r: ReservationRow): Reservation {
     depositTimeoutUntil: r.deposit_timeout_until,
     amount: r.amount,
     createdAt: r.created_at,
+    matchingPostId: r.matching_post_id || undefined,
   };
 }
 
@@ -89,6 +91,7 @@ function reservationToRow(r: Reservation): ReservationRow {
     deposit_timeout_until: r.depositTimeoutUntil || null,
     amount: r.amount,
     created_at: r.createdAt,
+    matching_post_id: r.matchingPostId || null,
   };
 }
 
@@ -956,7 +959,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             updated.find((r) => r.id === rid)?.status === '예약완료',
           );
           if (!allApproved) return mpPrev;
-          const activated = { ...mp, courtApproved: true };
+          const activated = { ...mp, courtApproved: true, status: '모집중' as MatchingStatus };
           syncMatchingPost(activated);
           return mpPrev.map((p) => (p.id === mp.id ? activated : p));
         });
@@ -1019,6 +1022,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
 
       // Create court reservations for the host (same flow as createCourtReservation)
+      const matchingPostId = uid('m');
       const newReservations: Reservation[] = input.timeSlots.map((slot) => ({
         id: uid('r'),
         type: 'court',
@@ -1031,6 +1035,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         waitingSequence: null,
         amount: getCourtSlotPrice(input.date, slot),
         createdAt: Date.now(),
+        matchingPostId,
       }));
       setReservations((prev) => [...prev, ...newReservations]);
       newReservations.forEach((r) => upsertReservationToSupabase(r));
@@ -1038,7 +1043,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const reservationId = newReservations[0].id;
       const reservationIds = newReservations.map((r) => r.id);
       const post: MatchingPost = {
-        id: uid('m'),
+        id: matchingPostId,
         reservationId,
         reservationIds,
         userId: currentUserId,
@@ -1050,7 +1055,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         maxPlayers: input.maxPlayers,
         gameType: input.gameType,
         description: input.description,
-        status: '모집중',
+        status: '대관대기',
         courtApproved: false,
         applications: [],
         createdAt: Date.now(),
@@ -1166,12 +1171,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       setMatchingPosts((prev) =>
         prev.map((p) => {
           if (p.id !== postId) return p;
-          const updated = { ...p, status: '종료' as const };
+          const updated = { ...p, status: '모집완료' as const };
           syncMatchingPost(updated);
           return updated;
         }),
       );
-      pushToast('매칭을 종료했습니다.', 'info');
+      pushToast('매칭을 완료했습니다.', 'info');
     },
     [pushToast],
   );

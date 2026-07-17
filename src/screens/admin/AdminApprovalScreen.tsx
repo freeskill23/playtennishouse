@@ -72,6 +72,7 @@ export function AdminApprovalScreen() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-bold text-navy-900">{u?.name}</p>
                         {r.waitingSequence && <span className="chip bg-amber-100 text-amber-700">대기 {r.waitingSequence}순위</span>}
+                        {r.matchingPostId && <span className="chip bg-volt-100 text-volt-800"><Users size={12} /> 매칭</span>}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-500">
                         <span className="flex items-center gap-1">

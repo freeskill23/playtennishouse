@@ -127,6 +127,7 @@ export const initialReservations: Reservation[] = [
     waitingSequence: null,
     amount: COURT_SLOT_PRICE,
     createdAt: Date.now() - 86400000 * 2,
+    matchingPostId: 'm2',
   },
   {
     id: 'r3',

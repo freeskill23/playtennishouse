@@ -54,9 +54,10 @@ export interface Reservation {
   depositTimeoutUntil?: number | null; // epoch ms - for waiting handoff
   amount: number;
   createdAt: number;
+  matchingPostId?: string; // set when reservation created from a matching post
 }
 
-export type MatchingStatus = '모집중' | '모집완료' | '종료';
+export type MatchingStatus = '대관대기' | '모집중' | '모집완료';
 export type GameType = 'singles' | 'doubles' | 'mixed' | 'women_doubles' | 'men_doubles' | 'any';
 export type GenderRequirement = 'male' | 'female' | 'any';
 
