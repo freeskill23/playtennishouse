@@ -760,16 +760,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const isCourtBlockedByPension = useCallback(
     (date: string, court: CourtName) => {
-      // If any pension reservation is 예약완료 on that date, all courts blocked
+      // A동 pension blocks A코트 only; B동 pension blocks B코트 only
+      const courtBuilding = court[0];
       return reservations.some(
         (r) =>
           r.type === 'pension' &&
           r.date === date &&
           r.status === '예약완료' &&
-          r.waitingSequence === null,
+          r.waitingSequence === null &&
+          r.targetLabel[0] === courtBuilding,
       );
-      // Note: per PRD, pension reserved blocks ALL courts that day regardless of A/B
-      void court;
     },
     [reservations],
   );
