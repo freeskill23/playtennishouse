@@ -22,15 +22,18 @@ import { useState, useRef } from 'react';
 import type { NTRP, GameType, GenderRequirement, Hand as HandType, Reservation } from '../types';
 import { mergeTimeSlots } from '../types';
 
-function timeWithDuration(timeRange: string): string {
-  if (!timeRange) return '';
-  const [s, e] = timeRange.split('-');
+function timeWithDuration(timeStr: string): string {
+  if (!timeStr) return '';
+  const slots = timeStr.split(',').map((s) => s.trim()).filter(Boolean);
+  const merged = mergeTimeSlots(slots);
+  if (!merged) return '';
+  const [s, e] = merged.split('-');
   const [sh, sm] = s.split(':').map(Number);
   const [eh, em] = e.split(':').map(Number);
   const hours = (eh * 60 + em - sh * 60 - sm) / 60;
   const hInt = Math.floor(hours);
   const dur = hours === hInt ? `${hInt}시간` : `${hours}시간`;
-  return `${dur} ${timeRange}`;
+  return `${dur} ${merged}`;
 }
 
 const NTRP_OPTIONS: NTRP[] = ['1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5'];
