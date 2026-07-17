@@ -606,9 +606,29 @@ function CreateMatchingModal({
   const blockedByPension = isCourtBlockedByPension(date, court);
 
   const toggleSlot = (s: string) => {
-    setSelectedSlots((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
-    );
+    setSelectedSlots((prev) => {
+      if (prev.includes(s)) return prev.filter((x) => x !== s);
+      const next = [...prev, s].sort();
+      const hours = next.map((t) => parseInt(t, 10));
+      for (let i = 1; i < hours.length; i++) {
+        if (hours[i] - hours[i - 1] !== 1) {
+          return prev;
+        }
+      }
+      return next;
+    });
+    const willAdd = !selectedSlots.includes(s);
+    if (willAdd) {
+      const hours = [...selectedSlots, s].sort().map((t) => parseInt(t, 10));
+      let contiguous = true;
+      for (let i = 1; i < hours.length; i++) {
+        if (hours[i] - hours[i - 1] !== 1) { contiguous = false; break; }
+      }
+      if (!contiguous) {
+        setError('예약 신청은 시간을 붙여서 예약해주시기 바랍니다');
+        return;
+      }
+    }
     setError(null);
   };
 
