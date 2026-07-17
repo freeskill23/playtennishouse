@@ -1159,10 +1159,31 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         const updated = prev.map((r) => (r.id === id ? { ...r, status: '취소' as ReservationStatus } : r));
         const rejected = updated.find((r) => r.id === id);
         if (rejected) upsertReservationToSupabase(rejected);
+
+        // If this reservation belongs to a matching post, remove the matching post
+        if (target.matchingPostId) {
+          setMatchingPosts((mpPrev) => {
+            const mp = mpPrev.find((p) => p.id === target.matchingPostId);
+            if (!mp) return mpPrev;
+            if (supabaseConfigured) {
+              supabase.from('matching_posts').delete().eq('id', mp.id).then(({ error }) => {
+                if (error) pushToast('매칭 삭제 실패: ' + error.message, 'error');
+              });
+            }
+            addNotification({
+              kind: 'reservation_rejected',
+              title: '매칭글 삭제',
+              body: '대관 승인이 거절되어 매칭글이 삭제되었습니다.',
+              targetUserId: mp.userId,
+            });
+            return mpPrev.filter((p) => p.id !== mp.id);
+          });
+        }
+
         return updated;
       });
     },
-    [addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [addNotification, getUser, pushToast, upsertReservationToSupabase, supabaseConfigured],
   );
 
   // ===== Matching =====
