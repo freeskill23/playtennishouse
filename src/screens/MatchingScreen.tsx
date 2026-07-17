@@ -20,7 +20,7 @@ import {
 import { useApp } from '../store';
 import { SectionTitle, EmptyState, Pill } from '../components/ui';
 import { Modal } from '../components/Modal';
-import { Calendar as CalendarPicker, todayYMD } from '../components/Calendar';
+import { Calendar as CalendarPicker, todayYMD, addDaysYMD } from '../components/Calendar';
 import { BANK_ACCOUNT } from '../mockData';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from '../types';
 import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
@@ -606,7 +606,12 @@ function CreateMatchingModal({
   const blockedByPension = isCourtBlockedByPension(date, court);
 
   const slotStartHour = (slot: string) => parseInt(slot.split(':')[0], 10);
+  const isSlotPassed = (slot: string) => {
+    if (date !== todayYMD()) return false;
+    return slotStartHour(slot) <= new Date().getHours();
+  };
   const toggleSlot = (s: string) => {
+    if (isSlotPassed(s)) return;
     const removing = selectedSlots.includes(s);
     if (removing) {
       const remaining = selectedSlots.filter((x) => x !== s).sort();
@@ -714,6 +719,7 @@ function CreateMatchingModal({
               value={date}
               onChange={setDate}
               minDate={todayYMD()}
+              maxDate={addDaysYMD(10)}
             />
           </div>
 
@@ -732,7 +738,8 @@ function CreateMatchingModal({
                 {COURT_TIME_SLOTS.map((s) => {
                   const status = getCourtSlotStatus(date, court, s);
                   const isSel = selectedSlots.includes(s);
-                  const disabled = status !== 'available';
+                  const passed = isSlotPassed(s);
+                  const disabled = status !== 'available' || passed;
                   return (
                     <button
                       key={s}
@@ -741,9 +748,11 @@ function CreateMatchingModal({
                       className={`rounded-xl p-2.5 text-sm font-bold transition border ${
                         isSel
                           ? 'bg-navy-900 text-white border-navy-900'
-                          : status === 'available'
-                            ? 'bg-white text-navy-800 border-slate-200 hover:border-volt-400'
-                            : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                          : passed
+                            ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                            : status === 'available'
+                              ? 'bg-white text-navy-800 border-slate-200 hover:border-volt-400'
+                              : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
                       }`}
                     >
                       {s}

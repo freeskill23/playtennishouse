@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CalendarRange, Wallet, Clock, AlertTriangle, CheckCircle2, Lock, Plus, Minus } from 'lucide-react';
 import { useApp } from '../store';
-import { Calendar, todayYMD } from '../components/Calendar';
+import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
 import { BANK_ACCOUNT } from '../mockData';
@@ -35,7 +35,14 @@ export function CourtScreen() {
   const blockedByPension = isCourtBlockedByPension(date, court);
 
   const slotStartHour = (slot: string) => parseInt(slot.split(':')[0], 10);
+  const isSlotPassed = (slot: string) => {
+    if (date !== todayYMD()) return false;
+    const now = new Date();
+    const currentHour = now.getHours();
+    return slotStartHour(slot) <= currentHour;
+  };
   const toggleSlot = (s: string) => {
+    if (isSlotPassed(s)) return;
     const removing = selectedSlots.includes(s);
     if (removing) {
       const remaining = selectedSlots.filter((x) => x !== s).sort();
@@ -118,6 +125,7 @@ export function CourtScreen() {
         value={date}
         onChange={setDate}
         minDate={todayYMD()}
+        maxDate={addDaysYMD(10)}
         dayRender={(d) => {
           const aBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'booked');
           const bBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'booked');
@@ -183,7 +191,8 @@ export function CourtScreen() {
           {COURT_TIME_SLOTS.map((s) => {
             const status = getCourtSlotStatus(date, court, s);
             const isSel = selectedSlots.includes(s);
-            const disabled = status !== 'available';
+            const passed = isSlotPassed(s);
+            const disabled = status !== 'available' || passed;
             return (
               <button
                 key={s}
@@ -192,17 +201,21 @@ export function CourtScreen() {
                 className={`relative rounded-xl p-3 text-sm font-bold transition-all border ${
                   isSel
                     ? 'bg-navy-900 text-white border-navy-900 shadow-navy'
-                    : status === 'available'
-                      ? 'bg-white text-navy-800 border-slate-200 hover:border-volt-400 hover:bg-volt-50'
-                      : status === 'blocked'
-                        ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    : passed
+                      ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                      : status === 'available'
+                        ? 'bg-white text-navy-800 border-slate-200 hover:border-volt-400 hover:bg-volt-50'
+                        : status === 'blocked'
+                          ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span>{s}</span>
                   {isSel ? (
                     <Minus size={13} />
+                  ) : passed ? (
+                    <Clock size={13} />
                   ) : status === 'booked' ? (
                     <Lock size={13} />
                   ) : status === 'pending' ? (
@@ -214,13 +227,15 @@ export function CourtScreen() {
                 <p className="text-[10px] font-medium mt-0.5 opacity-70">
                   {isSel
                     ? '선택됨'
-                    : status === 'available'
-                      ? '예약가능'
-                      : status === 'booked'
-                        ? '예약완료'
-                        : status === 'pending'
-                          ? '신청중'
-                          : '펜션전용'}
+                    : passed
+                      ? '시간지남'
+                      : status === 'available'
+                        ? '예약가능'
+                        : status === 'booked'
+                          ? '예약완료'
+                          : status === 'pending'
+                            ? '신청중'
+                            : '펜션전용'}
                 </p>
               </button>
             );

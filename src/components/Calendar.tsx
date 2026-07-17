@@ -12,6 +12,18 @@ export const toYMD = (d: Date) => {
 
 export const todayYMD = () => toYMD(new Date());
 
+export const addDaysYMD = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return toYMD(d);
+};
+
+export const addMonthsYMD = (n: number) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  return toYMD(d);
+};
+
 export function Calendar({
   value,
   onChange,
@@ -21,6 +33,7 @@ export function Calendar({
   value: string;
   onChange: (ymd: string) => void;
   minDate?: string;
+  maxDate?: string;
   dayRender?: (ymd: string) => React.ReactNode;
 }) {
   const base = useMemo(() => {
@@ -93,7 +106,7 @@ export function Calendar({
           if (!d) return <div key={i} />;
           const isToday = d === today;
           const isSelected = d === value;
-          const disabled = minDate ? d < minDate : false;
+          const disabled = (minDate ? d < minDate : false) || (maxDate ? d > maxDate : false);
           return (
             <button
               key={i}

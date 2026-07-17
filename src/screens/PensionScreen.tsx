@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BedDouble, Users, Wallet, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../store';
-import { Calendar, todayYMD } from '../components/Calendar';
+import { Calendar, todayYMD, addMonthsYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
 import { BANK_ACCOUNT } from '../mockData';
@@ -76,6 +76,7 @@ export function PensionScreen() {
         value={date}
         onChange={setDate}
         minDate={todayYMD()}
+        maxDate={addMonthsYMD(5)}
         dayRender={(d) => {
           const a = getPensionStatusForDate(d, 'A동');
           const b = getPensionStatusForDate(d, 'B동');
