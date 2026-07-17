@@ -8,6 +8,7 @@ import {
   Plus,
   Hand,
   CheckCircle2,
+  XCircle,
   LogOut,
   Pencil,
   KeyRound,
@@ -296,6 +297,8 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                     </div>
                     {myApp?.status === '승인' ? (
                       <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 승인</span>
+                    ) : myApp?.status === '거절' ? (
+                      <span className="chip bg-rose-100 text-rose-700"><XCircle size={12} /> 거절</span>
                     ) : (
                       <span className="chip bg-amber-100 text-amber-700"><Clock size={12} /> 대기</span>
                     )}
