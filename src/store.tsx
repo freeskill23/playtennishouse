@@ -28,7 +28,7 @@ import type {
   Hand,
   GamePreference,
 } from './types';
-import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from './types';
+import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS, mergeTimeSlots } from './types';
 import {
   initialUsers,
   initialRooms,
@@ -1252,7 +1252,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         reservationIds,
         userId: currentUserId,
         date: input.date,
-        time: input.timeSlots.join(', '),
+        time: mergeTimeSlots(input.timeSlots),
         court: input.court,
         ntrpRequirement: input.ntrpRequirement,
         genderRequirement: input.genderRequirement,
@@ -1269,7 +1269,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       addNotification({
         kind: 'matching_new',
         title: '새 매칭 모집',
-        body: `${getUser(currentUserId)?.name}님이 ${input.date} ${input.timeSlots.join(', ')} ${input.court} 매칭을 모집합니다.`,
+        body: `${getUser(currentUserId)?.name}님이 ${input.date} ${mergeTimeSlots(input.timeSlots)} ${input.court} 매칭을 모집합니다.`,
         targetUserId: currentUserId,
       });
       pushToast('매칭글이 등록되었습니다. 코트 예약 신청도 함께 접수되었습니다.');
@@ -1294,7 +1294,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const alreadyMatched = batchReservations.some((r) => matchingPosts.some((p) => p.reservationIds.includes(r.id)));
       if (alreadyMatched) return { ok: false, reason: '이미 해당 예약으로 매칭글이 등록되어 있습니다.' };
       const first = batchReservations[0];
-      const timeLabel = batchReservations.map((r) => r.timeSlot).filter(Boolean).join(', ');
+      const timeLabel = mergeTimeSlots(batchReservations.map((r) => r.timeSlot || '').filter(Boolean));
       const post: MatchingPost = {
         id: crypto.randomUUID(),
         reservationId: first.id,

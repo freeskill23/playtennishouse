@@ -19,7 +19,8 @@ import { useAuth } from '../lib/auth';
 import { SectionTitle, StatusBadge, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
 import { useState, useRef } from 'react';
-import type { NTRP, GameType, GenderRequirement, Hand as HandType } from '../types';
+import type { NTRP, GameType, GenderRequirement, Hand as HandType, Reservation } from '../types';
+import { mergeTimeSlots } from '../types';
 
 const NTRP_OPTIONS: NTRP[] = ['1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.5'];
 const HAND_OPTIONS: { value: HandType; label: string }[] = [
@@ -49,30 +50,33 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     m.applications.some((a) => a.userId === currentUser.id),
   );
 
-  // Group reservations by batchId (or individual id as fallback)
+  // Group reservations by date + targetLabel (e.g. 7/17 A코트) so consecutive slots collapse into one row
+  const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}`;
   const batchGroups = (() => {
-    const map = new Map<string, typeof myReservations>();
+    const map = new Map<string, Reservation[]>();
     for (const r of myReservations) {
-      const key = r.batchId || r.id;
+      const key = groupKey(r);
       const arr = map.get(key) || [];
       arr.push(r);
       map.set(key, arr);
     }
+    for (const arr of map.values()) arr.sort((a, b) => (a.timeSlot || '').localeCompare(b.timeSlot || ''));
     return Array.from(map.entries()).sort(([, a], [, b]) => (a[0].createdAt < b[0].createdAt ? 1 : -1));
   })();
 
-  // Group eligible reservations by batchId
+  // Group eligible reservations by date + court
   const eligibleReservations = myReservations.filter(
     (r) => r.status === '예약완료' && r.waitingSequence === null && r.type === 'court',
   );
   const eligibleBatchGroups = (() => {
-    const map = new Map<string, typeof eligibleReservations>();
+    const map = new Map<string, Reservation[]>();
     for (const r of eligibleReservations) {
-      const key = r.batchId || r.id;
+      const key = groupKey(r);
       const arr = map.get(key) || [];
       arr.push(r);
       map.set(key, arr);
     }
+    for (const arr of map.values()) arr.sort((a, b) => (a.timeSlot || '').localeCompare(b.timeSlot || ''));
     return Array.from(map.entries()).sort(([, a], [, b]) => (a[0].createdAt < b[0].createdAt ? 1 : -1));
   })();
 
@@ -176,39 +180,33 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
           />
         ) : (
           <div className="space-y-3">
-            {batchGroups.map(([batchKey, items]) => {
+            {batchGroups.map(([groupKeyVal, items]) => {
               const date = items[0].date;
               const totalAmount = items.reduce((sum, r) => sum + r.amount, 0);
+              const isCourt = items[0].type === 'court';
+              const timeRange = isCourt ? mergeTimeSlots(items.map((r) => r.timeSlot || '').filter(Boolean)) : '';
+              const hasWaiting = items.some((r) => r.waitingSequence);
+              const statuses = Array.from(new Set(items.map((r) => r.status)));
               return (
-                <div key={batchKey}>
-                  <div className="flex items-center gap-2 px-1 mb-1.5">
-                    <CalendarRange size={14} className="text-volt-600" />
-                    <span className="text-sm font-bold text-navy-900">{date}</span>
-                    <span className="text-xs text-slate-400">({items.length}건 · {totalAmount.toLocaleString()}원)</span>
-                  </div>
-                  <div className="space-y-2">
-                    {items.map((r) => (
-                      <div key={r.id} className="card p-4">
-                        <div className="flex items-start gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.type === 'pension' ? 'bg-volt-100 text-volt-700' : 'bg-navy-50 text-navy-700'}`}>
-                            {r.type === 'pension' ? <BedDouble size={18} /> : <CalendarRange size={18} />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-bold text-navy-900">{r.targetLabel}</p>
-                              {r.type === 'court' && r.timeSlot && <span className="chip bg-slate-100 text-slate-600">{r.timeSlot}</span>}
-                              {r.waitingSequence && <span className="chip bg-amber-100 text-amber-700">대기 {r.waitingSequence}순위</span>}
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {r.capacity && `${r.capacity}명`} · {r.amount.toLocaleString()}원
-                            </p>
-                            <div className="mt-2">
-                              <StatusBadge status={r.status} />
-                            </div>
-                          </div>
-                        </div>
+                <div key={groupKeyVal} className="card p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isCourt ? 'bg-navy-50 text-navy-700' : 'bg-volt-100 text-volt-700'}`}>
+                      {isCourt ? <CalendarRange size={18} /> : <BedDouble size={18} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-volt-600">{date}</span>
+                        <p className="font-bold text-navy-900">{items[0].targetLabel}</p>
+                        {isCourt && timeRange && <span className="chip bg-slate-100 text-slate-600">{timeRange}</span>}
+                        {hasWaiting && <span className="chip bg-amber-100 text-amber-700">대기</span>}
                       </div>
-                    ))}
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {isCourt && `${items.length}시간`} · {totalAmount.toLocaleString()}원
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {statuses.map((s) => <StatusBadge key={s} status={s} />)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -222,16 +220,16 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         <div>
           <SectionTitle title="매칭글 작성" subtitle="예약완료 건으로 메이트를 모집하세요" />
           <div className="space-y-3">
-            {eligibleBatchGroups.map(([batchKey, items]) => {
+            {eligibleBatchGroups.map(([groupKeyVal, items]) => {
               const date = items[0].date;
-              const timeLabel = items.map((r) => r.timeSlot).filter(Boolean).join(', ');
+              const timeRange = mergeTimeSlots(items.map((r) => r.timeSlot || '').filter(Boolean));
               const ids = items.map((r) => r.id);
               return (
-                <div key={batchKey}>
+                <div key={groupKeyVal}>
                   <div className="flex items-center gap-2 px-1 mb-1.5">
                     <CalendarRange size={14} className="text-volt-600" />
                     <span className="text-sm font-bold text-navy-900">{date}</span>
-                    <span className="text-xs text-slate-400">({items.length}건)</span>
+                    <span className="text-xs text-slate-400">({items.length}시간)</span>
                   </div>
                   <div className="space-y-2">
                     <div className="card p-4 flex items-center gap-3">
@@ -239,8 +237,8 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                         <CalendarRange size={18} />
                       </div>
                       <div className="flex-1">
-                        <p className="font-bold text-navy-900">{items[0].targetLabel} {timeLabel}</p>
-                        <p className="text-xs text-slate-500">총 {items.length}개 코트</p>
+                        <p className="font-bold text-navy-900">{items[0].targetLabel} <span className="text-slate-500 font-normal">{timeRange}</span></p>
+                        <p className="text-xs text-slate-500">{items.length}시간 대관</p>
                       </div>
                       <button onClick={() => setMatchingTarget(ids)} className="btn-primary text-sm py-2 px-3">
                         <Plus size={16} /> 매칭 모집

@@ -157,6 +157,15 @@ export const COURT_TIME_SLOTS = [
   '23:00-24:00',
 ] as const;
 
+export function mergeTimeSlots(slots: string[]): string {
+  if (slots.length === 0) return '';
+  if (slots.length === 1) return slots[0];
+  const sorted = [...slots].sort((a, b) => a.localeCompare(b));
+  const start = sorted[0].split('-')[0];
+  const end = sorted[sorted.length - 1].split('-')[1];
+  return `${start}-${end}`;
+}
+
 export const STATUS_META: Record<
   ReservationStatus,
   { label: string; cls: string; dot: string }
