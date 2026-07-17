@@ -141,9 +141,9 @@ export function MatchingScreen() {
             </button>
             <button
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-volt-500 px-4 py-2 text-sm font-bold text-navy-950 shadow-lg shadow-volt-500/30 transition hover:bg-volt-400 hover:shadow-volt-500/40 active:scale-[0.98]"
+              className="chip bg-volt-500 text-navy-950 hover:bg-volt-400 transition"
             >
-              <Plus size={16} strokeWidth={2.5} /> 매칭 만들기
+              <Plus size={14} /> 매칭 만들기
             </button>
           </div>
         }
