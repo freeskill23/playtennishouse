@@ -141,9 +141,9 @@ export function MatchingScreen() {
             </button>
             <button
               onClick={() => setShowCreate(true)}
-              className="chip bg-volt-500 text-navy-950 hover:bg-volt-400 transition"
+              className="inline-flex items-center gap-1.5 rounded-full bg-volt-500 px-4 py-2 text-sm font-bold text-navy-950 shadow-lg shadow-volt-500/30 transition hover:bg-volt-400 hover:shadow-volt-500/40 active:scale-[0.98]"
             >
-              <Plus size={14} /> 매칭 만들기
+              <Plus size={16} strokeWidth={2.5} /> 매칭 만들기
             </button>
           </div>
         }
@@ -228,6 +228,12 @@ export function MatchingScreen() {
             const approvedCount = post.applications.filter((a) => a.status === '승인').length;
             return (
               <div key={post.id} className="card p-5">
+                {myApp?.status === '승인' && (
+                  <div className="-mx-5 -mt-5 mb-4 flex items-center gap-2 rounded-t-2xl bg-volt-500 px-5 py-2.5 text-navy-950">
+                    <CheckCircle2 size={18} strokeWidth={2.5} />
+                    <span className="text-sm font-extrabold">매칭이 완료됐어요!</span>
+                  </div>
+                )}
                 <div className="flex items-start gap-3">
                   <img
                     src={host?.profileImg}
