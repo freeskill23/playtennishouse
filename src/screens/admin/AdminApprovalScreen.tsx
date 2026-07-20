@@ -102,7 +102,7 @@ export function AdminApprovalScreen() {
                   <img src={u?.profileImg} className="w-11 h-11 rounded-xl object-cover" alt="" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-navy-900">{u?.name}</p>
+                      <p className="font-bold text-navy-900">{g.items[0]?.depositorName || u?.name}</p>
                       {g.type === 'pension' && <span className="chip bg-volt-100 text-volt-800"><BedDouble size={12} /> 펜션예약</span>}
                       {g.items.some((r) => r.waitingSequence) && <span className="chip bg-amber-100 text-amber-700">대기 {g.items.find((r) => r.waitingSequence)?.waitingSequence}순위</span>}
                       {g.items.some((r) => r.matchingPostId) && <span className="chip bg-sky-100 text-sky-700"><Users size={12} /> 매칭</span>}
@@ -200,7 +200,7 @@ export function AdminApprovalScreen() {
         {depositModal && (
           <div className="space-y-3">
             <p className="text-sm text-navy-800">
-              <span className="font-bold">{getUser(depositModal.userId)?.name}</span>님의{' '}
+              <span className="font-bold">{depositModal.items[0]?.depositorName || getUser(depositModal.userId)?.name}</span>님의{' '}
               <span className="font-bold">{depositModal.targetLabel}</span> 예약 입금을 확인하시겠습니까?
             </p>
             <div className="rounded-xl bg-slate-50 p-3 text-sm space-y-1">

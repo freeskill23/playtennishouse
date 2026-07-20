@@ -27,9 +27,11 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  isGuest: boolean;
   session: Session | null;
   loading: boolean;
   configError: string | null;
+  signInAsGuest: () => void;
   signUp: (input: {
     email: string;
     password: string;
@@ -83,6 +85,7 @@ function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isGuest, setIsGuest] = useState<boolean>(() => sessionStorage.getItem('pth-guest') === '1');
   const [loading, setLoading] = useState(true);
   const configError = supabaseConfigured
     ? null
@@ -174,6 +177,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [fetchProfile],
   );
 
+  const signInAsGuest = useCallback(() => {
+    sessionStorage.setItem('pth-guest', '1');
+    setIsGuest(true);
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -193,6 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    sessionStorage.removeItem('pth-guest');
+    setIsGuest(false);
   }, []);
 
   useIdleLogout(() => { void signOut(); }, Boolean(session));
@@ -286,6 +296,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  const value: AuthState = { user, session, loading, configError, signUp, signIn, signOut, updateProfile, changePassword, uploadProfileImage };
+  const value: AuthState = { user, isGuest, session, loading, configError, signInAsGuest, signUp, signIn, signOut, updateProfile, changePassword, uploadProfileImage };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

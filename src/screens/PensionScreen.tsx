@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BedDouble, Users, Wallet, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../store';
+import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addMonthsYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
@@ -20,11 +21,13 @@ export function PensionScreen() {
     pensionWeekendPrice,
     bankAccount,
   } = useApp();
+  const { isGuest } = useAuth();
   const [date, setDate] = useState(todayYMD());
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
   const [capacity, setCapacity] = useState(4);
   const [modalOpen, setModalOpen] = useState(false);
   const [waitingTarget, setWaitingTarget] = useState<string | null>(null);
+  const [depositorName, setDepositorName] = useState('');
 
   const blockedByCourt = isPensionBlockedByCourt(date);
   const roomStatus = selectedRoom
@@ -33,13 +36,18 @@ export function PensionScreen() {
 
   const handleReserve = () => {
     if (!selectedRoom) return;
+    if (isGuest && !depositorName.trim()) {
+      pushToast('예약자(입금자명)를 입력해주세요.');
+      return;
+    }
     const room = rooms.find((r) => r.name === selectedRoom);
     if (!room) return;
-    const res = createPensionReservation({ roomId: room.id, date, capacity });
+    const res = createPensionReservation({ roomId: room.id, date, capacity, depositorName: depositorName.trim() || undefined });
     if (!res.ok) {
       return;
     }
     setModalOpen(true);
+    setDepositorName('');
   };
 
   const handleWaiting = () => {
@@ -194,9 +202,21 @@ export function PensionScreen() {
               </button>
             </div>
           ) : (
-            <button onClick={handleReserve} className="btn-primary w-full py-3 text-base">
-              <Wallet size={18} /> 입금 신청하기
-            </button>
+            <div className="space-y-3">
+              {isGuest && (
+                <input
+                  type="text"
+                  value={depositorName}
+                  onChange={(e) => setDepositorName(e.target.value)}
+                  placeholder="예약자(입금자명)"
+                  className="input py-2.5"
+                  maxLength={20}
+                />
+              )}
+              <button onClick={handleReserve} className="btn-primary w-full py-3 text-base">
+                <Wallet size={18} /> 입금 신청하기
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -226,7 +246,7 @@ export function PensionScreen() {
           </div>
           <div className="text-sm text-slate-600 space-y-2">
             <p>
-              <span className="font-bold text-navy-800">예약자:</span> {currentUser.name} ({currentUser.phone})
+              <span className="font-bold text-navy-800">예약자:</span> {depositorName || currentUser.name}{currentUser.phone ? ` (${currentUser.phone})` : ''}
             </p>
             <p>
               <span className="font-bold text-navy-800">객실:</span> {selectedRoom} · {capacity}명

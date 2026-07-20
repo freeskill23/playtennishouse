@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo';
 type Mode = 'login' | 'signup';
 
 export function AuthScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInAsGuest } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -288,6 +288,20 @@ export function AuthScreen() {
               </>
             )}
           </p>
+
+          {mode === 'login' && (
+            <div className="mt-3 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => signInAsGuest()}
+                className="w-full py-2.5 rounded-xl bg-slate-100 text-navy-800 font-bold text-sm hover:bg-slate-200 active:scale-[0.98] transition"
+              >
+                비회원 예약하기
+              </button>
+              <p className="text-center text-[11px] text-slate-400 mt-2 leading-relaxed">
+                비회원은 코트·펜션 예약만 가능합니다.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

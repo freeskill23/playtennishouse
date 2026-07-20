@@ -184,13 +184,34 @@ function useTabHistory<T extends string>(initial: T, storageKey: string) {
   return { tab, go };
 }
 
+const GUEST_AUTH_USER: AuthUser = {
+  id: 'guest',
+  email: '',
+  name: '비회원',
+  nickname: '비회원',
+  phone: '',
+  profileImg:
+    'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
+  career: '',
+  ntrp: '',
+  hand: 'right',
+  gamePreference: 'any',
+  bio: '',
+};
+
 function UserShell() {
   const { currentUser, logoImageUrl } = useApp();
-  const { signOut } = useAuth();
+  const { signOut, isGuest } = useAuth();
   const { tab, go: goRaw } = useTabHistory<UserTab>('home', 'user_tab');
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
 
   const go = (k: string) => {
+    if (isGuest && k === 'matching') {
+      setGuestBlockMsg('회원 전용 메뉴입니다. 회원가입 후 이용해주시기 바랍니다.');
+      setMobileMenu(false);
+      return;
+    }
     goRaw(k as UserTab);
     setMobileMenu(false);
   };
@@ -207,12 +228,13 @@ function UserShell() {
             {USER_NAV.map((n) => {
               const Icon = n.icon;
               const active = tab === n.key;
+              const disabled = isGuest && n.key === 'matching';
               return (
                 <button
                   key={n.key}
                   onClick={() => go(n.key)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition ${
-                    active ? 'bg-navy-900 text-white' : 'text-navy-700 hover:bg-slate-100'
+                    active ? 'bg-navy-900 text-white' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-700 hover:bg-slate-100'
                   }`}
                 >
                   <Icon size={16} />
@@ -250,12 +272,13 @@ function UserShell() {
               {USER_NAV.map((n) => {
                 const Icon = n.icon;
                 const active = tab === n.key;
+                const disabled = isGuest && n.key === 'matching';
                 return (
                   <button
                     key={n.key}
                     onClick={() => go(n.key)}
                     className={`flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-semibold transition ${
-                      active ? 'bg-navy-900 text-white' : 'text-navy-700 hover:bg-slate-100'
+                      active ? 'bg-navy-900 text-white' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-700 hover:bg-slate-100'
                     }`}
                   >
                     <Icon size={18} />
@@ -272,7 +295,7 @@ function UserShell() {
         {tab === 'home' && <HomeScreen go={go} />}
         {tab === 'pension' && <PensionScreen />}
         {tab === 'court' && <CourtScreen />}
-        {tab === 'matching' && <MatchingScreen />}
+        {tab === 'matching' && (isGuest ? null : <MatchingScreen />)}
         {tab === 'notices' && <NoticesScreen />}
         {tab === 'gallery' && <GalleryScreen />}
         {tab === 'mypage' && <MyPageScreen go={go} />}
@@ -288,6 +311,23 @@ function UserShell() {
       </footer>
 
       <ToastStack />
+      {guestBlockMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setGuestBlockMsg(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center animate-slide-up">
+            <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+              <Lock size={28} className="text-amber-500" />
+            </div>
+            <p className="text-sm font-bold text-navy-900 leading-relaxed">{guestBlockMsg}</p>
+            <button
+              onClick={() => setGuestBlockMsg(null)}
+              className="mt-5 w-full py-2.5 rounded-xl bg-navy-900 text-white font-bold hover:bg-navy-800 transition"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -407,7 +447,7 @@ function AdminShell() {
 
 function Shell() {
   const isAdmin = useAdminRoute();
-  const { user, loading, configError } = useAuth();
+  const { user, loading, configError, isGuest } = useAuth();
   useClickSound();
 
   if (isAdmin) {
@@ -432,7 +472,7 @@ function Shell() {
     );
   }
 
-  if (loading) {
+  if (loading && !isGuest) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
         <Loader2 size={32} className="animate-spin text-volt-400" />
@@ -440,10 +480,11 @@ function Shell() {
     );
   }
 
-  if (!user) return <AuthScreen />;
+  if (!user && !isGuest) return <AuthScreen />;
 
+  const authUser = user || GUEST_AUTH_USER;
   return (
-    <AppProvider authUser={user}>
+    <AppProvider authUser={authUser}>
       <UserShell />
     </AppProvider>
   );

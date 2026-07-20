@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CalendarRange, Wallet, Clock, AlertTriangle, CheckCircle2, Lock, Plus, Minus } from 'lucide-react';
 import { useApp } from '../store';
+import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
@@ -24,6 +25,7 @@ export function CourtScreen() {
     tempHolidays,
     bankAccount,
   } = useApp();
+  const { isGuest } = useAuth();
   const [date, setDate] = useState(todayYMD());
   const [court, setCourt] = useState<CourtName>('A코트');
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
@@ -31,6 +33,7 @@ export function CourtScreen() {
   const [errorReason, setErrorReason] = useState<string | null>(null);
   const [reservedAmount, setReservedAmount] = useState(0);
   const [reservedSlots, setReservedSlots] = useState<string[]>([]);
+  const [depositorName, setDepositorName] = useState('');
 
   const blockedByPension = isCourtBlockedByPension(date, court);
 
@@ -74,13 +77,18 @@ export function CourtScreen() {
 
   const handleReserve = () => {
     if (selectedSlots.length === 0) return;
-    const res = createCourtReservation({ court, date, timeSlots: selectedSlots });
+    if (isGuest && !depositorName.trim()) {
+      setErrorReason('예약자(입금자명)를 입력해주세요.');
+      return;
+    }
+    const res = createCourtReservation({ court, date, timeSlots: selectedSlots, depositorName: depositorName.trim() || undefined });
     if (res.ok) {
       setReservedAmount(totalAmount);
       setReservedSlots(sortedSlots);
       setModalOpen(true);
       setSelectedSlots([]);
       setErrorReason(null);
+      setDepositorName('');
     } else {
       setErrorReason(res.reason || '예약에 실패했습니다.');
     }
@@ -268,6 +276,16 @@ export function CourtScreen() {
                 <p className="font-extrabold text-navy-900">{formatWon(totalAmount)}</p>
               </div>
             </div>
+            {isGuest && (
+              <input
+                type="text"
+                value={depositorName}
+                onChange={(e) => setDepositorName(e.target.value)}
+                placeholder="예약자(입금자명)"
+                className="input py-2.5"
+                maxLength={20}
+              />
+            )}
             <button onClick={handleReserve} className="btn-primary w-full py-3 text-base">
               <Wallet size={18} /> 입금 신청하기 ({formatWon(totalAmount)})
             </button>
@@ -313,7 +331,7 @@ export function CourtScreen() {
             <p className="text-sm text-slate-500 mt-1">예금주: {bankAccount.holder}</p>
           </div>
           <div className="text-sm text-slate-600 space-y-2">
-            <p><span className="font-bold text-navy-800">예약자:</span> {currentUser.name} ({currentUser.phone})</p>
+            <p><span className="font-bold text-navy-800">예약자:</span> {depositorName || currentUser.name}{currentUser.phone ? ` (${currentUser.phone})` : ''}</p>
             <p><span className="font-bold text-navy-800">코트:</span> {court}</p>
             <div>
               <p className="font-bold text-navy-800">시간대:</p>
