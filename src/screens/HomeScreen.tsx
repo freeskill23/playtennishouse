@@ -14,6 +14,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { useApp } from '../store';
+import { useAuth } from '../lib/auth';
 import { Logo } from '../components/Logo';
 import { StatusBadge, SectionTitle, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
@@ -49,6 +50,7 @@ type SelectedNotice = { title: string; content: string; type: string; createdAt:
 
 export function HomeScreen({ go }: { go: (k: string) => void }) {
   const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl, setFocusMatchingPostId } = useApp();
+  const { isGuest } = useAuth();
   const [detail, setDetail] = useState<DetailKind>(null);
   const [selectedNotice, setSelectedNotice] = useState<SelectedNotice>(null);
 
@@ -170,12 +172,12 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         <div className="relative p-6 sm:p-8">
           <div className="flex items-center gap-3">
             <img
-              src={currentUser.profileImg}
+              src={isGuest ? (logoImageUrl || `${import.meta.env.BASE_URL}logo_png.png`) : currentUser.profileImg}
               alt={currentUser.name}
               className="w-11 h-11 rounded-xl object-cover ring-2 ring-white/20"
             />
           </div>
-          <p className="mt-3 text-lg font-bold text-white">{currentUser.name}님 플테하에서 오늘도 즐테하세요!</p>
+          <p className="mt-3 text-lg font-bold text-white">{isGuest ? '플테하에 오신 것을 환영합니다!' : `${currentUser.name}님 플테하에서 오늘도 즐테하세요!`}</p>
         </div>
       </div>
 

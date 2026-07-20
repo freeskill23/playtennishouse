@@ -60,6 +60,7 @@ type ReservationRow = {
   batch_id: string | null;
   updated_at?: string | null;
   depositor_name?: string | null;
+  depositor_phone?: string | null;
 };
 
 function rowToReservation(r: ReservationRow): Reservation {
@@ -81,6 +82,7 @@ function rowToReservation(r: ReservationRow): Reservation {
     batchId: r.batch_id || undefined,
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : undefined,
     depositorName: r.depositor_name || undefined,
+    depositorPhone: r.depositor_phone || undefined,
   };
 }
 
@@ -102,6 +104,7 @@ function reservationToRow(r: Reservation): ReservationRow {
     matching_post_id: r.matchingPostId || null,
     batch_id: r.batchId || null,
     depositor_name: r.depositorName || null,
+    depositor_phone: r.depositorPhone || null,
   };
 }
 
@@ -1008,7 +1011,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Create pension reservation =====
   const createPensionReservation = useCallback(
-    (input: { roomId: string; date: string; capacity: number; depositorName?: string }) => {
+    (input: { roomId: string; date: string; capacity: number; depositorName?: string; depositorPhone?: string }) => {
       const room = rooms.find((r) => r.id === input.roomId);
       if (!room) return { ok: false, reason: '존재하지 않는 객실입니다.' };
       if (input.capacity < 1 || input.capacity > room.maxCapacity) {
@@ -1045,6 +1048,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
         batchId,
         depositorName: input.depositorName,
+        depositorPhone: input.depositorPhone,
       };
 
       setReservations((prev) => [...prev, reservation]);
@@ -1067,7 +1071,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Create court reservation =====
   const createCourtReservation = useCallback(
-    (input: { court: CourtName; date: string; timeSlots: string[]; depositorName?: string }) => {
+    (input: { court: CourtName; date: string; timeSlots: string[]; depositorName?: string; depositorPhone?: string }) => {
       if (input.timeSlots.length === 0) {
         return { ok: false, reason: '시간대를 선택해주세요.' };
       }
@@ -1101,6 +1105,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
         batchId,
         depositorName: input.depositorName,
+        depositorPhone: input.depositorPhone,
       }));
       setReservations((prev) => [...prev, ...newReservations]);
       newReservations.forEach((r) => upsertReservationToSupabase(r));
