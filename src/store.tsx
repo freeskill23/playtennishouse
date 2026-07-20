@@ -178,9 +178,13 @@ interface AppState {
   deleteMatchingPost: (postId: string) => void;
 
   // notices
-  createNotice: (n: { title: string; content: string; type: NoticeType }) => void;
+  createNotice: (n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => void;
   deleteNotice: (id: string) => void;
   reorderNotices: (orderedIds: string[]) => void;
+  noticeComments: NoticeComment[];
+  loadNoticeComments: (noticeId: string) => Promise<void>;
+  addNoticeComment: (noticeId: string, content: string) => Promise<{ ok: boolean; error?: string }>;
+  deleteNoticeComment: (commentId: string) => void;
 
   // gallery
   createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
@@ -437,6 +441,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
               type: n.type as NoticeType,
               createdAt: n.created_at as number,
               sortOrder: n.sort_order as number | undefined,
+              imageUrl: (n.image_url as string | null) || undefined,
             }))
             .sort((a, b) => {
               const sa = a.sortOrder ?? a.createdAt;
@@ -1626,13 +1631,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Notices =====
   const createNotice = useCallback(
-    (n: { title: string; content: string; type: NoticeType }) => {
+    (n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => {
       const notice: Notice = {
         id: uid('n'),
         title: n.title,
         content: n.content,
         type: n.type,
         createdAt: Date.now(),
+        imageUrl: n.imageUrl,
       };
       setNotices((prev) => [notice, ...prev]);
       if (supabaseConfigured) {
@@ -1642,6 +1648,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           content: notice.content,
           type: notice.type,
           created_at: notice.createdAt,
+          image_url: notice.imageUrl ?? null,
         }).then(({ error }) => {
           if (error) pushToast('공지 저장 실패: ' + error.message, 'error');
         });
@@ -1691,6 +1698,72 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           supabase.from('notices').update({ sort_order: sortOrder }).eq('id', id).then(({ error }) => {
             if (error) pushToast('공지 순서 저장 실패: ' + error.message, 'error');
           });
+        });
+      }
+    },
+    [pushToast],
+  );
+
+  const [noticeComments, setNoticeComments] = useState<NoticeComment[]>([]);
+
+  const loadNoticeComments = useCallback(async (noticeId: string) => {
+    if (!supabaseConfigured) return;
+    const { data } = await supabase
+      .from('notice_comments')
+      .select('*')
+      .eq('notice_id', noticeId)
+      .order('created_at', { ascending: true });
+    if (data) {
+      setNoticeComments(
+        data.map((c) => ({
+          id: c.id as string,
+          noticeId: c.notice_id as string,
+          userId: c.user_id as string,
+          userName: c.user_name as string,
+          content: c.content as string,
+          createdAt: c.created_at as number,
+        })),
+      );
+    }
+  }, []);
+
+  const addNoticeComment = useCallback(
+    async (noticeId: string, content: string) => {
+      if (!supabaseConfigured) return { ok: false, error: 'Supabase가 설정되지 않았습니다.' };
+      const trimmed = content.trim();
+      if (!trimmed) return { ok: false, error: '댓글 내용을 입력하세요.' };
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (!session?.user) return { ok: false, error: '회원만 댓글을 작성할 수 있습니다.' };
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      const userName = (profile?.name as string) || session.user.email || '회원';
+      const id = uid('c');
+      const createdAt = Date.now();
+      const { error } = await supabase.from('notice_comments').insert({
+        id,
+        notice_id: noticeId,
+        user_id: session.user.id,
+        user_name: userName,
+        content: trimmed,
+        created_at: createdAt,
+      });
+      if (error) return { ok: false, error: error.message };
+      setNoticeComments((prev) => [...prev, { id, noticeId, userId: session.user.id, userName, content: trimmed, createdAt }]);
+      return { ok: true };
+    },
+    [],
+  );
+
+  const deleteNoticeComment = useCallback(
+    (commentId: string) => {
+      setNoticeComments((prev) => prev.filter((c) => c.id !== commentId));
+      if (supabaseConfigured) {
+        supabase.from('notice_comments').delete().eq('id', commentId).then(({ error }) => {
+          if (error) pushToast('댓글 삭제 실패: ' + error.message, 'error');
         });
       }
     },
@@ -1808,6 +1881,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     createNotice,
     deleteNotice,
     reorderNotices,
+    noticeComments,
+    loadNoticeComments,
+    addNoticeComment,
+    deleteNoticeComment,
     createGalleryItem,
     deleteGalleryItem,
     markNotificationRead,

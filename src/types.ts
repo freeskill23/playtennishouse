@@ -114,6 +114,16 @@ export interface Notice {
   type: NoticeType;
   createdAt: number;
   sortOrder?: number;
+  imageUrl?: string;
+}
+
+export interface NoticeComment {
+  id: string;
+  noticeId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: number;
 }
 
 export type NotificationKind =

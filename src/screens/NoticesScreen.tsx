@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Megaphone,
   PartyPopper,
@@ -6,8 +6,12 @@ import {
   RotateCcw,
   ShieldCheck,
   ChevronRight,
+  MessageSquare,
+  Send,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '../store';
+import { useAuth } from '../lib/auth';
 import { SectionTitle, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
 import { NOTICE_META } from '../types';
@@ -23,11 +27,33 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 export function NoticesScreen() {
-  const { notices } = useApp();
+  const { notices, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment } = useApp();
+  const { user, isGuest } = useAuth();
   const [selected, setSelected] = useState<Notice | null>(null);
   const [filter, setFilter] = useState<NoticeType | 'all'>('all');
+  const [commentText, setCommentText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const filtered = filter === 'all' ? notices : notices.filter((n) => n.type === filter);
+
+  useEffect(() => {
+    if (selected) {
+      setCommentText('');
+      void loadNoticeComments(selected.id);
+    }
+  }, [selected, loadNoticeComments]);
+
+  const handleAddComment = async () => {
+    if (!selected || !commentText.trim()) return;
+    setSubmitting(true);
+    const res = await addNoticeComment(selected.id, commentText);
+    setSubmitting(false);
+    if (res.ok) {
+      setCommentText('');
+    } else {
+      alert(res.error || '댓글 작성에 실패했습니다.');
+    }
+  };
 
   return (
     <div className="space-y-5 pb-4">
@@ -67,6 +93,13 @@ export function NoticesScreen() {
                   </div>
                   <p className="text-xs text-slate-500 mt-1 line-clamp-1">{n.content}</p>
                 </div>
+                {n.imageUrl && (
+                  <img
+                    src={n.imageUrl}
+                    alt={n.title}
+                    className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0"
+                  />
+                )}
                 <ChevronRight size={18} className="text-slate-400 shrink-0" />
               </button>
             );
@@ -88,7 +121,84 @@ export function NoticesScreen() {
                 {new Date(selected.createdAt).toLocaleDateString('ko-KR')}
               </span>
             </div>
+            {selected.imageUrl && (
+              <img
+                src={selected.imageUrl}
+                alt={selected.title}
+                className="w-full rounded-xl border border-slate-200 max-h-80 object-cover"
+              />
+            )}
             <p className="text-navy-800 whitespace-pre-wrap leading-relaxed">{selected.content}</p>
+
+            <div className="border-t border-slate-100 pt-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <MessageSquare size={14} className="text-slate-400" />
+                <span className="text-sm font-bold text-navy-900">댓글</span>
+                <span className="text-xs text-slate-400">({noticeComments.length})</span>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {noticeComments.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-3">댓글이 없습니다.</p>
+                ) : (
+                  noticeComments.map((c) => (
+                    <div key={c.id} className="flex items-start gap-2 bg-slate-50 rounded-lg p-2.5">
+                      <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center shrink-0 text-xs font-bold text-navy-700">
+                        {c.userName.slice(0, 1)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-navy-900">{c.userName}</span>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(c.createdAt).toLocaleString('ko-KR')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-navy-800 break-words mt-0.5">{c.content}</p>
+                      </div>
+                      {user && c.userId === user.id && (
+                        <button
+                          onClick={() => deleteNoticeComment(c.id)}
+                          className="text-rose-400 hover:text-rose-600 p-1 shrink-0"
+                          aria-label="삭제"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {isGuest ? (
+                <p className="text-xs text-slate-400 text-center py-2 mt-2">
+                  댓글은 회원만 작성할 수 있습니다.
+                </p>
+              ) : user ? (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void handleAddComment();
+                      }
+                    }}
+                    placeholder="한줄 댓글을 입력하세요"
+                    maxLength={100}
+                    className="input flex-1 py-2"
+                  />
+                  <button
+                    onClick={handleAddComment}
+                    disabled={submitting || !commentText.trim()}
+                    className="btn-primary px-3 disabled:opacity-50"
+                    aria-label="댓글 등록"
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
       </Modal>
