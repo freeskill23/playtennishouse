@@ -168,12 +168,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
             className="w-16 h-16 rounded-2xl object-cover"
           />
           <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-lg font-extrabold text-navy-900">{currentUser.name}</p>
-              {currentUser.nickname && (
-                <span className="text-sm font-semibold text-volt-700">({currentUser.nickname})</span>
-              )}
-            </div>
+            <p className="text-lg font-extrabold text-navy-900">{currentUser.name}</p>
             <p className="text-sm text-slate-500">{currentUser.phone}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               <span className="chip bg-volt-100 text-volt-800">NTRP {currentUser.ntrp}</span>
@@ -513,7 +508,6 @@ function EditProfileModal({
   onUpdated: (patch: Partial<ReturnType<typeof useApp>['currentUser']>) => void;
 }) {
   const [name, setName] = useState(currentUser.name);
-  const [nickname, setNickname] = useState(currentUser.nickname || '');
   const [phone, setPhone] = useState(currentUser.phone);
   const [ntrp, setNtrp] = useState<string>(currentUser.ntrp);
   const [career, setCareer] = useState(currentUser.career);
@@ -540,13 +534,18 @@ function EditProfileModal({
   };
 
   const handleSave = async () => {
-    if (!name.trim()) {
+    const trimmed = name.trim();
+    if (!trimmed) {
       setError('이름을 입력해주세요.');
+      return;
+    }
+    if (trimmed.length > 8) {
+      setError('이름은 8자 이내로 입력해주세요.');
       return;
     }
     setSaving(true);
     setError('');
-    const patch = { name, nickname, phone, ntrp: ntrp as NTRP, career, hand, bio, profileImg };
+    const patch = { name, phone, ntrp: ntrp as NTRP, career, hand, bio, profileImg };
     const res = await updateProfile(patch);
     setSaving(false);
     if (res.ok) {
@@ -602,23 +601,13 @@ function EditProfileModal({
 
         {/* Name */}
         <div>
-          <label className="label">이름</label>
+          <label className="label">이름 (한글/영문/숫자 8자 이내)</label>
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => setName(e.target.value.replace(/[^가-힣a-zA-Z0-9\s]/g, '').slice(0, 8))}
+            maxLength={8}
             className="input"
             placeholder="이름"
-          />
-        </div>
-
-        {/* Nickname */}
-        <div>
-          <label className="label">닉네임</label>
-          <input
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            className="input"
-            placeholder="닉네임"
           />
         </div>
 
