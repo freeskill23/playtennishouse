@@ -1467,6 +1467,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       };
       setMatchingPosts((prev) => [post, ...prev]);
       syncMatchingPost(post);
+      setReservations((prev) =>
+        prev.map((r) => {
+          if (!input.reservationIds.includes(r.id)) return r;
+          const updated = { ...r, matchingPostId: post.id };
+          upsertReservationToSupabase(updated);
+          return updated;
+        }),
+      );
       pushToast('매칭 모집글이 등록되었습니다.');
       return { ok: true, post };
     },
