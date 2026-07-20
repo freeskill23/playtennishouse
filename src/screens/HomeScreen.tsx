@@ -187,7 +187,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
             <button
               key={c.key}
               onClick={() => setDetail(c.key)}
-              className="card p-4 text-left hover:-translate-y-0.5 hover:shadow-navy transition-all duration-200 group"
+              className="card p-4 text-left hover:-translate-y-0.5 hover:shadow-navy transition-all duration-200 group flex flex-col"
             >
               <div className="flex items-center gap-3">
                 <div className={`relative w-11 h-11 rounded-2xl ${c.tone} flex items-center justify-center group-hover:scale-110 transition-transform`}>
@@ -199,13 +199,15 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-2xl font-extrabold text-navy-900">{c.count}</p>
                   <p className="text-xs text-slate-500 mt-0.5">{c.label}</p>
-                  {c.badge && (
-                    <span className="inline-flex items-center gap-1 mt-1 chip bg-rose-100 text-rose-600 !px-2 !py-0.5 !text-[11px] font-bold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> {c.badge}
-                    </span>
-                  )}
-                  {c.sub}
                 </div>
+              </div>
+              <div className="flex justify-center mt-2 min-h-[20px]">
+                {c.badge && (
+                  <span className="inline-flex items-center gap-1 chip bg-rose-100 text-rose-600 !px-2 !py-0.5 !text-[11px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> {c.badge}
+                  </span>
+                )}
+                {c.sub}
               </div>
             </button>
           ))}
