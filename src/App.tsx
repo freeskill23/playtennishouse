@@ -18,6 +18,7 @@ import {
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
 import { useIdleLogout } from './lib/useIdleLogout';
+import { useClickSound } from './lib/useClickSound';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
@@ -407,6 +408,7 @@ function AdminShell() {
 function Shell() {
   const isAdmin = useAdminRoute();
   const { user, loading, configError } = useAuth();
+  useClickSound();
 
   if (isAdmin) {
     return (
