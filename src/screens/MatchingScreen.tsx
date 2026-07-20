@@ -413,6 +413,18 @@ function ApplyOrManageModal({
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [rejectingAppId, setRejectingAppId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [genderError, setGenderError] = useState<string | null>(null);
+
+  const handleGenderSelect = (g: ApplicantGender) => {
+    setGender(g);
+    if (post.gameType === 'women_doubles' && g === 'male') {
+      setGenderError('여복게임은 남자가 신청할 수 없습니다.');
+    } else if (post.gameType === 'men_doubles' && g === 'female') {
+      setGenderError('남복게임은 여자가 신청할 수 없습니다.');
+    } else {
+      setGenderError(null);
+    }
+  };
 
   if (isHost) {
     return (
@@ -573,19 +585,22 @@ function ApplyOrManageModal({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setGender('male')}
+            onClick={() => handleGenderSelect('male')}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${gender === 'male' ? 'bg-navy-900 text-white border-navy-900' : 'bg-white text-slate-600 border-slate-200 hover:border-navy-300'}`}
           >
             남성
           </button>
           <button
             type="button"
-            onClick={() => setGender('female')}
+            onClick={() => handleGenderSelect('female')}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition ${gender === 'female' ? 'bg-navy-900 text-white border-navy-900' : 'bg-white text-slate-600 border-slate-200 hover:border-navy-300'}`}
           >
             여성
           </button>
         </div>
+        {genderError && (
+          <p className="text-xs text-rose-500 mt-1.5 font-semibold">{genderError}</p>
+        )}
       </div>
       <div>
         <p className="text-sm font-bold text-navy-800 mb-1.5">한줄 소개</p>
@@ -602,7 +617,7 @@ function ApplyOrManageModal({
       <button
         className="btn-primary w-full"
         onClick={() => onApply(post, intro, gender || undefined)}
-        disabled={!intro.trim() || !gender || !!post.applications.find((a) => a.userId === post.userId)}
+        disabled={!intro.trim() || !gender || !!genderError || !!post.applications.find((a) => a.userId === post.userId)}
       >
         <UserPlus size={16} /> 신청하기
       </button>
