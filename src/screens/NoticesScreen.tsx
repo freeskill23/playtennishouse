@@ -86,12 +86,10 @@ export function NoticesScreen() {
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${NOTICE_META[n.type].cls}`}>
                   <Icon size={20} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={`chip ${NOTICE_META[n.type].cls}`}>{n.type}</span>
-                    <p className="font-bold text-navy-900 truncate">{n.title}</p>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-1">{n.content}</p>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <span className={`chip ${NOTICE_META[n.type].cls}`}>{n.type}</span>
+                  <p className="font-bold text-navy-900 truncate">{n.title}</p>
+                  <p className="text-xs text-slate-500 line-clamp-1">{n.content}</p>
                 </div>
                 {n.imageUrl && (
                   <img
