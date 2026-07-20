@@ -173,6 +173,7 @@ interface AppState {
   // notices
   createNotice: (n: { title: string; content: string; type: NoticeType }) => void;
   deleteNotice: (id: string) => void;
+  reorderNotices: (orderedIds: string[]) => void;
 
   // gallery
   createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
@@ -417,13 +418,20 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         .order('created_at', { ascending: false });
       if (data && data.length > 0) {
         setNotices(
-          data.map((n) => ({
-            id: n.id as string,
-            title: n.title as string,
-            content: n.content as string,
-            type: n.type as NoticeType,
-            createdAt: n.created_at as number,
-          })),
+          data
+            .map((n) => ({
+              id: n.id as string,
+              title: n.title as string,
+              content: n.content as string,
+              type: n.type as NoticeType,
+              createdAt: n.created_at as number,
+              sortOrder: n.sort_order as number | undefined,
+            }))
+            .sort((a, b) => {
+              const sa = a.sortOrder ?? a.createdAt;
+              const sb = b.sortOrder ?? b.createdAt;
+              return sb - sa; // descending: larger sort_order first
+            }),
         );
       }
     })();
@@ -1602,6 +1610,34 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const reorderNotices = useCallback(
+    (orderedIds: string[]) => {
+      const now = Date.now();
+      // Assign descending sort_order so the first id in the array appears first.
+      const updates = orderedIds.map((id, idx) => {
+        const sortOrder = now - idx;
+        return { id, sortOrder };
+      });
+      setNotices((prev) => {
+        const map = new Map(prev.map((n) => [n.id, n]));
+        return updates
+          .map((u) => {
+            const n = map.get(u.id);
+            return n ? { ...n, sortOrder: u.sortOrder } : null;
+          })
+          .filter((n): n is Notice => n !== null);
+      });
+      if (supabaseConfigured) {
+        updates.forEach(({ id, sortOrder }) => {
+          supabase.from('notices').update({ sort_order: sortOrder }).eq('id', id).then(({ error }) => {
+            if (error) pushToast('공지 순서 저장 실패: ' + error.message, 'error');
+          });
+        });
+      }
+    },
+    [pushToast],
+  );
+
   // ===== Gallery =====
   const createGalleryItem = useCallback(
     (input: { imageUrl: string; summary: string }) => {
@@ -1712,6 +1748,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     deleteMatchingPost,
     createNotice,
     deleteNotice,
+    reorderNotices,
     createGalleryItem,
     deleteGalleryItem,
     markNotificationRead,

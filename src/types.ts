@@ -111,6 +111,7 @@ export interface Notice {
   content: string;
   type: NoticeType;
   createdAt: number;
+  sortOrder?: number;
 }
 
 export type NotificationKind =

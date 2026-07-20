@@ -8,6 +8,7 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
+  GripVertical,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -24,15 +25,48 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 export function AdminNoticeScreen() {
-  const { notices, createNotice, deleteNotice } = useApp();
+  const { notices, createNotice, deleteNotice, reorderNotices } = useApp();
   const [form, setForm] = useState({ title: '', content: '', type: '이벤트' as NoticeType });
   const [showForm, setShowForm] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   const handleSubmit = () => {
     if (!form.title.trim() || !form.content.trim()) return;
     createNotice(form);
     setForm({ title: '', content: '', type: '이벤트' });
     setShowForm(false);
+  };
+
+  const handleDragStart = (idx: number) => (e: React.DragEvent) => {
+    setDragIndex(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (idx: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (overIndex !== idx) setOverIndex(idx);
+  };
+
+  const handleDrop = (idx: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === idx) {
+      setDragIndex(null);
+      setOverIndex(null);
+      return;
+    }
+    const next = [...notices];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(idx, 0, moved);
+    reorderNotices(next.map((n) => n.id));
+    setDragIndex(null);
+    setOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setOverIndex(null);
   };
 
   return (
@@ -97,10 +131,28 @@ export function AdminNoticeScreen() {
         {notices.length === 0 ? (
           <EmptyState icon={<Megaphone size={28} />} title="등록된 공지가 없어요" />
         ) : (
-          notices.map((n) => {
+          notices.map((n, idx) => {
             const Icon = ICONS[NOTICE_META[n.type].icon] || Megaphone;
+            const isDragging = dragIndex === idx;
+            const isOver = overIndex === idx && dragIndex !== idx;
             return (
-              <div key={n.id} className="card p-4 flex items-start gap-3">
+              <div
+                key={n.id}
+                draggable
+                onDragStart={handleDragStart(idx)}
+                onDragOver={handleDragOver(idx)}
+                onDrop={handleDrop(idx)}
+                onDragEnd={handleDragEnd}
+                className={`card p-4 flex items-start gap-3 transition ${
+                  isDragging ? 'opacity-40 scale-[0.99]' : ''
+                } ${isOver ? 'ring-2 ring-volt-400' : ''}`}
+              >
+                <div
+                  className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing pt-1 shrink-0 touch-none"
+                  aria-label="순서 변경"
+                >
+                  <GripVertical size={18} />
+                </div>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${NOTICE_META[n.type].cls}`}>
                   <Icon size={18} />
                 </div>

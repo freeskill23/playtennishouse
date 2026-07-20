@@ -181,6 +181,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (error) return { ok: false, error: error.message };
     if (!data.user) return { ok: false, error: '로그인에 실패했습니다.' };
+    // Increment cumulative login count (best-effort; non-blocking)
+    void supabase.rpc('increment_login_count', { user_id: data.user.id });
     return { ok: true };
   }, []);
 

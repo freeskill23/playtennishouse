@@ -14,6 +14,9 @@ import {
   CalendarRange,
   BedDouble,
   Shuffle,
+  LogIn,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -31,6 +34,7 @@ interface MemberRow {
   bad_member_reason: string | null;
   marketing_consent: boolean | null;
   created_at: string;
+  login_count: number;
   court_count: number;
   pension_count: number;
   matching_count: number;
@@ -53,6 +57,8 @@ export function AdminMembersScreen() {
   const [badModal, setBadModal] = useState<MemberRow | null>(null);
   const [badReason, setBadReason] = useState('');
   const [badBusy, setBadBusy] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -86,11 +92,14 @@ export function AdminMembersScreen() {
         (m.phone || '').includes(q)
       );
     })
-    .sort(
-      (a, b) =>
-        (b.court_count + b.pension_count + b.matching_count) -
-        (a.court_count + a.pension_count + a.matching_count),
-    );
+    .sort((a, b) => (b.login_count || 0) - (a.login_count || 0));
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
 
   const handleChangePassword = async () => {
     if (!pwModal || newPw.length < 6) return;
@@ -231,7 +240,9 @@ export function AdminMembersScreen() {
       {/* Member list */}
       {!loading && !error && filtered.length > 0 && (
         <div className="space-y-2">
-          {filtered.map((m) => (
+          {paged.map((m, i) => {
+            const rank = (currentPage - 1) * PAGE_SIZE + i + 1;
+            return (
             <div
               key={m.id}
               className={`card p-4 ${m.is_bad_member ? 'border-rose-200 bg-rose-50/40' : ''}`}
@@ -239,6 +250,9 @@ export function AdminMembersScreen() {
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-1.5 rounded-full bg-navy-100 text-navy-700 text-xs font-bold">
+                      {rank}
+                    </span>
                     <p className="font-bold text-navy-900">{m.name}</p>
                     {m.nickname && m.nickname !== m.name && (
                       <span className="text-xs text-slate-400">({m.nickname})</span>
@@ -261,6 +275,9 @@ export function AdminMembersScreen() {
                     )}
                     <span>구력 {m.career || '0년'}</span>
                     <span>NTRP {m.ntrp || '2.0'}</span>
+                    <span className="flex items-center gap-0.5 text-navy-700 font-semibold">
+                      <LogIn size={11} /> 로그인 {m.login_count || 0}회
+                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
                     <span className="flex items-center gap-1 text-navy-700 font-semibold">
@@ -311,7 +328,31 @@ export function AdminMembersScreen() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && !error && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="btn-outline text-sm py-1.5 px-3 flex items-center gap-1 disabled:opacity-40"
+          >
+            <ChevronLeft size={14} /> 이전
+          </button>
+          <span className="text-sm text-navy-700 font-semibold">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="btn-outline text-sm py-1.5 px-3 flex items-center gap-1 disabled:opacity-40"
+          >
+            다음 <ChevronRight size={14} />
+          </button>
         </div>
       )}
 
