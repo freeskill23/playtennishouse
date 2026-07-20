@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LogIn, UserPlus, Mail, Lock, User as UserIcon, Phone, Loader2, Check } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Logo } from '../components/Logo';
@@ -10,11 +10,55 @@ export function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [saveId, setSaveId] = useState(false);
+  const [savePw, setSavePw] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [marketingConsent, setMarketingConsent] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    try {
+      const sid = localStorage.getItem('saveId') === 'true';
+      setSaveId(sid);
+      if (sid) {
+        const savedEmail = localStorage.getItem('savedEmail');
+        if (savedEmail) setEmail(savedEmail);
+      }
+      const spw = localStorage.getItem('savePw') === 'true';
+      setSavePw(spw);
+      if (spw) {
+        const savedPw = localStorage.getItem('savedPw');
+        if (savedPw) setPassword(savedPw);
+      }
+    } catch {
+      // localStorage may be unavailable (private mode, etc.)
+    }
+    setLoaded(true);
+  }, []);
+
+  const toggleSaveId = () => {
+    const next = !saveId;
+    setSaveId(next);
+    try {
+      localStorage.setItem('saveId', String(next));
+      if (!next) localStorage.removeItem('savedEmail');
+      else if (email) localStorage.setItem('savedEmail', email);
+    } catch {}
+  };
+
+  const toggleSavePw = () => {
+    const next = !savePw;
+    setSavePw(next);
+    try {
+      localStorage.setItem('savePw', String(next));
+      if (!next) localStorage.removeItem('savedPw');
+      else if (password) localStorage.setItem('savedPw', password);
+    } catch {}
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +66,13 @@ export function AuthScreen() {
     setBusy(true);
 
     if (mode === 'login') {
+      // Persist credentials according to checkboxes
+      try {
+        if (saveId) localStorage.setItem('savedEmail', email.trim());
+        else localStorage.removeItem('savedEmail');
+        if (savePw) localStorage.setItem('savedPw', password);
+        else localStorage.removeItem('savedPw');
+      } catch {}
       const res = await signIn(email.trim(), password);
       if (!res.ok) setError(res.error || '로그인에 실패했습니다.');
     } else {
@@ -157,6 +208,39 @@ export function AuthScreen() {
                 className="w-full bg-transparent outline-none text-sm text-navy-900 placeholder:text-slate-400"
               />
             </Field>
+
+            {mode === 'login' && loaded && (
+              <div className="flex items-center gap-4 pt-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={saveId}
+                    onClick={toggleSaveId}
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                      saveId ? 'bg-volt-500 border-volt-500 text-navy-950' : 'bg-white border-slate-300'
+                    }`}
+                  >
+                    {saveId && <Check size={11} strokeWidth={3} />}
+                  </button>
+                  <span className="text-xs text-slate-600">아이디 저장</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={savePw}
+                    onClick={toggleSavePw}
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                      savePw ? 'bg-volt-500 border-volt-500 text-navy-950' : 'bg-white border-slate-300'
+                    }`}
+                  >
+                    {savePw && <Check size={11} strokeWidth={3} />}
+                  </button>
+                  <span className="text-xs text-slate-600">비밀번호 저장</span>
+                </label>
+              </div>
+            )}
 
             {error && (
               <p className="text-rose-500 text-xs font-medium animate-fade-in">{error}</p>

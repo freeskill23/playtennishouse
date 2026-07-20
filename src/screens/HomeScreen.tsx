@@ -45,9 +45,12 @@ const GENDER_LABEL: Record<GenderRequirement, string> = {
 
 type DetailKind = 'myMatching' | 'joinedMatching' | 'court' | 'pension' | null;
 
+type SelectedNotice = { title: string; content: string; type: string; createdAt: number } | null;
+
 export function HomeScreen({ go }: { go: (k: string) => void }) {
   const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl, setFocusMatchingPostId } = useApp();
   const [detail, setDetail] = useState<DetailKind>(null);
+  const [selectedNotice, setSelectedNotice] = useState<SelectedNotice>(null);
 
   const today = new Date().toISOString().slice(0, 10);
   const isUpcoming = (date: string) => date >= today;
@@ -210,7 +213,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
           {notices.slice(0, 3).map((n) => (
             <button
               key={n.id}
-              onClick={() => go('notices')}
+              onClick={() => setSelectedNotice(n)}
               className="card w-full p-4 flex items-center gap-3 text-left hover:border-navy-200 transition"
             >
               <div className="w-10 h-10 rounded-xl bg-navy-50 flex items-center justify-center text-navy-700">
@@ -265,6 +268,38 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         footer={<button className="btn-ghost" onClick={() => setDetail(null)}>닫기</button>}
       >
         <ReservationList items={myPensionReservations} emptyText="펜션 예약 내역이 없습니다" />
+      </Modal>
+
+      {/* Notice detail modal */}
+      <Modal
+        open={selectedNotice !== null}
+        onClose={() => setSelectedNotice(null)}
+        title={selectedNotice?.title || ''}
+        size="md"
+        footer={
+          <div className="flex justify-between items-center w-full">
+            <span className="text-xs text-slate-400">
+              {selectedNotice && new Date(selectedNotice.createdAt).toLocaleDateString('ko-KR')}
+            </span>
+            <button className="btn-ghost" onClick={() => { setSelectedNotice(null); go('notices'); }}>
+              전체 공지 보기
+            </button>
+          </div>
+        }
+      >
+        {selectedNotice && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-navy-50 flex items-center justify-center text-navy-700">
+                <Megaphone size={18} />
+              </div>
+              <span className="chip bg-slate-100 text-slate-600">{selectedNotice.type}</span>
+            </div>
+            <div className="whitespace-pre-wrap text-sm text-navy-800 leading-relaxed">
+              {selectedNotice.content}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
