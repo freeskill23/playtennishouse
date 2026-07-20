@@ -77,7 +77,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   // Group reservations by date + targetLabel (e.g. 7/17 A코트) so consecutive slots collapse into one row
-  const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}|${r.matchingPostId || ''}`;
+  const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}|${r.matchingPostId || ''}|${r.batchId || ''}`;
   const buildBatchGroups = (list: Reservation[]) => {
     const map = new Map<string, Reservation[]>();
     for (const r of list) {
