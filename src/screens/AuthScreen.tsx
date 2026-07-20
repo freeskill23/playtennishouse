@@ -10,7 +10,7 @@ export function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
   const [marketingConsent, setMarketingConsent] = useState(true);
   const [error, setError] = useState('');
@@ -25,8 +25,14 @@ export function AuthScreen() {
       const res = await signIn(email.trim(), password);
       if (!res.ok) setError(res.error || '로그인에 실패했습니다.');
     } else {
-      if (name.trim().length < 2) {
-        setError('이름은 2자 이상 입력하세요.');
+      const nick = nickname.trim();
+      if (nick.length < 2 || nick.length > 8) {
+        setError('닉네임은 2~8자 이내로 입력하세요.');
+        setBusy(false);
+        return;
+      }
+      if (!/^[가-힣a-zA-Z0-9]+$/.test(nick)) {
+        setError('닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.');
         setBusy(false);
         return;
       }
@@ -38,7 +44,7 @@ export function AuthScreen() {
       const res = await signUp({
         email: email.trim(),
         password,
-        name: name.trim(),
+        name: nickname.trim(),
         phone: phone.trim(),
         marketingConsent,
       });
@@ -85,15 +91,21 @@ export function AuthScreen() {
           <form onSubmit={submit} className="space-y-3">
             {mode === 'signup' && (
               <>
-                <Field icon={<UserIcon size={16} />}>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="이름"
-                    className="w-full bg-transparent outline-none text-sm text-navy-900 placeholder:text-slate-400"
-                  />
-                </Field>
+                <div>
+                  <Field icon={<UserIcon size={16} />}>
+                    <input
+                      type="text"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="닉네임"
+                      maxLength={8}
+                      className="w-full bg-transparent outline-none text-sm text-navy-900 placeholder:text-slate-400"
+                    />
+                  </Field>
+                  <p className="mt-1.5 px-1 text-[11px] text-slate-500 leading-relaxed">
+                    한글, 영문, 숫자 자유롭게 최대 8자까지 입력 가능합니다.
+                  </p>
+                </div>
                 <Field icon={<Phone size={16} />}>
                   <input
                     type="tel"

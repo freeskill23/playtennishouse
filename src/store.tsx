@@ -507,6 +507,48 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const interval = setInterval(purge, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Purge court reservations and matching posts whose scheduled time is older than 24 hours
+  useEffect(() => {
+    const PURGE_MS = 24 * 60 * 60 * 1000;
+    const slotEndEpoch = (date: string, timeSlot?: string) => {
+      // timeSlot like '09:00-10:00'; use end hour of slot, or start of date if absent
+      if (timeSlot) {
+        const end = timeSlot.split('-')[1];
+        const [h, m] = end.split(':').map(Number);
+        return new Date(`${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+      }
+      return new Date(`${date}T00:00:00`).getTime();
+    };
+    const matchingEndEpoch = (date: string, time: string) => {
+      // time like '09:00-11:00' or '09:00'
+      const end = time.includes('-') ? time.split('-')[1] : time;
+      const [h, m] = end.split(':').map(Number);
+      return new Date(`${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+    };
+    const purge = () => {
+      const now = Date.now();
+      setReservations((prev) => {
+        const expired = prev.filter(
+          (r) => r.type === 'court' && r.timeSlot && now - slotEndEpoch(r.date, r.timeSlot) > PURGE_MS,
+        );
+        if (expired.length > 0 && supabaseConfigured) {
+          expired.forEach((r) => deleteReservationFromSupabase(r.id));
+        }
+        return expired.length > 0 ? prev.filter((r) => !expired.find((e) => e.id === r.id)) : prev;
+      });
+      setMatchingPosts((prev) => {
+        const expired = prev.filter((m) => now - matchingEndEpoch(m.date, m.time) > PURGE_MS);
+        if (expired.length > 0 && supabaseConfigured) {
+          expired.forEach((m) => supabase.from('matching_posts').delete().eq('id', m.id));
+        }
+        return expired.length > 0 ? prev.filter((m) => !expired.find((e) => e.id === m.id)) : prev;
+      });
+    };
+    purge();
+    const interval = setInterval(purge, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [deleteReservationFromSupabase]);
   // ===== Toast helpers =====
   const pushToast = useCallback((message: string, kind: Toast['kind'] = 'success') => {
     const id = uid('toast');
