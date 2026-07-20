@@ -58,8 +58,28 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
   const myMatchingPosts = matchingPosts.filter((m) => m.userId === currentUser.id && isUpcoming(m.date));
   const joinedMatchings = matchingPosts.filter(
     (m) =>
+      m.applications.some((a) => a.userId === currentUser.id) &&
+      isUpcoming(m.date),
+  );
+  const myApprovedMatchings = matchingPosts.filter(
+    (m) =>
       m.applications.some((a) => a.userId === currentUser.id && a.status === '승인') &&
       isUpcoming(m.date),
+  );
+  // 새 신청자 = 내가 만든 매칭 전체의 대기 상태 신청자 수
+  const newApplicantCount = myMatchingPosts.reduce(
+    (sum, m) => sum + m.applications.filter((a) => a.status === '대기').length,
+    0,
+  );
+  // 내가 참여한 매칭의 내 신청 상태별 집계
+  const joinedStatusCount = joinedMatchings.reduce(
+    (acc, m) => {
+      const mine = m.applications.find((a) => a.userId === currentUser.id);
+      if (!mine) return acc;
+      acc[mine.status] = (acc[mine.status] || 0) + 1;
+      return acc;
+    },
+    { '승인': 0, '거절': 0, '대기': 0 } as Record<'승인' | '거절' | '대기', number>,
   );
   const myCourtReservations = reservations.filter(
     (r) =>
@@ -94,13 +114,21 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
       count: myMatchingPosts.length,
       icon: <Users size={20} />,
       tone: 'bg-sky-50 text-sky-700',
+      badge: newApplicantCount > 0 ? `새 신청자(${newApplicantCount})` : undefined,
     },
     {
       key: 'joinedMatching' as const,
       label: '내가 참여한 매칭',
-      count: joinedMatchings.length,
+      count: myApprovedMatchings.length,
       icon: <CheckCircle2 size={20} />,
       tone: 'bg-volt-100 text-volt-700',
+      sub: (
+        <div className="flex gap-1.5 mt-1">
+          <span className="chip bg-volt-100 text-volt-800 !px-1.5 !py-0.5 !text-[10px]">승인 {joinedStatusCount['승인']}</span>
+          <span className="chip bg-rose-100 text-rose-600 !px-1.5 !py-0.5 !text-[10px]">거절 {joinedStatusCount['거절']}</span>
+          <span className="chip bg-slate-100 text-slate-600 !px-1.5 !py-0.5 !text-[10px]">대기 {joinedStatusCount['대기']}</span>
+        </div>
+      ),
     },
     {
       key: 'court' as const,
@@ -166,6 +194,12 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-2xl font-extrabold text-navy-900">{c.count}</p>
                   <p className="text-xs text-slate-500 mt-0.5">{c.label}</p>
+                  {c.badge && (
+                    <span className="inline-flex items-center gap-1 mt-1 chip bg-rose-100 text-rose-600 !px-2 !py-0.5 !text-[11px] font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> {c.badge}
+                    </span>
+                  )}
+                  {c.sub}
                 </div>
               </div>
             </button>
@@ -237,7 +271,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         size="md"
         footer={<button className="btn-ghost" onClick={() => setDetail(null)}>닫기</button>}
       >
-        <MatchingList posts={myMatchingPosts} getUser={getUser} emptyText="내가 만든 매칭이 없습니다" onItemClick={(postId) => { setFocusMatchingPostId(postId); setDetail(null); go('matching'); }} />
+        <MatchingList posts={myMatchingPosts} getUser={getUser} emptyText="내가 만든 매칭이 없습니다" showApplicantBadge onItemClick={(postId) => { setFocusMatchingPostId(postId); setDetail(null); go('matching'); }} />
       </Modal>
 
       <Modal
@@ -310,11 +344,13 @@ function MatchingList({
   getUser,
   emptyText,
   onItemClick,
+  showApplicantBadge = false,
 }: {
   posts: MatchingPost[];
   getUser: (id: string) => { name: string; profileImg: string; phone: string } | undefined;
   emptyText: string;
   onItemClick?: (postId: string) => void;
+  showApplicantBadge?: boolean;
 }) {
   if (posts.length === 0) {
     return <EmptyState icon={<Users size={28} />} title={emptyText} />;
@@ -324,6 +360,7 @@ function MatchingList({
       {posts.map((p) => {
         const host = getUser(p.userId);
         const approved = p.applications.filter((a) => a.status === '승인').length;
+        const pending = p.applications.filter((a) => a.status === '대기').length;
         return (
           <button
             key={p.id}
@@ -347,9 +384,16 @@ function MatchingList({
                   <span className="flex items-center gap-1"><MapPin size={11} /> {p.court}</span>
                 </div>
               </div>
-              <span className={`chip ${p.status === '모집중' ? 'bg-volt-100 text-volt-800' : p.status === '모집완료' ? 'bg-navy-100 text-navy-700' : 'bg-slate-100 text-slate-500'}`}>
-                {p.status}
-              </span>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <span className={`chip ${p.status === '모집중' ? 'bg-volt-100 text-volt-800' : p.status === '모집완료' ? 'bg-navy-100 text-navy-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {p.status}
+                </span>
+                {showApplicantBadge && pending > 0 && (
+                  <span className="chip bg-rose-100 text-rose-600 !px-2 !py-0.5 !text-[11px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> 새 신청자({pending})
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-2.5">
               <span className="chip bg-slate-100 text-slate-600"><Hand size={11} /> {GAME_TYPE_LABEL[p.gameType]}</span>
