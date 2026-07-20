@@ -491,6 +491,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const toPurge = rows.filter((r) => {
         if (r.status === '취소' && r.updatedAt && now - r.updatedAt > PURGE_MS) return true;
         if (r.type === 'court' && r.timeSlot && now - slotEndEpoch(r.date, r.timeSlot) > PURGE_MS) return true;
+        if (r.type === 'pension') {
+          const cutoff = new Date();
+          cutoff.setMonth(cutoff.getMonth() - 1);
+          if (new Date(`${r.date}T00:00:00`).getTime() < cutoff.getTime()) return true;
+        }
         return false;
       });
       if (toPurge.length > 0) {

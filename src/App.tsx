@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
+import { useIdleLogout } from './lib/useIdleLogout';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
@@ -295,6 +296,11 @@ function AdminShell() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === '1');
   const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard', 'admin_tab');
   const [mobileMenu, setMobileMenu] = useState(false);
+
+  useIdleLogout(() => {
+    sessionStorage.removeItem(AUTH_KEY);
+    setAuthed(false);
+  }, authed);
 
   if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;
 

@@ -9,6 +9,7 @@ import {
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import type { NTRP, Hand, GamePreference } from '../types';
+import { useIdleLogout } from './useIdleLogout';
 
 export interface AuthUser {
   id: string;
@@ -188,6 +189,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
   }, []);
+
+  useIdleLogout(() => { void signOut(); }, Boolean(session));
 
   const updateProfile = useCallback(
     async (
