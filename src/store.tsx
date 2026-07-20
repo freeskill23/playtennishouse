@@ -346,26 +346,38 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       .select('*')
       .order('created_at', { ascending: false });
     if (data && data.length > 0) {
-      setMatchingPosts(
-        data.map((p) => ({
-          id: p.id as string,
-          reservationId: p.reservation_id as string,
-          reservationIds: (p.reservation_ids as string[]) || [],
-          userId: p.user_id as string,
-          date: p.date as string,
-          time: p.time as string,
-          court: p.court as CourtName,
-          ntrpRequirement: p.ntrp_requirement as NTRP | 'any',
-          genderRequirement: p.gender_requirement as GenderRequirement,
-          maxPlayers: p.max_players as number,
-          gameType: p.game_type as GameType,
-          description: p.description as string,
-          status: p.status as MatchingStatus,
-          courtApproved: (p.court_approved as boolean) ?? false,
-          applications: (p.applications as MatchingApplication[]) || [],
-          createdAt: p.created_at as number,
-        })),
-      );
+      const rows = data.map((p) => ({
+        id: p.id as string,
+        reservationId: p.reservation_id as string,
+        reservationIds: (p.reservation_ids as string[]) || [],
+        userId: p.user_id as string,
+        date: p.date as string,
+        time: p.time as string,
+        court: p.court as CourtName,
+        ntrpRequirement: p.ntrp_requirement as NTRP | 'any',
+        genderRequirement: p.gender_requirement as GenderRequirement,
+        maxPlayers: p.max_players as number,
+        gameType: p.game_type as GameType,
+        description: p.description as string,
+        status: p.status as MatchingStatus,
+        courtApproved: (p.court_approved as boolean) ?? false,
+        applications: (p.applications as MatchingApplication[]) || [],
+        createdAt: p.created_at as number,
+      }));
+      const now = Date.now();
+      const PURGE_MS = 24 * 60 * 60 * 1000;
+      const matchingEndEpoch = (date: string, time: string) => {
+        const end = time.includes('-') ? time.split('-')[1] : time;
+        const [h, m] = end.split(':').map(Number);
+        return new Date(`${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+      };
+      const toPurge = rows.filter((m) => now - matchingEndEpoch(m.date, m.time) > PURGE_MS);
+      if (toPurge.length > 0) {
+        setMatchingPosts(rows.filter((m) => !toPurge.find((p) => p.id === m.id)));
+        toPurge.forEach((m) => supabase.from('matching_posts').delete().eq('id', m.id));
+      } else {
+        setMatchingPosts(rows);
+      }
     }
   }, []);
 
@@ -467,7 +479,20 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (data) {
       const rows = data.map((r) => rowToReservation(r as ReservationRow));
       const now = Date.now();
-      const toPurge = rows.filter((r) => r.status === '취소' && r.updatedAt && now - r.updatedAt > 24 * 60 * 60 * 1000);
+      const PURGE_MS = 24 * 60 * 60 * 1000;
+      const slotEndEpoch = (date: string, timeSlot?: string) => {
+        if (timeSlot) {
+          const end = timeSlot.split('-')[1];
+          const [h, m] = end.split(':').map(Number);
+          return new Date(`${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+        }
+        return new Date(`${date}T00:00:00`).getTime();
+      };
+      const toPurge = rows.filter((r) => {
+        if (r.status === '취소' && r.updatedAt && now - r.updatedAt > PURGE_MS) return true;
+        if (r.type === 'court' && r.timeSlot && now - slotEndEpoch(r.date, r.timeSlot) > PURGE_MS) return true;
+        return false;
+      });
       if (toPurge.length > 0) {
         setReservations(rows.filter((r) => !toPurge.find((p) => p.id === r.id)));
         toPurge.forEach((r) => deleteReservationFromSupabase(r.id));
