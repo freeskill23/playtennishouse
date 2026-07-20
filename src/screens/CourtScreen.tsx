@@ -123,7 +123,7 @@ export function CourtScreen() {
 
       <Calendar
         value={date}
-        onChange={setDate}
+        onChange={(d) => { setDate(d); setSelectedSlots([]); setErrorReason(null); }}
         minDate={todayYMD()}
         maxDate={addDaysYMD(10)}
         dayRender={(d) => {

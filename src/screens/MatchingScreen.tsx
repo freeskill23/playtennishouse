@@ -765,7 +765,7 @@ function CreateMatchingModal({
             <p className="text-xs font-bold text-slate-500 mb-1.5">날짜 선택</p>
             <CalendarPicker
               value={date}
-              onChange={setDate}
+              onChange={(d) => { setDate(d); setSelectedSlots([]); setError(null); }}
               minDate={todayYMD()}
               maxDate={addDaysYMD(10)}
             />
