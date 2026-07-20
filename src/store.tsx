@@ -36,6 +36,7 @@ import {
   initialMatchingPosts,
   initialNotices,
   initialNotifications,
+  BANK_ACCOUNT,
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured } from './lib/supabase';
@@ -204,6 +205,10 @@ interface AppState {
   // logo
   logoImageUrl: string | null;
   updateLogoImage: (url: string | null) => void;
+
+  // bank account (deposit account shown on reservation screens)
+  bankAccount: { bank: string; number: string; holder: string };
+  updateBankAccount: (acct: { bank: string; number: string; holder: string }) => void;
 
   // temporary holidays
   tempHolidays: string[];
@@ -632,6 +637,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
+  const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
   const [focusMatchingPostId, setFocusMatchingPostId] = useState<string | null>(null);
 
@@ -641,12 +647,19 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (async () => {
       const { data } = await supabase
         .from('settings')
-        .select('banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays')
+        .select('banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder')
         .eq('id', 1)
         .maybeSingle();
       if (data) {
         setBannerImageUrl(data.banner_image_url);
         setLogoImageUrl(data.logo_image_url);
+        if (data.bank_name || data.bank_account_number || data.bank_account_holder) {
+          setBankAccount({
+            bank: data.bank_name || BANK_ACCOUNT.bank,
+            number: data.bank_account_number || BANK_ACCOUNT.number,
+            holder: data.bank_account_holder || BANK_ACCOUNT.holder,
+          });
+        }
         if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
         if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
         if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
@@ -828,6 +841,34 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(url ? '로고 이미지가 변경되었습니다.' : '로고 이미지가 초기화되었습니다.');
     },
     [pushToast, bannerImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
+  );
+
+  const updateBankAccount = useCallback(
+    (acct: { bank: string; number: string; holder: string }) => {
+      setBankAccount(acct);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            banner_image_url: bannerImageUrl,
+            logo_image_url: logoImageUrl,
+            pension_weekday_price: pensionWeekdayPrice,
+            pension_weekend_price: pensionWeekendPrice,
+            pension_price_overrides: pensionPriceOverrides,
+            temp_holidays: tempHolidays,
+            bank_name: acct.bank,
+            bank_account_number: acct.number,
+            bank_account_holder: acct.holder,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('입금 계좌 저장 실패', 'error');
+          });
+      }
+      pushToast('입금 계좌가 변경되었습니다.');
+    },
+    [pushToast, bannerImageUrl, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
   );
 
   const toggleHoliday = useCallback(
@@ -1767,6 +1808,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateBannerImage,
     logoImageUrl,
     updateLogoImage,
+    bankAccount,
+    updateBankAccount,
     tempHolidays,
     toggleHoliday,
     isHoliday,

@@ -21,7 +21,6 @@ import { useApp } from '../store';
 import { SectionTitle, EmptyState, Pill } from '../components/ui';
 import { Modal } from '../components/Modal';
 import { Calendar as CalendarPicker, todayYMD, addDaysYMD } from '../components/Calendar';
-import { BANK_ACCOUNT } from '../mockData';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from '../types';
 import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
 import type { MatchingPost, CourtName, NTRP, GameType, GenderRequirement, ApplicantGender } from '../types';
@@ -57,6 +56,7 @@ export function MatchingScreen() {
     getCourtSlotStatus,
     isCourtBlockedByPension,
     tempHolidays,
+    bankAccount,
     focusMatchingPostId,
     setFocusMatchingPostId,
   } = useApp();
@@ -357,7 +357,7 @@ export function MatchingScreen() {
         onCreate={createMatchingPost}
         getCourtSlotStatus={getCourtSlotStatus}
         isCourtBlockedByPension={isCourtBlockedByPension}
-        bankAccount={BANK_ACCOUNT}
+        bankAccount={bankAccount}
         userName={currentUser.name}
         userPhone={currentUser.phone}
         tempHolidays={tempHolidays}

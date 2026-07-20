@@ -14,6 +14,7 @@ import {
   XCircle,
   CalendarPlus,
   CalendarMinus,
+  Landmark,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -41,6 +42,8 @@ export function AdminDashboardScreen() {
     updateBannerImage,
     logoImageUrl,
     updateLogoImage,
+    bankAccount,
+    updateBankAccount,
     updateRoom,
     cancelReservation,
     tempHolidays,
@@ -54,9 +57,15 @@ export function AdminDashboardScreen() {
   const [datePriceInput, setDatePriceInput] = useState<string>('');
   const [bannerUrlInput, setBannerUrlInput] = useState('');
   const [logoUrlInput, setLogoUrlInput] = useState('');
+  const [bankEdit, setBankEdit] = useState({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });
   const [roomEdits, setRoomEdits] = useState(() =>
     Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])),
   );
+
+  // Sync bankEdit when bankAccount loads/updates from Supabase
+  useEffect(() => {
+    setBankEdit({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });
+  }, [bankAccount]);
 
   // Sync roomEdits when rooms load/update from Supabase
   useEffect(() => {
@@ -70,6 +79,10 @@ export function AdminDashboardScreen() {
   const courtReservations = dayReservations.filter((r) => r.type === 'court');
 
   const priceDirty = priceEdit.weekday !== pensionWeekdayPrice || priceEdit.weekend !== pensionWeekendPrice;
+  const bankDirty =
+    bankEdit.bank !== bankAccount.bank ||
+    bankEdit.number !== bankAccount.number ||
+    bankEdit.holder !== bankAccount.holder;
 
   const handleSavePrice = () => {
     updatePensionPrice(priceEdit.weekday, priceEdit.weekend);
@@ -318,6 +331,66 @@ export function AdminDashboardScreen() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Bank account control */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+            <Landmark size={16} className="text-emerald-700" />
+          </div>
+          <div>
+            <h3 className="font-bold text-navy-900 text-sm">입금 계좌 설정</h3>
+            <p className="text-xs text-slate-400">예약 안내에 표시되는 입금 계좌를 수시로 변경할 수 있습니다</p>
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-3 gap-3">
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">은행명</span>
+            <input
+              type="text"
+              value={bankEdit.bank}
+              onChange={(e) => setBankEdit((s) => ({ ...s, bank: e.target.value }))}
+              placeholder="농협 (NH)"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">계좌번호</span>
+            <input
+              type="text"
+              value={bankEdit.number}
+              onChange={(e) => setBankEdit((s) => ({ ...s, number: e.target.value }))}
+              placeholder="302-1234-5678-09"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 tracking-wider focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">예금주</span>
+            <input
+              type="text"
+              value={bankEdit.holder}
+              onChange={(e) => setBankEdit((s) => ({ ...s, holder: e.target.value }))}
+              placeholder="플테하 (PLAY TENNIS HOUSE)"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+            />
+          </label>
+        </div>
+
+        <div className="flex justify-end mt-3">
+          <button
+            onClick={() => updateBankAccount(bankEdit)}
+            disabled={!bankDirty}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              bankDirty
+                ? 'bg-volt-500 text-navy-950 hover:bg-volt-400 shadow-volt'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <Save size={14} /> 입금 계좌 저장
+          </button>
+        </div>
       </div>
 
       {/* Banner image control */}

@@ -4,7 +4,6 @@ import { useApp } from '../store';
 import { Calendar, todayYMD, addMonthsYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
-import { BANK_ACCOUNT } from '../mockData';
 import { formatWon } from '../pricing';
 import type { RoomName } from '../types';
 
@@ -19,6 +18,7 @@ export function PensionScreen() {
     getPensionPrice,
     pensionWeekdayPrice,
     pensionWeekendPrice,
+    bankAccount,
   } = useApp();
   const [date, setDate] = useState(todayYMD());
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
@@ -220,9 +220,9 @@ export function PensionScreen() {
         <div className="space-y-4">
           <div className="rounded-2xl bg-volt-50 border border-volt-200 p-4">
             <p className="text-sm text-volt-800 font-semibold mb-2">입금 계좌</p>
-            <p className="text-lg font-bold text-navy-900">{BANK_ACCOUNT.bank}</p>
-            <p className="text-xl font-extrabold text-navy-900 tracking-wider">{BANK_ACCOUNT.number}</p>
-            <p className="text-sm text-slate-500 mt-1">예금주: {BANK_ACCOUNT.holder}</p>
+            <p className="text-lg font-bold text-navy-900">{bankAccount.bank}</p>
+            <p className="text-xl font-extrabold text-navy-900 tracking-wider">{bankAccount.number}</p>
+            <p className="text-sm text-slate-500 mt-1">예금주: {bankAccount.holder}</p>
           </div>
           <div className="text-sm text-slate-600 space-y-2">
             <p>
