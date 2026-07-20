@@ -115,6 +115,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
       icon: <Users size={20} />,
       tone: 'bg-sky-50 text-sky-700',
       badge: newApplicantCount > 0 ? `새 신청자(${newApplicantCount})` : undefined,
+      hasAlert: newApplicantCount > 0,
     },
     {
       key: 'joinedMatching' as const,
@@ -122,6 +123,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
       count: myApprovedMatchings.length,
       icon: <CheckCircle2 size={20} />,
       tone: 'bg-volt-100 text-volt-700',
+      hasAlert: joinedStatusCount['승인'] + joinedStatusCount['거절'] + joinedStatusCount['대기'] > 0,
       sub: (
         <div className="flex gap-1.5 mt-1">
           <span className="chip bg-volt-100 text-volt-800 !px-1.5 !py-0.5 !text-[10px]">승인 {joinedStatusCount['승인']}</span>
@@ -188,8 +190,11 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
               className="card p-4 text-left hover:-translate-y-0.5 hover:shadow-navy transition-all duration-200 group"
             >
               <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-2xl ${c.tone} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                <div className={`relative w-11 h-11 rounded-2xl ${c.tone} flex items-center justify-center group-hover:scale-110 transition-transform`}>
                   {c.icon}
+                  {c.hasAlert && (
+                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 ring-2 ring-white animate-pulse" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-2xl font-extrabold text-navy-900">{c.count}</p>
@@ -281,7 +286,7 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         size="md"
         footer={<button className="btn-ghost" onClick={() => setDetail(null)}>닫기</button>}
       >
-        <MatchingList posts={joinedMatchings} getUser={getUser} emptyText="참여 중인 매칭이 없습니다" />
+        <MatchingList posts={joinedMatchings} getUser={getUser} emptyText="참여 중인 매칭이 없습니다" showMyStatus currentUserId={currentUser.id} />
       </Modal>
 
       <Modal
@@ -345,12 +350,16 @@ function MatchingList({
   emptyText,
   onItemClick,
   showApplicantBadge = false,
+  showMyStatus = false,
+  currentUserId,
 }: {
   posts: MatchingPost[];
   getUser: (id: string) => { name: string; profileImg: string; phone: string } | undefined;
   emptyText: string;
   onItemClick?: (postId: string) => void;
   showApplicantBadge?: boolean;
+  showMyStatus?: boolean;
+  currentUserId?: string;
 }) {
   if (posts.length === 0) {
     return <EmptyState icon={<Users size={28} />} title={emptyText} />;
@@ -361,6 +370,14 @@ function MatchingList({
         const host = getUser(p.userId);
         const approved = p.applications.filter((a) => a.status === '승인').length;
         const pending = p.applications.filter((a) => a.status === '대기').length;
+        const mine = showMyStatus && currentUserId ? p.applications.find((a) => a.userId === currentUserId) : undefined;
+        const myStatusCls = mine
+          ? mine.status === '승인'
+            ? 'bg-volt-100 text-volt-800'
+            : mine.status === '거절'
+              ? 'bg-rose-100 text-rose-600'
+              : 'bg-slate-100 text-slate-600'
+          : '';
         return (
           <button
             key={p.id}
@@ -391,6 +408,11 @@ function MatchingList({
                 {showApplicantBadge && pending > 0 && (
                   <span className="chip bg-rose-100 text-rose-600 !px-2 !py-0.5 !text-[11px] font-bold">
                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> 새 신청자({pending})
+                  </span>
+                )}
+                {mine && (
+                  <span className={`chip ${myStatusCls} !px-2 !py-0.5 !text-[11px] font-bold flex items-center gap-1`}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" /> {mine.status}
                   </span>
                 )}
               </div>
