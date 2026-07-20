@@ -128,7 +128,7 @@ export function AdminApprovalScreen() {
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5 text-xs">
                       <Phone size={12} className="text-slate-400" />
-                      <span className="font-semibold text-navy-700">{u?.phone || '연락처 없음'}</span>
+                      <span className="font-semibold text-navy-700">{g.items[0]?.depositorPhone || u?.phone || '연락처 없음'}</span>
                     </div>
                     {(() => {
                       const elapsed = Date.now() - g.minCreatedAt;

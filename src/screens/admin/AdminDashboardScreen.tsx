@@ -713,6 +713,7 @@ export function AdminDashboardScreen() {
                     || courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status === '취소')
                     || null;
                   const u = res ? getUser(res.userId) : null;
+                  const resName = res?.depositorName || u?.name || '비회원';
                   const isCancelled = res?.status === '취소';
                   return (
                     <div
@@ -735,15 +736,15 @@ export function AdminDashboardScreen() {
                       {status === 'blocked' && (
                         <span className="text-xs flex items-center gap-1"><Lock size={11} /> 펜션전용</span>
                       )}
-                      {res && u && (
+                      {res && (
                         <span className={`flex-1 min-w-0 truncate text-xs ${isCancelled ? 'line-through' : ''}`}>
-                          {u.name} {res.capacity ? `· ${res.capacity}명` : ''}
+                          {resName} {res.capacity ? `· ${res.capacity}명` : ''}{res.depositorPhone ? ` · ${res.depositorPhone}` : ''}
                         </span>
                       )}
                       {res && <StatusBadge status={res.status} />}
                       {res && res.status === '예약완료' && res.waitingSequence === null && (
                         <button
-                          onClick={() => setCancelTarget({ id: res.id, label: `${u?.name ?? ''} ${court} ${slot}` })}
+                          onClick={() => setCancelTarget({ id: res.id, label: `${resName} ${court} ${slot}` })}
                           className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition ml-auto"
                           aria-label="관리자 취소"
                         >
