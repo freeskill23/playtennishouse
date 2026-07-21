@@ -39,7 +39,7 @@ import {
   BANK_ACCOUNT,
 } from './mockData';
 import type { AuthUser } from './lib/auth';
-import { supabase, supabaseConfigured } from './lib/supabase';
+import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
 import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
 
 type ReservationRow = {
@@ -1736,8 +1736,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (!supabaseConfigured) return { ok: false, error: 'Supabase가 설정되지 않았습니다.' };
       const trimmed = content.trim();
       if (!trimmed) return { ok: false, error: '댓글 내용을 입력하세요.' };
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-notice-reply`;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      const url = `${SUPABASE_URL}/functions/v1/admin-notice-reply`;
+      const anonKey = SUPABASE_ANON_KEY;
       let res: Response;
       try {
         res = await fetch(url, {
@@ -1813,8 +1813,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const deleteAdminNoticeComment = useCallback(
     async (commentId: string, password: string): Promise<{ ok: boolean; error?: string }> => {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-notice-reply`;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      const url = `${SUPABASE_URL}/functions/v1/admin-notice-reply`;
+      const anonKey = SUPABASE_ANON_KEY;
       let res: Response;
       try {
         res = await fetch(url, {

@@ -7,6 +7,9 @@ const FALLBACK_KEY =
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || FALLBACK_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || FALLBACK_KEY;
 
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = supabaseConfigured
