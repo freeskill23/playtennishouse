@@ -423,7 +423,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       clearInterval(poll);
     };
   }, [loadMatchingPosts]);
-  const [notices, setNotices] = useState<Notice[]>(initialNotices);
+  const [notices, setNotices] = useState<Notice[]>(supabaseConfigured ? [] : initialNotices);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
   // Load notices from Supabase so admin edits are shared across sessions
