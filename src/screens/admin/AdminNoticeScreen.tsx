@@ -21,8 +21,9 @@ import {
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
+import { Modal } from '../../components/Modal';
 import { NOTICE_META } from '../../types';
-import type { NoticeType } from '../../types';
+import type { NoticeType, Notice } from '../../types';
 import type { LucideIcon } from 'lucide-react';
 
 const ICONS: Record<string, LucideIcon> = {
