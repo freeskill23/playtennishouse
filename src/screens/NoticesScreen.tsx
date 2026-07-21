@@ -140,47 +140,87 @@ export function NoticesScreen() {
                 {noticeComments.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-3">댓글이 없습니다.</p>
                 ) : (
-                  noticeComments.map((c) => (
-                    <div
-                      key={c.id}
-                      className={`flex items-start gap-2 rounded-lg p-2.5 ${
-                        c.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-slate-50'
-                      }`}
-                    >
-                      <div
-                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
-                          c.isAdmin
-                            ? 'bg-navy-900 text-volt-400'
-                            : 'bg-navy-100 text-navy-700'
-                        }`}
-                      >
-                        {c.isAdmin ? <ShieldAlert size={14} /> : c.userName.slice(0, 1)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-navy-900">{c.userName}</span>
-                          {c.isAdmin && (
-                            <span className="chip bg-navy-900 text-volt-400 text-[10px] py-0 px-1.5">
-                              관리자
-                            </span>
-                          )}
-                          <span className="text-[10px] text-slate-400">
-                            {new Date(c.createdAt).toLocaleString('ko-KR')}
-                          </span>
+                  noticeComments
+                    .filter((c) => !c.parentId)
+                    .map((c) => {
+                      const replies = noticeComments
+                        .filter((r) => r.parentId === c.id)
+                        .sort((a, b) => a.createdAt - b.createdAt);
+                      return (
+                        <div key={c.id} className="space-y-1.5">
+                          <div
+                            className={`flex items-start gap-2 rounded-lg p-2.5 ${
+                              c.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-slate-50'
+                            }`}
+                          >
+                            <div
+                              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                                c.isAdmin
+                                  ? 'bg-navy-900 text-volt-400'
+                                  : 'bg-navy-100 text-navy-700'
+                              }`}
+                            >
+                              {c.isAdmin ? <ShieldAlert size={14} /> : c.userName.slice(0, 1)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-navy-900">{c.userName}</span>
+                                {c.isAdmin && (
+                                  <span className="chip bg-navy-900 text-volt-400 text-[10px] py-0 px-1.5">
+                                    관리자
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(c.createdAt).toLocaleString('ko-KR')}
+                                </span>
+                              </div>
+                              <p className="text-sm text-navy-800 break-words mt-0.5">{c.content}</p>
+                            </div>
+                            {user && c.userId === user.id && (
+                              <button
+                                onClick={() => deleteNoticeComment(c.id)}
+                                className="text-rose-400 hover:text-rose-600 p-1 shrink-0"
+                                aria-label="삭제"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                          {replies.map((r) => (
+                            <div
+                              key={r.id}
+                              className={`flex items-start gap-2 rounded-lg p-2 ml-6 ${
+                                r.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-slate-50'
+                              }`}
+                            >
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${
+                                  r.isAdmin
+                                    ? 'bg-navy-900 text-volt-400'
+                                    : 'bg-navy-100 text-navy-700'
+                                }`}
+                              >
+                                {r.isAdmin ? <ShieldAlert size={12} /> : r.userName.slice(0, 1)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-navy-900">{r.userName}</span>
+                                  {r.isAdmin && (
+                                    <span className="chip bg-navy-900 text-volt-400 text-[10px] py-0 px-1.5">
+                                      관리자
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-slate-400">
+                                    {new Date(r.createdAt).toLocaleString('ko-KR')}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-navy-800 break-words mt-0.5">{r.content}</p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-sm text-navy-800 break-words mt-0.5">{c.content}</p>
-                      </div>
-                      {user && c.userId === user.id && (
-                        <button
-                          onClick={() => deleteNoticeComment(c.id)}
-                          className="text-rose-400 hover:text-rose-600 p-1 shrink-0"
-                          aria-label="삭제"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))
+                      );
+                    })
                 )}
               </div>
 

@@ -22,7 +22,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { password, noticeId, content } = body ?? {};
+    const { password, noticeId, content, parentId } = body ?? {};
     if (password !== ADMIN_PASSWORD) {
       return new Response(JSON.stringify({ error: "관리자 인증에 실패했습니다." }), {
         status: 401,
@@ -42,6 +42,7 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const parent = typeof parentId === "string" && parentId.trim() ? parentId.trim() : null;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -58,6 +59,7 @@ Deno.serve(async (req: Request) => {
       content: trimmed,
       created_at: createdAt,
       is_admin: true,
+      parent_id: parent,
     });
 
     if (error) {
@@ -78,6 +80,7 @@ Deno.serve(async (req: Request) => {
           content: trimmed,
           createdAt,
           isAdmin: true,
+          parentId: parent,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

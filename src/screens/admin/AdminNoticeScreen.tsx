@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Send,
   ShieldAlert,
+  Reply,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
@@ -84,6 +85,7 @@ export function AdminNoticeScreen() {
   const [replyOpen, setReplyOpen] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [replying, setReplying] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<string | null>(null);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -342,71 +344,118 @@ export function AdminNoticeScreen() {
               </div>
               {replyOpen === n.id && (
                 <div className="ml-14 mr-2 mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-navy-800">
-                    <ShieldAlert size={14} className="text-navy-900" />
-                    관리자 댓글
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="관리자 답글을 입력하세요"
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
-                    />
-                    <button
-                      onClick={async () => {
-                        if (!replyText.trim() || replying) return;
-                        setReplying(true);
-                        const r = await addAdminNoticeComment(n.id, replyText, 'admin123');
-                        setReplying(false);
-                        if (!r.ok) {
-                          alert(r.error || '관리자 댓글 등록에 실패했습니다.');
-                          return;
-                        }
-                        setReplyText('');
-                      }}
-                      disabled={!replyText.trim() || replying}
-                      className="rounded-lg bg-navy-900 text-white px-3 py-2 text-sm font-bold hover:bg-navy-800 transition disabled:opacity-40 flex items-center gap-1"
-                    >
-                      {replying ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                      등록
-                    </button>
-                  </div>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                     {noticeComments
-                      .filter((c) => c.noticeId === n.id)
+                      .filter((c) => c.noticeId === n.id && !c.parentId)
                       .sort((a, b) => a.createdAt - b.createdAt)
-                      .map((c) => (
-                        <div
-                          key={c.id}
-                          className={`flex items-start gap-2 rounded-lg p-2 ${
-                            c.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-white'
-                          }`}
-                        >
-                          <div
-                            className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${
-                              c.isAdmin ? 'bg-navy-900 text-volt-400' : 'bg-navy-100 text-navy-700'
-                            }`}
-                          >
-                            {c.isAdmin ? <ShieldAlert size={12} /> : c.userName.slice(0, 1)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-navy-900">{c.userName}</span>
-                              {c.isAdmin && (
-                                <span className="chip bg-navy-900 text-volt-400 text-[9px] py-0 px-1">
-                                  관리자
-                                </span>
-                              )}
-                              <span className="text-[9px] text-slate-400">
-                                {new Date(c.createdAt).toLocaleString('ko-KR')}
-                              </span>
+                      .map((c) => {
+                        const replies = noticeComments
+                          .filter((r) => r.parentId === c.id)
+                          .sort((a, b) => a.createdAt - b.createdAt);
+                        return (
+                          <div key={c.id} className="space-y-1.5">
+                            <div
+                              className={`flex items-start gap-2 rounded-lg p-2 ${
+                                c.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-white'
+                              }`}
+                            >
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${
+                                  c.isAdmin ? 'bg-navy-900 text-volt-400' : 'bg-navy-100 text-navy-700'
+                                }`}
+                              >
+                                {c.isAdmin ? <ShieldAlert size={12} /> : c.userName.slice(0, 1)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-navy-900">{c.userName}</span>
+                                  {c.isAdmin && (
+                                    <span className="chip bg-navy-900 text-volt-400 text-[9px] py-0 px-1">
+                                      관리자
+                                    </span>
+                                  )}
+                                  <span className="text-[9px] text-slate-400">
+                                    {new Date(c.createdAt).toLocaleString('ko-KR')}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-navy-800 break-words mt-0.5">{c.content}</p>
+                                {!c.isAdmin && (
+                                  <button
+                                    onClick={() => {
+                                      setReplyTarget(replyTarget === c.id ? null : c.id);
+                                      setReplyText('');
+                                    }}
+                                    className="mt-1 text-[10px] text-navy-500 hover:text-navy-800 font-semibold flex items-center gap-0.5"
+                                  >
+                                    <Reply size={10} /> 답글
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-xs text-navy-800 break-words mt-0.5">{c.content}</p>
+                            {replies.map((r) => (
+                              <div
+                                key={r.id}
+                                className={`flex items-start gap-2 rounded-lg p-2 ml-6 ${
+                                  r.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-white'
+                                }`}
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold ${
+                                    r.isAdmin ? 'bg-navy-900 text-volt-400' : 'bg-navy-100 text-navy-700'
+                                  }`}
+                                >
+                                  {r.isAdmin ? <ShieldAlert size={10} /> : r.userName.slice(0, 1)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-navy-900">{r.userName}</span>
+                                    {r.isAdmin && (
+                                      <span className="chip bg-navy-900 text-volt-400 text-[9px] py-0 px-1">
+                                        관리자
+                                      </span>
+                                    )}
+                                    <span className="text-[9px] text-slate-400">
+                                      {new Date(r.createdAt).toLocaleString('ko-KR')}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-navy-800 break-words mt-0.5">{r.content}</p>
+                                </div>
+                              </div>
+                            ))}
+                            {replyTarget === c.id && (
+                              <div className="flex gap-2 ml-6">
+                                <input
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder={`${c.userName}님에게 답글`}
+                                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={async () => {
+                                    if (!replyText.trim() || replying) return;
+                                    setReplying(true);
+                                    const r2 = await addAdminNoticeComment(n.id, replyText, 'admin123', c.id);
+                                    setReplying(false);
+                                    if (!r2.ok) {
+                                      alert(r2.error || '관리자 댓글 등록에 실패했습니다.');
+                                      return;
+                                    }
+                                    setReplyText('');
+                                    setReplyTarget(null);
+                                  }}
+                                  disabled={!replyText.trim() || replying}
+                                  className="rounded-lg bg-navy-900 text-white px-2.5 py-1.5 text-xs font-bold hover:bg-navy-800 transition disabled:opacity-40 flex items-center gap-1"
+                                >
+                                  {replying ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                                  등록
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
-                    {noticeComments.filter((c) => c.noticeId === n.id).length === 0 && (
+                        );
+                      })}
+                    {noticeComments.filter((c) => c.noticeId === n.id && !c.parentId).length === 0 && (
                       <p className="text-xs text-slate-400 text-center py-2">댓글이 없습니다.</p>
                     )}
                   </div>

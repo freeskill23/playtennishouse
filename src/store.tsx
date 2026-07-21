@@ -184,7 +184,7 @@ interface AppState {
   noticeComments: NoticeComment[];
   loadNoticeComments: (noticeId: string) => Promise<void>;
   addNoticeComment: (noticeId: string, content: string) => Promise<{ ok: boolean; error?: string }>;
-  addAdminNoticeComment: (noticeId: string, content: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  addAdminNoticeComment: (noticeId: string, content: string, password: string, parentId?: string | null) => Promise<{ ok: boolean; error?: string }>;
   deleteNoticeComment: (commentId: string) => void;
 
   // gallery
@@ -1724,13 +1724,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           content: c.content as string,
           createdAt: c.created_at as number,
           isAdmin: (c.is_admin as boolean) ?? false,
+          parentId: (c.parent_id as string | null) ?? null,
         })),
       );
     }
   }, []);
 
   const addAdminNoticeComment = useCallback(
-    async (noticeId: string, content: string, password: string) => {
+    async (noticeId: string, content: string, password: string, parentId?: string | null) => {
       if (!supabaseConfigured) return { ok: false, error: 'Supabase가 설정되지 않았습니다.' };
       const trimmed = content.trim();
       if (!trimmed) return { ok: false, error: '댓글 내용을 입력하세요.' };
@@ -1740,18 +1741,19 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password, noticeId, content: trimmed }),
+          body: JSON.stringify({ password, noticeId, content: trimmed, parentId: parentId ?? null }),
         });
       } catch {
         return { ok: false, error: '네트워크 오류로 관리자 댓글 등록에 실패했습니다.' };
       }
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: (json as { error?: string }).error || '관리자 댓글 등록에 실패했습니다.' };
-      const c = (json as { comment?: { id: string; noticeId: string; userId: string | null; userName: string; content: string; createdAt: number; isAdmin: boolean } }).comment;
+      const c = (json as { comment?: { id: string; noticeId: string; userId: string | null; userName: string; content: string; createdAt: number; isAdmin: boolean; parentId: string | null } }).comment;
       if (c) {
         setNoticeComments((prev) => [...prev, {
           id: c.id, noticeId: c.noticeId, userId: c.userId, userName: c.userName,
           content: c.content, createdAt: c.createdAt, isAdmin: c.isAdmin,
+          parentId: c.parentId,
         }]);
       }
       return { ok: true };
@@ -1782,9 +1784,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         user_name: userName,
         content: trimmed,
         created_at: createdAt,
+        parent_id: null,
       });
       if (error) return { ok: false, error: error.message };
-      setNoticeComments((prev) => [...prev, { id, noticeId, userId: session.user.id, userName, content: trimmed, createdAt }]);
+      setNoticeComments((prev) => [...prev, { id, noticeId, userId: session.user.id, userName, content: trimmed, createdAt, parentId: null }]);
       return { ok: true };
     },
     [],

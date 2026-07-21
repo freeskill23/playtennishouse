@@ -125,6 +125,7 @@ export interface NoticeComment {
   content: string;
   createdAt: number;
   isAdmin?: boolean;
+  parentId?: string | null;
 }
 
 export type NotificationKind =
