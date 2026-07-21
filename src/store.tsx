@@ -476,7 +476,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
     })();
   }, []);
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<AppNotification[]>(supabaseConfigured ? [] : initialNotifications);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
