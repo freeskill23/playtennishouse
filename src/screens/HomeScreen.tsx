@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   BedDouble,
   CalendarRange,
@@ -12,13 +12,17 @@ import {
   MapPin,
   User,
   Phone,
+  MessageSquare,
+  Send,
+  Trash2,
+  ShieldAlert,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { Logo } from '../components/Logo';
 import { StatusBadge, SectionTitle, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
-import type { Reservation, MatchingPost, GameType, GenderRequirement, ReservationStatus } from '../types';
+import type { Reservation, MatchingPost, GameType, GenderRequirement, ReservationStatus, Notice } from '../types';
 import { mergeTimeSlots } from '../types';
 
 const QUICK_MENUS = [
@@ -46,13 +50,32 @@ const GENDER_LABEL: Record<GenderRequirement, string> = {
 
 type DetailKind = 'myMatching' | 'joinedMatching' | 'court' | 'pension' | null;
 
-type SelectedNotice = { title: string; content: string; type: string; createdAt: number } | null;
-
 export function HomeScreen({ go }: { go: (k: string) => void }) {
-  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl, setFocusMatchingPostId } = useApp();
-  const { isGuest } = useAuth();
+  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl, setFocusMatchingPostId, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment } = useApp();
+  const { user, isGuest } = useAuth();
   const [detail, setDetail] = useState<DetailKind>(null);
-  const [selectedNotice, setSelectedNotice] = useState<SelectedNotice>(null);
+  const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (selectedNotice) {
+      setCommentText('');
+      void loadNoticeComments(selectedNotice.id);
+    }
+  }, [selectedNotice, loadNoticeComments]);
+
+  const handleAddComment = async () => {
+    if (!selectedNotice || !commentText.trim()) return;
+    setSubmitting(true);
+    const res = await addNoticeComment(selectedNotice.id, commentText);
+    setSubmitting(false);
+    if (res.ok) {
+      setCommentText('');
+    } else {
+      alert(res.error || '댓글 작성에 실패했습니다.');
+    }
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const isUpcoming = (date: string) => date >= today;
@@ -331,15 +354,142 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         }
       >
         {selectedNotice && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-10 h-10 rounded-xl bg-navy-50 flex items-center justify-center text-navy-700">
                 <Megaphone size={18} />
               </div>
               <span className="chip bg-slate-100 text-slate-600">{selectedNotice.type}</span>
             </div>
-            <div className="whitespace-pre-wrap text-sm text-navy-800 leading-relaxed">
-              {selectedNotice.content}
+            {selectedNotice.imageUrl && (
+              <img
+                src={selectedNotice.imageUrl}
+                alt={selectedNotice.title}
+                className="w-full rounded-xl border border-slate-200 max-h-80 object-cover"
+              />
+            )}
+            <p className="text-navy-800 whitespace-pre-wrap leading-relaxed">{selectedNotice.content}</p>
+
+            <div className="border-t border-slate-100 pt-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <MessageSquare size={14} className="text-slate-400" />
+                <span className="text-sm font-bold text-navy-900">댓글</span>
+                <span className="text-xs text-slate-400">({noticeComments.length})</span>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {noticeComments.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-3">댓글이 없습니다.</p>
+                ) : (
+                  noticeComments
+                    .filter((c) => !c.parentId)
+                    .map((c) => {
+                      const replies = noticeComments
+                        .filter((r) => r.parentId === c.id)
+                        .sort((a, b) => a.createdAt - b.createdAt);
+                      return (
+                        <div key={c.id} className="space-y-1.5">
+                          <div
+                            className={`flex items-start gap-2 rounded-lg p-2.5 ${
+                              c.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-slate-50'
+                            }`}
+                          >
+                            <div
+                              className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                                c.isAdmin ? 'bg-navy-900 text-volt-400' : 'bg-navy-100 text-navy-700'
+                              }`}
+                            >
+                              {c.isAdmin ? <ShieldAlert size={14} /> : c.userName.slice(0, 1)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-navy-900">{c.userName}</span>
+                                {c.isAdmin && (
+                                  <span className="chip bg-navy-900 text-volt-400 text-[10px] py-0 px-1.5">
+                                    관리자
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(c.createdAt).toLocaleString('ko-KR')}
+                                </span>
+                              </div>
+                              <p className="text-sm text-navy-800 break-words mt-0.5">{c.content}</p>
+                            </div>
+                            {user && c.userId === user.id && (
+                              <button
+                                onClick={() => deleteNoticeComment(c.id)}
+                                className="text-rose-400 hover:text-rose-600 p-1 shrink-0"
+                                aria-label="삭제"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                          {replies.map((r) => (
+                            <div
+                              key={r.id}
+                              className={`flex items-start gap-2 rounded-lg p-2 ml-6 ${
+                                r.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-slate-50'
+                              }`}
+                            >
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${
+                                  r.isAdmin ? 'bg-navy-900 text-volt-400' : 'bg-navy-100 text-navy-700'
+                                }`}
+                              >
+                                {r.isAdmin ? <ShieldAlert size={12} /> : r.userName.slice(0, 1)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-navy-900">{r.userName}</span>
+                                  {r.isAdmin && (
+                                    <span className="chip bg-navy-900 text-volt-400 text-[10px] py-0 px-1.5">
+                                      관리자
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-slate-400">
+                                    {new Date(r.createdAt).toLocaleString('ko-KR')}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-navy-800 break-words mt-0.5">{r.content}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+
+              {isGuest ? (
+                <p className="text-xs text-slate-400 text-center py-2 mt-2">
+                  댓글은 회원만 작성할 수 있습니다.
+                </p>
+              ) : user ? (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void handleAddComment();
+                      }
+                    }}
+                    placeholder="한줄 댓글을 입력하세요"
+                    maxLength={100}
+                    className="input flex-1 py-2"
+                  />
+                  <button
+                    onClick={handleAddComment}
+                    disabled={submitting || !commentText.trim()}
+                    className="btn-primary px-3 disabled:opacity-50"
+                    aria-label="댓글 등록"
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         )}
