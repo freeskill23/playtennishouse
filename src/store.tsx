@@ -179,6 +179,7 @@ interface AppState {
 
   // notices
   createNotice: (n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => void;
+  updateNotice: (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => void;
   deleteNotice: (id: string) => void;
   reorderNotices: (orderedIds: string[]) => void;
   noticeComments: NoticeComment[];
@@ -1665,6 +1666,34 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [addNotification, pushToast],
   );
 
+  const updateNotice = useCallback(
+    (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => {
+      setNotices((prev) =>
+        prev.map((it) =>
+          it.id === id
+            ? { ...it, title: n.title, content: n.content, type: n.type, imageUrl: n.imageUrl }
+            : it,
+        ),
+      );
+      if (supabaseConfigured) {
+        supabase
+          .from('notices')
+          .update({
+            title: n.title,
+            content: n.content,
+            type: n.type,
+            image_url: n.imageUrl ?? null,
+          })
+          .eq('id', id)
+          .then(({ error }) => {
+            if (error) pushToast('공지 수정 실패: ' + error.message, 'error');
+          });
+      }
+      pushToast('공지사항이 수정되었습니다.');
+    },
+    [pushToast],
+  );
+
   const deleteNotice = useCallback(
     (id: string) => {
       setNotices((prev) => prev.filter((n) => n.id !== id));
@@ -1948,6 +1977,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     closeMatching,
     deleteMatchingPost,
     createNotice,
+    updateNotice,
     deleteNotice,
     reorderNotices,
     noticeComments,

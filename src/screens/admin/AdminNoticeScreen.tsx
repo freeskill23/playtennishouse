@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Plus,
   Trash2,
+  Pencil,
   CheckCircle2,
   GripVertical,
   ImagePlus,
@@ -68,7 +69,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminNoticeScreen() {
-  const { notices, createNotice, deleteNotice, reorderNotices, noticeComments, addAdminNoticeComment, deleteAdminNoticeComment, loadNoticeComments } = useApp();
+  const { notices, createNotice, updateNotice, deleteNotice, reorderNotices, noticeComments, addAdminNoticeComment, deleteAdminNoticeComment, loadNoticeComments } = useApp();
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -76,6 +77,18 @@ export function AdminNoticeScreen() {
     imageUrl: '' as string,
   });
   const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState<Notice | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    content: '',
+    type: '일반공지' as NoticeType,
+    imageUrl: '' as string,
+  });
+  const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
+  const [editRemovingImage, setEditRemovingImage] = useState(false);
+  const editFileRef = useRef<HTMLInputElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -109,6 +122,87 @@ export function AdminNoticeScreen() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const openEdit = (n: Notice) => {
+    setEditTarget(n);
+    setEditForm({
+      title: n.title,
+      content: n.content,
+      type: n.type,
+      imageUrl: n.imageUrl ?? '',
+    });
+    setEditPreviewUrl(n.imageUrl ?? null);
+    setEditPendingFile(null);
+    setEditRemovingImage(false);
+    if (editFileRef.current) editFileRef.current.value = '';
+  };
+
+  const closeEdit = () => {
+    setEditTarget(null);
+    if (editPreviewUrl && editPreviewUrl !== editTarget?.imageUrl) URL.revokeObjectURL(editPreviewUrl);
+    setEditPreviewUrl(null);
+    setEditPendingFile(null);
+    setEditRemovingImage(false);
+    if (editFileRef.current) editFileRef.current.value = '';
+  };
+
+  const onEditPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setEditPendingFile(f);
+    if (editPreviewUrl && editPreviewUrl !== editTarget?.imageUrl) URL.revokeObjectURL(editPreviewUrl);
+    setEditPreviewUrl(URL.createObjectURL(f));
+    setEditRemovingImage(false);
+  };
+
+  const clearEditPick = () => {
+    setEditPendingFile(null);
+    if (editPreviewUrl && editPreviewUrl !== editTarget?.imageUrl) URL.revokeObjectURL(editPreviewUrl);
+    setEditPreviewUrl(editTarget?.imageUrl ?? null);
+    if (editFileRef.current) editFileRef.current.value = '';
+  };
+
+  const removeEditImage = () => {
+    setEditPendingFile(null);
+    if (editPreviewUrl && editPreviewUrl !== editTarget?.imageUrl) URL.revokeObjectURL(editPreviewUrl);
+    setEditPreviewUrl(null);
+    setEditForm((f) => ({ ...f, imageUrl: '' }));
+    setEditRemovingImage(true);
+    if (editFileRef.current) editFileRef.current.value = '';
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editTarget || !editForm.title.trim() || !editForm.content.trim()) return;
+    let imageUrl = editForm.imageUrl;
+    if (editRemovingImage) imageUrl = '';
+    if (editPendingFile) {
+      setEditUploading(true);
+      try {
+        const blob = await resizeImage(editPendingFile);
+        const fileName = `notice-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+        if (!supabaseConfigured) throw new Error('Supabase가 설정되지 않았습니다.');
+        const { error: upErr } = await supabase.storage
+          .from('gallery')
+          .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from('gallery').getPublicUrl(fileName);
+        imageUrl = pub.publicUrl;
+      } catch (err) {
+        alert('이미지 업로드 실패: ' + (err as Error).message);
+        setEditUploading(false);
+        return;
+      } finally {
+        setEditUploading(false);
+      }
+    }
+    updateNotice(editTarget.id, {
+      title: editForm.title.trim(),
+      content: editForm.content.trim(),
+      type: editForm.type,
+      imageUrl: imageUrl || undefined,
+    });
+    closeEdit();
   };
 
   const handleSubmit = async () => {
@@ -333,6 +427,14 @@ export function AdminNoticeScreen() {
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
                   <button
+                    onClick={() => openEdit(n)}
+                    className="text-navy-600 hover:bg-navy-50 rounded-lg p-1.5 transition shrink-0"
+                    aria-label="수정"
+                    title="수정"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
                     onClick={() => deleteNotice(n.id)}
                     className="text-rose-500 hover:bg-rose-50 rounded-lg p-1.5 transition shrink-0"
                     aria-label="삭제"
@@ -495,6 +597,105 @@ export function AdminNoticeScreen() {
           })
         )}
       </div>
+
+      <Modal
+        open={!!editTarget}
+        onClose={closeEdit}
+        title="공지 수정"
+        footer={
+          <button className="btn-primary" onClick={handleEditSubmit} disabled={editUploading}>
+            {editUploading ? (
+              <><Loader2 size={18} className="animate-spin" /> 수정 중...</>
+            ) : (
+              <><CheckCircle2 size={18} /> 수정하기</>
+            )}
+          </button>
+        }
+      >
+        {editTarget && (
+          <div className="space-y-4">
+            <div>
+              <label className="label">공지 유형</label>
+              <div className="flex flex-wrap gap-1.5">
+                {(['일반공지', '이벤트', '우천', '환불', '이용수칙'] as NoticeType[]).map((t) => {
+                  const Icon = ICONS[NOTICE_META[t].icon];
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setEditForm((f) => ({ ...f, type: t }))}
+                      className={`chip transition ${editForm.type === t ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600'}`}
+                    >
+                      <Icon size={12} /> {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="label">제목</label>
+              <input
+                value={editForm.title}
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="공지 제목을 입력하세요"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">내용</label>
+              <textarea
+                value={editForm.content}
+                onChange={(e) => setEditForm((f) => ({ ...f, content: e.target.value }))}
+                placeholder="공지 내용을 입력하세요"
+                className="input min-h-[100px]"
+              />
+            </div>
+            <div>
+              <label className="label">이미지</label>
+              <input
+                ref={editFileRef}
+                type="file"
+                accept="image/*"
+                onChange={onEditPick}
+                className="hidden"
+              />
+              {editPreviewUrl ? (
+                <div className="relative inline-block">
+                  <img
+                    src={editPreviewUrl}
+                    alt="미리보기"
+                    className="w-40 h-40 object-cover rounded-xl border border-slate-200"
+                  />
+                  <button
+                    onClick={clearEditPick}
+                    className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-slate-500 text-white flex items-center justify-center shadow-lg"
+                    aria-label="취소"
+                  >
+                    <X size={14} />
+                  </button>
+                  <button
+                    onClick={removeEditImage}
+                    className="absolute -bottom-2 -right-2 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-lg"
+                    aria-label="이미지 삭제"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => editFileRef.current?.click()}
+                  className="w-40 h-40 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-volt-400 hover:text-volt-500 transition"
+                >
+                  <ImagePlus size={28} />
+                  <span className="text-xs font-semibold">이미지 선택</span>
+                </button>
+              )}
+              <p className="text-[11px] text-slate-400 mt-1">
+                가로 500px로 자동 리사이즈되어 저장됩니다.
+              </p>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
