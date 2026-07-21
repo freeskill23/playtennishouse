@@ -120,10 +120,11 @@ export interface Notice {
 export interface NoticeComment {
   id: string;
   noticeId: string;
-  userId: string;
+  userId: string | null;
   userName: string;
   content: string;
   createdAt: number;
+  isAdmin?: boolean;
 }
 
 export type NotificationKind =

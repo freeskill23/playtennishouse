@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Send,
   Trash2,
+  ShieldAlert,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -140,13 +141,29 @@ export function NoticesScreen() {
                   <p className="text-xs text-slate-400 text-center py-3">댓글이 없습니다.</p>
                 ) : (
                   noticeComments.map((c) => (
-                    <div key={c.id} className="flex items-start gap-2 bg-slate-50 rounded-lg p-2.5">
-                      <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center shrink-0 text-xs font-bold text-navy-700">
-                        {c.userName.slice(0, 1)}
+                    <div
+                      key={c.id}
+                      className={`flex items-start gap-2 rounded-lg p-2.5 ${
+                        c.isAdmin ? 'bg-volt-50 ring-1 ring-volt-200' : 'bg-slate-50'
+                      }`}
+                    >
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                          c.isAdmin
+                            ? 'bg-navy-900 text-volt-400'
+                            : 'bg-navy-100 text-navy-700'
+                        }`}
+                      >
+                        {c.isAdmin ? <ShieldAlert size={14} /> : c.userName.slice(0, 1)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-navy-900">{c.userName}</span>
+                          {c.isAdmin && (
+                            <span className="chip bg-navy-900 text-volt-400 text-[10px] py-0 px-1.5">
+                              관리자
+                            </span>
+                          )}
                           <span className="text-[10px] text-slate-400">
                             {new Date(c.createdAt).toLocaleString('ko-KR')}
                           </span>
