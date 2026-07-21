@@ -185,6 +185,7 @@ interface AppState {
   loadNoticeComments: (noticeId: string) => Promise<void>;
   addNoticeComment: (noticeId: string, content: string) => Promise<{ ok: boolean; error?: string }>;
   addAdminNoticeComment: (noticeId: string, content: string, password: string, parentId?: string | null) => Promise<{ ok: boolean; error?: string }>;
+  deleteAdminNoticeComment: (commentId: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   deleteNoticeComment: (commentId: string) => void;
 
   // gallery
@@ -1736,11 +1737,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const trimmed = content.trim();
       if (!trimmed) return { ok: false, error: '댓글 내용을 입력하세요.' };
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-notice-reply`;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
       let res: Response;
       try {
         res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${anonKey}`,
+            apikey: anonKey,
+          },
           body: JSON.stringify({ password, noticeId, content: trimmed, parentId: parentId ?? null }),
         });
       } catch {
@@ -1803,6 +1809,34 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
     },
     [pushToast],
+  );
+
+  const deleteAdminNoticeComment = useCallback(
+    async (commentId: string, password: string): Promise<{ ok: boolean; error?: string }> => {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-notice-reply`;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${anonKey}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({ password, action: 'delete', commentId }),
+        });
+      } catch {
+        return { ok: false, error: '네트워크 오류로 삭제에 실패했습니다.' };
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true) {
+        return { ok: false, error: data.error || '관리자 댓글 삭제에 실패했습니다.' };
+      }
+      setNoticeComments((prev) => prev.filter((c) => c.id !== commentId && c.parentId !== commentId));
+      return { ok: true };
+    },
+    [],
   );
 
   // ===== Gallery =====
@@ -1920,6 +1954,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     loadNoticeComments,
     addNoticeComment,
     addAdminNoticeComment,
+    deleteAdminNoticeComment,
     deleteNoticeComment,
     createGalleryItem,
     deleteGalleryItem,

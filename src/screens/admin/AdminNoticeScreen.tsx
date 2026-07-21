@@ -68,7 +68,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminNoticeScreen() {
-  const { notices, createNotice, deleteNotice, reorderNotices, noticeComments, addAdminNoticeComment, loadNoticeComments } = useApp();
+  const { notices, createNotice, deleteNotice, reorderNotices, noticeComments, addAdminNoticeComment, deleteAdminNoticeComment, loadNoticeComments } = useApp();
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -86,6 +86,16 @@ export function AdminNoticeScreen() {
   const [replyText, setReplyText] = useState('');
   const [replying, setReplying] = useState(false);
   const [replyTarget, setReplyTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (deleting) return;
+    if (!confirm('이 댓글을 삭제하시겠습니까?')) return;
+    setDeleting(commentId);
+    const r = await deleteAdminNoticeComment(commentId, 'admin123');
+    setDeleting(null);
+    if (!r.ok) alert(r.error || '댓글 삭제에 실패했습니다.');
+  };
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -382,17 +392,26 @@ export function AdminNoticeScreen() {
                                   </span>
                                 </div>
                                 <p className="text-xs text-navy-800 break-words mt-0.5">{c.content}</p>
-                                {!c.isAdmin && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  {!c.isAdmin && (
+                                    <button
+                                      onClick={() => {
+                                        setReplyTarget(replyTarget === c.id ? null : c.id);
+                                        setReplyText('');
+                                      }}
+                                      className="text-[10px] text-navy-500 hover:text-navy-800 font-semibold flex items-center gap-0.5"
+                                    >
+                                      <Reply size={10} /> 답글
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => {
-                                      setReplyTarget(replyTarget === c.id ? null : c.id);
-                                      setReplyText('');
-                                    }}
-                                    className="mt-1 text-[10px] text-navy-500 hover:text-navy-800 font-semibold flex items-center gap-0.5"
+                                    onClick={() => handleDeleteComment(c.id)}
+                                    disabled={deleting === c.id}
+                                    className="text-[10px] text-red-500 hover:text-red-700 font-semibold flex items-center gap-0.5 disabled:opacity-40"
                                   >
-                                    <Reply size={10} /> 답글
+                                    {deleting === c.id ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />} 삭제
                                   </button>
-                                )}
+                                </div>
                               </div>
                             </div>
                             {replies.map((r) => (
@@ -422,6 +441,13 @@ export function AdminNoticeScreen() {
                                     </span>
                                   </div>
                                   <p className="text-xs text-navy-800 break-words mt-0.5">{r.content}</p>
+                                  <button
+                                    onClick={() => handleDeleteComment(r.id)}
+                                    disabled={deleting === r.id}
+                                    className="mt-1 text-[10px] text-red-500 hover:text-red-700 font-semibold flex items-center gap-0.5 disabled:opacity-40"
+                                  >
+                                    {deleting === r.id ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />} 삭제
+                                  </button>
                                 </div>
                               </div>
                             ))}
