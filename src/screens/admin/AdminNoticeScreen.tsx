@@ -68,7 +68,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminNoticeScreen() {
-  const { notices, createNotice, deleteNotice, reorderNotices, noticeComments, addAdminNoticeComment } = useApp();
+  const { notices, createNotice, deleteNotice, reorderNotices, noticeComments, addAdminNoticeComment, loadNoticeComments } = useApp();
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -331,8 +331,11 @@ export function AdminNoticeScreen() {
                   </button>
                   <button
                     onClick={() => {
-                      setReplyOpen(replyOpen === n.id ? null : n.id);
+                      const next = replyOpen === n.id ? null : n.id;
+                      setReplyOpen(next);
                       setReplyText('');
+                      setReplyTarget(null);
+                      if (next) loadNoticeComments(n.id);
                     }}
                     className="text-navy-600 hover:bg-navy-50 rounded-lg p-1.5 transition shrink-0"
                     aria-label="댓글 관리"
