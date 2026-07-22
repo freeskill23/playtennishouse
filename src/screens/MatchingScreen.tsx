@@ -226,6 +226,12 @@ export function MatchingScreen() {
             const isHost = post.userId === currentUser.id;
             const myApp = post.applications.find((a) => a.userId === currentUser.id);
             const approvedCount = post.applications.filter((a) => a.status === '승인').length;
+            const matchStart = (() => {
+              const start = post.time.includes('-') ? post.time.split('-')[0] : post.time;
+              const [h, m] = start.split(':').map(Number);
+              return new Date(`${post.date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+            })();
+            const isExpired = matchStart < Date.now();
             return (
               <div key={post.id} className="card p-5">
                 {myApp?.status === '승인' && (
@@ -314,9 +320,9 @@ export function MatchingScreen() {
                     <button
                       onClick={() => setSelectedPostId(post.id)}
                       className="btn-primary flex-1"
-                      disabled={post.status === '모집완료' || approvedCount >= post.maxPlayers - 1 || !post.courtApproved}
+                      disabled={isExpired || post.status === '모집완료' || approvedCount >= post.maxPlayers - 1 || !post.courtApproved}
                     >
-                      <UserPlus size={16} /> {post.status === '모집완료' ? '모집 완료' : post.courtApproved ? '매칭 신청하기' : '대관 승인 대기 중'}
+                      <UserPlus size={16} /> {isExpired ? '매칭 시간이 지났습니다' : post.status === '모집완료' ? '모집 완료' : post.courtApproved ? '매칭 신청하기' : '대관 승인 대기 중'}
                     </button>
                   )}
                 </div>

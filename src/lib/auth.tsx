@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsGuest(false);
   }, []);
 
-  useIdleLogout(() => { void signOut(); }, Boolean(session));
+  useIdleLogout(() => { void signOut(); }, Boolean(session) || isGuest);
 
   const updateProfile = useCallback(
     async (
