@@ -90,6 +90,12 @@ export function AdminMatchingScreen() {
             const host = getUser(post.userId);
             const approvedCount = post.applications.filter((a) => a.status === '승인').length;
             const pendingCount = post.applications.filter((a) => a.status === '대기').length;
+            const matchStart = (() => {
+              const start = post.time.includes('-') ? post.time.split('-')[0] : post.time;
+              const [h, m] = start.split(':').map(Number);
+              return new Date(`${post.date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+            })();
+            const isExpired = matchStart < Date.now();
             return (
               <button
                 key={post.id}
@@ -104,6 +110,11 @@ export function AdminMatchingScreen() {
                       <span className={`chip ${post.status === '모집중' ? 'bg-volt-100 text-volt-800' : post.status === '모집완료' ? 'bg-navy-100 text-navy-700' : 'bg-slate-100 text-slate-500'}`}>
                         {post.status}
                       </span>
+                      {isExpired && (
+                        <span className="chip bg-rose-100 text-rose-600">
+                          <Clock size={11} /> 기간이 지남
+                        </span>
+                      )}
                       {!post.courtApproved && (
                         <span className="chip bg-amber-100 text-amber-700">
                           <Clock size={11} /> 대관 승인 대기
@@ -159,7 +170,15 @@ export function AdminMatchingScreen() {
         {detailPost && (
           <div className="space-y-4">
             <div className="rounded-2xl bg-navy-50 p-4">
-              <p className="font-bold text-navy-900">{detailPost.court} · {detailPost.date} {detailPost.time}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-bold text-navy-900">{detailPost.court} · {detailPost.date} {detailPost.time}</p>
+                {(() => {
+                  const start = detailPost.time.includes('-') ? detailPost.time.split('-')[0] : detailPost.time;
+                  const [h, m] = start.split(':').map(Number);
+                  const expired = new Date(`${detailPost.date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime() < Date.now();
+                  return expired ? <span className="chip bg-rose-100 text-rose-600"><Clock size={11} /> 기간이 지남</span> : null;
+                })()}
+              </div>
               <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{detailPost.description}</p>
               <div className="flex flex-wrap gap-2 mt-3">
                 <span className="chip bg-white text-navy-700"><Hand size={11} /> {GAME_TYPE_LABEL[detailPost.gameType]}</span>
