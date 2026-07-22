@@ -423,7 +423,11 @@ function ApplyOrManageModal({
 
   const handleGenderSelect = (g: ApplicantGender) => {
     setGender(g);
-    if (post.gameType === 'women_doubles' && g === 'male') {
+    if (post.genderRequirement === 'male' && g === 'female') {
+      setGenderError('본 매칭은 남자만 신청 가능합니다.');
+    } else if (post.genderRequirement === 'female' && g === 'male') {
+      setGenderError('본 매칭은 여자만 신청 가능합니다.');
+    } else if (post.gameType === 'women_doubles' && g === 'male') {
       setGenderError('여복게임은 남자가 신청할 수 없습니다.');
     } else if (post.gameType === 'men_doubles' && g === 'female') {
       setGenderError('남복게임은 여자가 신청할 수 없습니다.');
