@@ -716,24 +716,30 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const updateRoom = useCallback(
     (id: string, patch: Partial<Pick<Room, 'maxCapacity' | 'description'>>) => {
+      const original = rooms.find((r) => r.id === id);
       setRooms((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
       if (supabaseConfigured) {
-        const room = rooms.find((r) => r.id === id);
         const row: Record<string, unknown> = {
           id,
-          name: room?.name ?? '',
-          max_capacity: patch.maxCapacity != null ? patch.maxCapacity : room?.maxCapacity ?? 8,
-          description: patch.description != null ? patch.description : room?.description ?? '',
-          price_per_night: room?.pricePerNight ?? 0,
+          name: original?.name ?? '',
+          max_capacity: patch.maxCapacity != null ? patch.maxCapacity : original?.maxCapacity ?? 8,
+          description: patch.description != null ? patch.description : original?.description ?? '',
+          price_per_night: original?.pricePerNight ?? 0,
           updated_at: new Date().toISOString(),
         };
         supabase.from('rooms').upsert(row).eq('id', id).then(({ error }) => {
-          if (error) pushToast('객실 정보 저장 실패', 'error');
+          if (error) {
+            if (original) setRooms((prev) => prev.map((r) => (r.id === id ? original : r)));
+            pushToast('객실 정보 저장 실패', 'error');
+          } else {
+            pushToast('객실 정보가 변경되었습니다.');
+          }
         });
+      } else {
+        pushToast('객실 정보가 변경되었습니다.');
       }
-      pushToast('객실 정보가 변경되었습니다.');
     },
-    [pushToast],
+    [pushToast, rooms],
   );
 
   const getPensionPrice = useCallback(
