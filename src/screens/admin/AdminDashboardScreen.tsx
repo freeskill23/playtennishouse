@@ -62,6 +62,11 @@ export function AdminDashboardScreen() {
     Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])),
   );
 
+  // Sync priceEdit when pension prices load/update from Supabase
+  useEffect(() => {
+    setPriceEdit({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
+  }, [pensionWeekdayPrice, pensionWeekendPrice]);
+
   // Sync bankEdit when bankAccount loads/updates from Supabase
   useEffect(() => {
     setBankEdit({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });

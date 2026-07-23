@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isGuest, setIsGuest] = useState<boolean>(() => sessionStorage.getItem('pth-guest') === '1');
   const [loading, setLoading] = useState(true);
+  const signingOutRef = useRef(false);
   const configError = supabaseConfigured
     ? null
     : 'Supabase 환경변수가 설정되지 않았습니다. 관리자에게 문의하세요.';
@@ -125,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      if (signingOutRef.current && event !== 'SIGNED_OUT') return;
       setSession(sess);
       if (event === 'SIGNED_OUT' || !sess) {
         setUser(null);
@@ -183,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    signingOutRef.current = false;
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -198,7 +202,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    signingOutRef.current = true;
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore — clear local state regardless
+    }
     setUser(null);
     setSession(null);
     sessionStorage.removeItem('pth-guest');

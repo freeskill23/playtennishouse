@@ -718,10 +718,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (id: string, patch: Partial<Pick<Room, 'maxCapacity' | 'description'>>) => {
       setRooms((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
       if (supabaseConfigured) {
-        const row: Record<string, unknown> = { id, updated_at: new Date().toISOString() };
-        if (patch.maxCapacity != null) row.max_capacity = patch.maxCapacity;
-        if (patch.description != null) row.description = patch.description;
-        supabase.from('rooms').update(row).eq('id', id).then(({ error }) => {
+        const room = rooms.find((r) => r.id === id);
+        const row: Record<string, unknown> = {
+          id,
+          name: room?.name ?? '',
+          max_capacity: patch.maxCapacity != null ? patch.maxCapacity : room?.maxCapacity ?? 8,
+          description: patch.description != null ? patch.description : room?.description ?? '',
+          price_per_night: room?.pricePerNight ?? 0,
+          updated_at: new Date().toISOString(),
+        };
+        supabase.from('rooms').upsert(row).eq('id', id).then(({ error }) => {
           if (error) pushToast('객실 정보 저장 실패', 'error');
         });
       }
