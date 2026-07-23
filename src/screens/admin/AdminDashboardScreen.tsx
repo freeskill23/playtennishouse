@@ -408,22 +408,35 @@ export function AdminDashboardScreen() {
           </div>
           <div>
             <h3 className="font-bold text-navy-900 text-sm">메인 배너 이미지</h3>
-            <p className="text-xs text-slate-400">메인화면 상단 배너로 사용할 이미지 URL을 입력하세요</p>
+            <p className="text-xs text-slate-400">이미지 URL을 입력하거나, 이미지 없이 그라데이션 색상을 직접 설정할 수 있습니다</p>
           </div>
         </div>
 
         {/* Preview */}
-        <div className="relative overflow-hidden rounded-xl h-32 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 mb-3">
-          {bannerImageUrl ? (
-            <>
-              <img src={bannerImageUrl} alt="배너 미리보기" className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-r from-navy-950/80 via-navy-900/40 to-transparent" />
-            </>
-          ) : (
-            <div className="relative p-4 text-white/70 flex items-center justify-center h-full text-sm">
-              기본 배너 (그라데이션)
-            </div>
-          )}
+        <div
+          className="relative overflow-hidden rounded-xl h-32 mb-3"
+          style={
+            bannerImageUrl
+              ? undefined
+              : bannerGradientColors
+                ? { background: `linear-gradient(135deg, ${bannerGradientColors.from}, ${bannerGradientColors.via}, ${bannerGradientColors.to})` }
+                : undefined
+          }
+        >
+          <div
+            className={`absolute inset-0 ${!bannerImageUrl && !bannerGradientColors ? 'bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700' : ''}`}
+          >
+            {bannerImageUrl ? (
+              <>
+                <img src={bannerImageUrl} alt="배너 미리보기" className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-r from-navy-950/80 via-navy-900/40 to-transparent" />
+              </>
+            ) : (
+              <div className="relative p-4 text-white/70 flex items-center justify-center h-full text-sm font-bold">
+                {bannerGradientColors ? '커스텀 그라데이션' : '기본 그라데이션 (Navy)'}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -458,6 +471,72 @@ export function AdminDashboardScreen() {
           <p className="text-xs text-slate-400 mt-2 truncate">
             현재: <span className="text-navy-600">{bannerImageUrl}</span>
           </p>
+        )}
+
+        {/* Gradient color picker — shown when no image URL is set */}
+        {!bannerImageUrl && (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-navy-500">그라데이션 색상</p>
+              {bannerGradientColors && (
+                <button
+                  onClick={() => updateBannerGradientColors(null)}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                >
+                  기본 색상으로
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {(['from', 'via', 'to'] as const).map((key) => {
+                const label = key === 'from' ? '시작색' : key === 'via' ? '중간색' : '끝색';
+                const value = bannerGradientColors?.[key] ?? '';
+                return (
+                  <label key={key} className="block">
+                    <span className="text-xs font-semibold text-navy-600 mb-1 block">{label}</span>
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5">
+                      <input
+                        type="color"
+                        value={value || '#1b2969'}
+                        onChange={(e) => {
+                          const current = bannerGradientColors ?? { from: '#1b2969', via: '#1d2d87', to: '#1f33ac' };
+                          updateBannerGradientColors({ ...current, [key]: e.target.value });
+                        }}
+                        className="w-8 h-8 rounded cursor-pointer shrink-0 border-0 p-0"
+                      />
+                      <span className="text-xs font-mono text-slate-500 truncate">{value || '#1b2969'}</span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            {/* Preset gradients */}
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-navy-600 mb-2">프리셋</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { name: 'Navy', from: '#1b2969', via: '#1d2d87', to: '#1f33ac' },
+                  { name: 'Sunset', from: '#f97316', via: '#ec4899', to: '#8b5cf6' },
+                  { name: 'Ocean', from: '#0ea5e9', via: '#06b6d4', to: '#14b8a6' },
+                  { name: 'Forest', from: '#166534', via: '#15803d', to: '#65a30d' },
+                  { name: 'Cherry', from: '#be123c', via: '#e11d48', to: '#fb7185' },
+                  { name: 'Amber', from: '#d97706', via: '#f59e0b', to: '#fbbf24' },
+                ].map((preset) => (
+                  <button
+                    key={preset.name}
+                    onClick={() => updateBannerGradientColors({ from: preset.from, via: preset.via, to: preset.to })}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:border-navy-300 transition"
+                  >
+                    <span
+                      className="w-4 h-4 rounded"
+                      style={{ background: `linear-gradient(135deg, ${preset.from}, ${preset.via}, ${preset.to})` }}
+                    />
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
