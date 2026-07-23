@@ -243,6 +243,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                       const totalAmount = items.reduce((sum, r) => sum + r.amount, 0);
                       const hasWaiting = items.some((r) => r.waitingSequence);
                       const statuses = Array.from(new Set(activeItems.map((r) => r.status)));
+                      const ended = isBatchEnded(date, displayTimeRange || items[0].timeSlot || '');
                       return (
                         <div key={groupKeyVal} className="card p-4">
                           <div className="flex items-start gap-3">
@@ -265,6 +266,9 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                                 </p>
                               )}
                               <div className="mt-2 flex flex-wrap gap-1.5">
+                                {ended && (
+                                  <span className="chip bg-slate-100 text-slate-500"><Clock size={12} /> 이용시간이 종료</span>
+                                )}
                                 {hasPartialCancel && (
                                   <span className="chip bg-rose-100 text-rose-600">
                                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
@@ -346,7 +350,12 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                     <p className="font-bold text-navy-900">{m.court} · {timeWithDuration(m.time)}</p>
                     <p className="text-xs text-slate-500">{m.date} · {m.applications.length}명 신청</p>
                   </div>
-                  <span className={`chip ${m.status === '모집중' ? 'bg-volt-100 text-volt-800' : 'bg-slate-100 text-slate-600'}`}>{m.status}</span>
+                  <div className="flex items-center gap-1.5">
+                    {isBatchEnded(m.date, m.time) && (
+                      <span className="chip bg-slate-100 text-slate-500"><Clock size={12} /> 이용시간이 종료</span>
+                    )}
+                    <span className={`chip ${m.status === '모집중' ? 'bg-volt-100 text-volt-800' : 'bg-slate-100 text-slate-600'}`}>{m.status}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -360,13 +369,18 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                       <p className="font-bold text-navy-900">{host?.name}님 매칭 · {m.court}</p>
                       <p className="text-xs text-slate-500">{m.date} {timeWithDuration(m.time)}</p>
                     </div>
-                    {myApp?.status === '승인' ? (
-                      <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 승인</span>
-                    ) : myApp?.status === '거절' ? (
-                      <span className="chip bg-rose-100 text-rose-700"><XCircle size={12} /> 거절</span>
-                    ) : (
-                      <span className="chip bg-amber-100 text-amber-700"><Clock size={12} /> 대기</span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {isBatchEnded(m.date, m.time) && (
+                        <span className="chip bg-slate-100 text-slate-500"><Clock size={12} /> 이용시간이 종료</span>
+                      )}
+                      {myApp?.status === '승인' ? (
+                        <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 승인</span>
+                      ) : myApp?.status === '거절' ? (
+                        <span className="chip bg-rose-100 text-rose-700"><XCircle size={12} /> 거절</span>
+                      ) : (
+                        <span className="chip bg-amber-100 text-amber-700"><Clock size={12} /> 대기</span>
+                      )}
+                    </div>
                   </div>
                   {myApp?.status === '거절' && (
                     <div className="mt-3 pt-3 border-t border-slate-100">

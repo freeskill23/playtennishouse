@@ -254,6 +254,11 @@ export function MatchingScreen() {
                       <span className={`chip ${post.status === '모집중' ? 'bg-volt-100 text-volt-800' : post.status === '대관대기' ? 'bg-amber-100 text-amber-700' : 'bg-navy-100 text-navy-700'}`}>
                         {post.status}
                       </span>
+                      {isExpired && (
+                        <span className="chip bg-slate-100 text-slate-500">
+                          <Clock size={12} /> 이용시간 종료
+                        </span>
+                      )}
                       {!post.courtApproved && (
                         <span className="chip bg-amber-100 text-amber-700">
                           <Clock size={12} /> 대관 승인 대기

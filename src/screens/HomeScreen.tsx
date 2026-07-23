@@ -77,19 +77,28 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
     }
   };
 
-  const today = new Date().toISOString().slice(0, 10);
-  const isUpcoming = (date: string) => date >= today;
+  const now = Date.now();
+  const isEnded = (date: string, timeRange?: string) => {
+    if (!date) return false;
+    const end = timeRange?.split('-')[1]?.trim();
+    if (end) {
+      const endDt = new Date(`${date}T${end}:00`);
+      if (!isNaN(endDt.getTime())) return endDt.getTime() <= now;
+    }
+    const dateEnd = new Date(`${date}T23:59:59`);
+    return dateEnd.getTime() <= now;
+  };
 
-  const myMatchingPosts = matchingPosts.filter((m) => m.userId === currentUser.id && isUpcoming(m.date));
+  const myMatchingPosts = matchingPosts.filter((m) => m.userId === currentUser.id && !isEnded(m.date, m.time));
   const joinedMatchings = matchingPosts.filter(
     (m) =>
       m.applications.some((a) => a.userId === currentUser.id) &&
-      isUpcoming(m.date),
+      !isEnded(m.date, m.time),
   );
   const myApprovedMatchings = matchingPosts.filter(
     (m) =>
       m.applications.some((a) => a.userId === currentUser.id && a.status === '승인') &&
-      isUpcoming(m.date),
+      !isEnded(m.date, m.time),
   );
   // 새 신청자 = 내가 만든 매칭 전체의 대기 상태 신청자 수
   const newApplicantCount = myMatchingPosts.reduce(
@@ -111,10 +120,10 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
       r.userId === currentUser.id &&
       r.type === 'court' &&
       !r.matchingPostId &&
-      isUpcoming(r.date),
+      !isEnded(r.date, r.timeSlot),
   );
   const myPensionReservations = reservations.filter(
-    (r) => r.userId === currentUser.id && r.type === 'pension' && r.status !== '취소' && isUpcoming(r.date),
+    (r) => r.userId === currentUser.id && r.type === 'pension' && r.status !== '취소' && !isEnded(r.date),
   );
 
   // Group court reservations by date + targetLabel to collapse consecutive slots into one row
