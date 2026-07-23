@@ -685,7 +685,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load rooms from Supabase so admin edits are shared across sessions
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
+    const loadRooms = async () => {
       const { data } = await supabase.from('rooms').select('*');
       if (!data || data.length === 0) return;
       setRooms(
@@ -697,7 +697,21 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           pricePerNight: r.price_per_night as number,
         })),
       );
-    })();
+    };
+    loadRooms();
+    const channel = supabase
+      .channel('rooms_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rooms' },
+        () => loadRooms(),
+      )
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') console.warn('[rooms_realtime]', status);
+      });
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const updateRoom = useCallback(
