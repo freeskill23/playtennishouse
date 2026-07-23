@@ -51,7 +51,7 @@ const GENDER_LABEL: Record<GenderRequirement, string> = {
 type DetailKind = 'myMatching' | 'joinedMatching' | 'court' | 'pension' | null;
 
 export function HomeScreen({ go }: { go: (k: string) => void }) {
-  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, logoImageUrl, setFocusMatchingPostId, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment } = useApp();
+  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, bannerGradientColors, logoImageUrl, setFocusMatchingPostId, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment } = useApp();
   const { user, isGuest } = useAuth();
   const [detail, setDetail] = useState<DetailKind>(null);
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
@@ -176,7 +176,16 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
   return (
     <div className="space-y-6 pb-4">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 shadow-navy">
+      <div
+        className={`relative overflow-hidden rounded-3xl shadow-navy${!bannerImageUrl && !bannerGradientColors ? ' bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700' : ''}`}
+        style={
+          bannerImageUrl
+            ? undefined
+            : bannerGradientColors
+              ? { background: `linear-gradient(135deg, ${bannerGradientColors.from}, ${bannerGradientColors.via}, ${bannerGradientColors.to})` }
+              : undefined
+        }
+      >
         {bannerImageUrl ? (
           <>
             <img

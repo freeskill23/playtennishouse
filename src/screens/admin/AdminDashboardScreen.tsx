@@ -40,6 +40,8 @@ export function AdminDashboardScreen() {
     removePensionPriceOverride,
     bannerImageUrl,
     updateBannerImage,
+    bannerGradientColors,
+    updateBannerGradientColors,
     logoImageUrl,
     updateLogoImage,
     bankAccount,
