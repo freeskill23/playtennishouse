@@ -89,8 +89,8 @@ export function PensionScreen() {
         dayRender={(d) => {
           const a = getPensionStatusForDate(d, 'A동');
           const b = getPensionStatusForDate(d, 'B동');
-          const aBooked = a.status === 'booked';
-          const bBooked = b.status === 'booked';
+          const aBooked = a.status === 'booked' || isPensionBlockedByCourt(d, 'A동');
+          const bBooked = b.status === 'booked' || isPensionBlockedByCourt(d, 'B동');
           if (aBooked && bBooked)
             return <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />;
           if (aBooked || bBooked)
@@ -107,16 +107,17 @@ export function PensionScreen() {
           const isSel = selectedRoom === room.name;
           const st = getPensionStatusForDate(date, room.name);
           const blocked = roomBlocked(room.name);
+          const unavailable = blocked || st.status === 'booked';
           return (
             <button
               key={room.id}
               onClick={() => setSelectedRoom(room.name)}
-              disabled={blocked}
+              disabled={unavailable}
               className={`card p-5 text-left transition-all ${
                 isSel
                   ? 'ring-2 ring-volt-500 -translate-y-0.5'
                   : 'hover:border-navy-200'
-              } ${blocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${unavailable ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div>
@@ -136,8 +137,15 @@ export function PensionScreen() {
                 {st.status === 'pending' && (
                   <span className="chip bg-amber-100 text-amber-700">신청중</span>
                 )}
+                {st.status === 'full' && (
+                  <span className="chip bg-slate-100 text-slate-600">대기마감</span>
+                )}
                 {st.status === 'available' && (
-                  <span className="chip bg-volt-100 text-volt-800">예약가능</span>
+                  blocked ? (
+                    <span className="chip bg-slate-200 text-slate-500">코트 예약 불가</span>
+                  ) : (
+                    <span className="chip bg-volt-100 text-volt-800">예약가능</span>
+                  )
                 )}
               </div>
               <p className="text-sm text-slate-600 mt-3">{room.description}</p>
@@ -156,7 +164,7 @@ export function PensionScreen() {
       </div>
 
       {/* Capacity + action */}
-      {selectedRoom && !selectedBlocked && (
+      {selectedRoom && !selectedBlocked && roomStatus?.status !== 'booked' && (
         <div className="card p-5 space-y-4 animate-slide-up">
           <div>
             <label className="label">이용 인원</label>
