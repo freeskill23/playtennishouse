@@ -80,7 +80,7 @@ export function PensionScreen() {
           <div>
             <p className="font-bold text-amber-800">해당 날짜 코트 예약 완료</p>
             <p className="text-sm text-amber-700 mt-0.5">
-              이 날짜에는 코트 예약이 이미 완료되어 펜션 예약이 불가능합니다. 다른 날짜를 선택해주세요.
+              이 날짜 당일 15:00 이후 또는 익일 11:00 이전에 코트 예약이 완료되어 펜션 예약이 불가능합니다. 다른 날짜를 선택해주세요.
             </p>
           </div>
         </div>

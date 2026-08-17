@@ -804,7 +804,7 @@ function CreateMatchingModal({
           {blockedByPension && (
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
               <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-800">해당 날짜는 펜션 예약 완료로 코트 이용이 불가합니다.</p>
+              <p className="text-sm text-amber-800">해당 날짜는 펜션 예약 완료로 당일 15:00~익일 11:00 코트 이용이 불가합니다.</p>
             </div>
           )}
 

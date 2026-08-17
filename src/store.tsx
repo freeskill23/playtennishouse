@@ -48,13 +48,6 @@ import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, PENSION_WEEKDA
 const PENSION_BLOCK_START_HOUR = 15;
 const PENSION_BLOCK_END_HOUR = 11;
 
-function slotOverlapsPensionWindow(slot: string): boolean {
-  const start = parseInt(slot.split('-')[0].split(':')[0], 10);
-  if (start >= PENSION_BLOCK_START_HOUR) return true;
-  if (start < PENSION_BLOCK_END_HOUR) return true;
-  return false;
-}
-
 type ReservationRow = {
   id: string;
   type: ReservationType;
@@ -998,12 +991,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Business rule: mutual exclusion =====
   // Pension reserved (예약완료) -> court slots from 15:00 that day to 11:00 next day blocked
+  // Pension on `date` is blocked by court if: court on `date` uses slots at/after
+  // 15:00 (check-in conflict), OR court on `date+1` uses slots before 11:00
+  // (check-out morning conflict).
   const isPensionBlockedByCourt = useCallback(
     (date: string) => {
-      // Pension check-in is 15:00 on `date`. A court reservation on the same date
-      // conflicts only if it uses slots at/after 15:00; court on the previous date
-      // conflicts only if it uses slots before 11:00 (check-out).
-      const prevDate = addDaysToYMD(date, -1);
+      const nextDate = addDaysToYMD(date, 1);
       const courtSameDay = reservations.some(
         (r) =>
           r.type === 'court' &&
@@ -1011,28 +1004,29 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           r.status === '예약완료' &&
           r.waitingSequence === null &&
           r.timeSlot &&
-          slotOverlapsPensionWindow(r.timeSlot),
+          parseInt(r.timeSlot.split(':')[0], 10) >= PENSION_BLOCK_START_HOUR,
       );
       if (courtSameDay) return true;
-      // Previous-day court sessions before 11:00 overlap the checkout morning.
-      const courtPrevDay = reservations.some(
+      const courtNextDay = reservations.some(
         (r) =>
           r.type === 'court' &&
-          r.date === prevDate &&
+          r.date === nextDate &&
           r.status === '예약완료' &&
           r.waitingSequence === null &&
           r.timeSlot &&
           parseInt(r.timeSlot.split(':')[0], 10) < PENSION_BLOCK_END_HOUR,
       );
-      return courtPrevDay;
+      return courtNextDay;
     },
     [reservations],
   );
 
+  // Court on `date` is affected by pension if: pension on `date` (blocks slots
+  // at/after 15:00) OR pension on `date-1` (blocks slots before 11:00 checkout).
   const isCourtBlockedByPension = useCallback(
     (date: string, court: CourtName) => {
       const courtBuilding = court[0];
-      const nextDate = addDaysToYMD(date, 1);
+      const prevDate = addDaysToYMD(date, -1);
       const pensionSameDay = reservations.some(
         (r) =>
           r.type === 'pension' &&
@@ -1041,15 +1035,15 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           r.waitingSequence === null &&
           r.targetLabel[0] === courtBuilding,
       );
-      const pensionNextDay = reservations.some(
+      const pensionPrevDay = reservations.some(
         (r) =>
           r.type === 'pension' &&
-          r.date === nextDate &&
+          r.date === prevDate &&
           r.status === '예약완료' &&
           r.waitingSequence === null &&
           r.targetLabel[0] === courtBuilding,
       );
-      return pensionSameDay || pensionNextDay;
+      return pensionSameDay || pensionPrevDay;
     },
     [reservations],
   );
@@ -1060,8 +1054,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (date: string, court: CourtName, slot: string): boolean => {
       const courtBuilding = court[0];
       const startHour = parseInt(slot.split(':')[0], 10);
-      const nextDate = addDaysToYMD(date, 1);
-      // Pension on same date blocks slots at/after 15:00.
+      // Pension on same date blocks slots at/after 15:00 (check-in).
       if (startHour >= PENSION_BLOCK_START_HOUR) {
         const pensionSameDay = reservations.some(
           (r) =>
@@ -1073,58 +1066,25 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         );
         if (pensionSameDay) return true;
       }
-      // Pension on next date blocks slots before 11:00 (check-out morning).
+      // Pension on previous date blocks slots before 11:00 (check-out morning).
       if (startHour < PENSION_BLOCK_END_HOUR) {
-        const pensionNextDay = reservations.some(
+        const prevDate = addDaysToYMD(date, -1);
+        const pensionPrevDay = reservations.some(
           (r) =>
             r.type === 'pension' &&
-            r.date === nextDate &&
+            r.date === prevDate &&
             r.status === '예약완료' &&
             r.waitingSequence === null &&
             r.targetLabel[0] === courtBuilding,
         );
-        if (pensionNextDay) return true;
+        if (pensionPrevDay) return true;
       }
       return false;
     },
     [reservations],
   );
 
-  // Returns true if a pension reservation on `date` conflicts with a specific court slot.
-  const isPensionSlotBlockedByCourt = useCallback(
-    (date: string, slot: string): boolean => {
-      const startHour = parseInt(slot.split(':')[0], 10);
-      const prevDate = addDaysToYMD(date, -1);
-      // Court on same date before 11:00 overlaps the checkout morning of a pension
-      // whose checkout would be the next day — not a conflict for check-in day.
-      // Conflict: same-date court at/after 15:00 (pension check-in time).
-      if (startHour >= PENSION_BLOCK_START_HOUR) {
-        const courtSameDay = reservations.some(
-          (r) =>
-            r.type === 'court' &&
-            r.date === date &&
-            r.status === '예약완료' &&
-            r.waitingSequence === null &&
-            r.timeSlot === slot,
-        );
-        if (courtSameDay) return true;
-      }
-      // Conflict: previous-date court before 11:00 (overlaps pension check-in day morning).
-      if (startHour < PENSION_BLOCK_END_HOUR) {
-        const courtPrevDay = reservations.some(
-          (r) =>
-            r.type === 'court' &&
-            r.date === prevDate &&
-            r.status === '예약완료' &&
-            r.waitingSequence === null &&
-            r.timeSlot === slot,
-        );
-        if (courtPrevDay) return true;
-      }
-      return false;
-    },
-    [reservations],
-  );
+
 
   const getPensionStatusForDate = useCallback(
     (date: string, roomName: RoomName) => {
