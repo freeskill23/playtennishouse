@@ -50,6 +50,8 @@ export function AdminDashboardScreen() {
     updateBankAccount,
     updateRoom,
     cancelReservation,
+    createAdminCourtReservation,
+    pushToast,
     tempHolidays,
     toggleHoliday,
     isHoliday,
@@ -58,6 +60,8 @@ export function AdminDashboardScreen() {
     saveDateMemo,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
+  const [adminReserveTarget, setAdminReserveTarget] = useState<{ court: CourtName; slot: string } | null>(null);
+  const [adminReserveLabel, setAdminReserveLabel] = useState('');
   const [date, setDate] = useState(todayYMD());
   const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
@@ -823,6 +827,14 @@ export function AdminDashboardScreen() {
                       <Clock size={13} className="shrink-0" />
                       <span className={`font-semibold w-28 shrink-0 ${isCancelled ? 'line-through' : ''}`}>{slot}</span>
                       {status === 'available' && !isCancelled && <span className="text-xs">예약가능</span>}
+                      {status === 'available' && !isCancelled && (
+                        <button
+                          onClick={() => { setAdminReserveTarget({ court, slot }); setAdminReserveLabel(''); }}
+                          className="ml-auto text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg px-2 py-1 transition flex items-center gap-1"
+                        >
+                          <CalendarPlus size={12} /> 관리자예약
+                        </button>
+                      )}
                       {status === 'blocked' && (
                         <span className="text-xs flex items-center gap-1"><Lock size={11} /> 펜션전용</span>
                       )}
@@ -938,6 +950,68 @@ export function AdminDashboardScreen() {
                 className="flex-1 rounded-lg bg-rose-600 py-2.5 text-sm font-bold text-white hover:bg-rose-700"
               >
                 <XCircle size={16} /> 취소하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin direct reservation modal */}
+      {adminReserveTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-10 h-10 rounded-full bg-navy-100 flex items-center justify-center">
+                <CalendarPlus size={20} className="text-navy-700" />
+              </div>
+              <div>
+                <h3 className="font-bold text-navy-900">관리자 직권 예약</h3>
+                <p className="text-xs text-slate-400">{adminReserveTarget.court} · {date} · {adminReserveTarget.slot}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">입금·승인 절차 없이 즉시 예약완료로 등록합니다. 예약자명을 입력해주세요.</p>
+            <input
+              type="text"
+              value={adminReserveLabel}
+              onChange={(e) => setAdminReserveLabel(e.target.value.slice(0, 20))}
+              placeholder="예약자명 (예: 외부단체, 이벤트 등)"
+              className="input py-2.5"
+              maxLength={20}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && adminReserveLabel.trim()) {
+                  const res = createAdminCourtReservation({
+                    court: adminReserveTarget.court,
+                    date,
+                    timeSlot: adminReserveTarget.slot,
+                    label: adminReserveLabel.trim(),
+                  });
+                  if (res.ok) setAdminReserveTarget(null);
+                }
+              }}
+            />
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setAdminReserveTarget(null)}
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  const res = createAdminCourtReservation({
+                    court: adminReserveTarget.court,
+                    date,
+                    timeSlot: adminReserveTarget.slot,
+                    label: adminReserveLabel.trim(),
+                  });
+                  if (res.ok) setAdminReserveTarget(null);
+                  else pushToast(res.reason || '예약 실패', 'error');
+                }}
+                disabled={!adminReserveLabel.trim()}
+                className="flex-1 rounded-lg bg-navy-900 py-2.5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <CalendarPlus size={16} /> 예약하기
               </button>
             </div>
           </div>

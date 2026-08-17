@@ -152,6 +152,12 @@ interface AppState {
     date: string;
     timeSlots: string[];
   }) => { ok: boolean; reason?: string; reservations?: Reservation[] };
+  createAdminCourtReservation: (input: {
+    court: CourtName;
+    date: string;
+    timeSlot: string;
+    label: string;
+  }) => { ok: boolean; reason?: string; reservation?: Reservation };
   requestWaiting: (reservationId: string) => { ok: boolean; sequence?: number };
   cancelReservation: (id: string) => void;
   approveReservation: (id: string) => void;
@@ -1348,7 +1354,40 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
-  // ===== Waiting request =====
+  // ===== Admin direct court reservation (bypass deposit/approval) =====
+  const createAdminCourtReservation = useCallback(
+    (input: { court: CourtName; date: string; timeSlot: string; label: string }) => {
+      if (!input.label.trim()) {
+        return { ok: false, reason: '예약자명을 입력해주세요.' };
+      }
+      const slotStatus = getCourtSlotStatus(input.date, input.court, input.timeSlot);
+      if (slotStatus === 'blocked') {
+        return { ok: false, reason: '펜션 예약으로 이용이 불가한 시간대입니다.' };
+      }
+      if (slotStatus === 'booked' || slotStatus === 'pending') {
+        return { ok: false, reason: '이미 예약되었거나 신청 중인 시간대입니다.' };
+      }
+      const reservation: Reservation = {
+        id: uid('r'),
+        type: 'court',
+        userId: currentUserId,
+        targetId: input.court,
+        targetLabel: input.court,
+        date: input.date,
+        timeSlot: input.timeSlot,
+        status: '예약완료',
+        waitingSequence: null,
+        amount: 0,
+        createdAt: Date.now(),
+        depositorName: input.label.trim(),
+      };
+      setReservations((prev) => [...prev, reservation]);
+      upsertReservationToSupabase(reservation);
+      pushToast(`관리자 예약 완료: ${input.court} ${input.timeSlot}`);
+      return { ok: true, reservation };
+    },
+    [getCourtSlotStatus, currentUserId, pushToast, upsertReservationToSupabase],
+  );
   const requestWaiting = useCallback(
     (reservationId: string) => {
       const target = reservations.find((r) => r.id === reservationId);
@@ -2227,6 +2266,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateCurrentUser,
     createPensionReservation,
     createCourtReservation,
+    createAdminCourtReservation,
     requestWaiting,
     cancelReservation,
     approveReservation,
