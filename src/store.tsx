@@ -254,7 +254,7 @@ interface AppState {
   saveDateMemo: (dateStr: string, content: string) => void;
 
   // queries
-  isPensionBlockedByCourt: (date: string) => boolean;
+  isPensionBlockedByCourt: (date: string, roomName: RoomName) => boolean;
   isCourtBlockedByPension: (date: string, court: CourtName) => boolean;
   isCourtSlotBlockedByPension: (date: string, court: CourtName, slot: string) => boolean;
   getPensionStatusForDate: (date: string, roomName: RoomName) => {
@@ -1112,7 +1112,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // 15:00 (check-in conflict), OR court on `date+1` uses slots before 11:00
   // (check-out morning conflict).
   const isPensionBlockedByCourt = useCallback(
-    (date: string) => {
+    (date: string, roomName: RoomName) => {
+      const building = roomName[0];
       const nextDate = addDaysToYMD(date, 1);
       const courtSameDay = reservations.some(
         (r) =>
@@ -1121,6 +1122,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           r.status === '예약완료' &&
           r.waitingSequence === null &&
           r.timeSlot &&
+          r.targetId[0] === building &&
           parseInt(r.timeSlot.split(':')[0], 10) >= PENSION_BLOCK_START_HOUR,
       );
       if (courtSameDay) return true;
@@ -1131,6 +1133,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           r.status === '예약완료' &&
           r.waitingSequence === null &&
           r.timeSlot &&
+          r.targetId[0] === building &&
           parseInt(r.timeSlot.split(':')[0], 10) < PENSION_BLOCK_END_HOUR,
       );
       return courtNextDay;
@@ -1278,7 +1281,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return { ok: false, reason: `인원은 1~${room.maxCapacity}명이어야 합니다.` };
       }
       // Blocked by court?
-      if (isPensionBlockedByCourt(input.date)) {
+      if (isPensionBlockedByCourt(input.date, room.name)) {
         return { ok: false, reason: '해당 날짜에 코트 예약이 완료되어 펜션 예약이 불가합니다.' };
       }
       // Check existing

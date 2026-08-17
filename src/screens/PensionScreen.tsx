@@ -29,10 +29,11 @@ export function PensionScreen() {
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
 
-  const blockedByCourt = isPensionBlockedByCourt(date);
+  const roomBlocked = (name: RoomName) => isPensionBlockedByCourt(date, name);
   const roomStatus = selectedRoom
     ? getPensionStatusForDate(date, selectedRoom)
     : null;
+  const selectedBlocked = selectedRoom ? roomBlocked(selectedRoom) : false;
 
   const handleReserve = () => {
     if (!selectedRoom) return;
@@ -63,13 +64,18 @@ export function PensionScreen() {
         }
       />
 
-      {blockedByCourt && (
+      {(roomBlocked('A동') || roomBlocked('B동')) && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-amber-800">해당 날짜 코트 예약 완료</p>
             <p className="text-sm text-amber-700 mt-0.5">
-              이 날짜 당일 15:00 이후 또는 익일 11:00 이전에 코트 예약이 완료되어 펜션 예약이 불가능합니다. 다른 날짜를 선택해주세요.
+              {roomBlocked('A동') && roomBlocked('B동')
+                ? 'A코트·B코트 모두 예약되어 A동·B동 펜션 모두 예약이 불가능합니다.'
+                : roomBlocked('A동')
+                  ? 'A코트 예약으로 A동 펜션이 불가능합니다. B동을 이용해주세요.'
+                  : 'B코트 예약으로 B동 펜션이 불가능합니다. A동을 이용해주세요.'}{' '}
+              다른 날짜를 선택해주세요.
             </p>
           </div>
         </div>
@@ -100,16 +106,17 @@ export function PensionScreen() {
         {rooms.map((room) => {
           const isSel = selectedRoom === room.name;
           const st = getPensionStatusForDate(date, room.name);
+          const blocked = roomBlocked(room.name);
           return (
             <button
               key={room.id}
               onClick={() => setSelectedRoom(room.name)}
-              disabled={blockedByCourt}
+              disabled={blocked}
               className={`card p-5 text-left transition-all ${
                 isSel
                   ? 'ring-2 ring-volt-500 -translate-y-0.5'
                   : 'hover:border-navy-200'
-              } ${blockedByCourt ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${blocked ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div>
@@ -149,7 +156,7 @@ export function PensionScreen() {
       </div>
 
       {/* Capacity + action */}
-      {selectedRoom && !blockedByCourt && (
+      {selectedRoom && !selectedBlocked && (
         <div className="card p-5 space-y-4 animate-slide-up">
           <div>
             <label className="label">이용 인원</label>
