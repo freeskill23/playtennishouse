@@ -246,7 +246,7 @@ interface AppState {
   // telegram notifications
   telegramConfig: { botToken: string; chatId: string };
   updateTelegramConfig: (cfg: { botToken: string; chatId: string }) => void;
-  sendTelegramTest: () => Promise<{ ok: boolean; error?: string }>;
+  sendTelegramTest: (cfg?: { botToken: string; chatId: string }) => Promise<{ ok: boolean; error?: string }>;
 
   // temporary holidays
   tempHolidays: string[];
@@ -362,8 +362,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     };
   }, [loadProfiles]);
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
-  const [reservations, setReservations] = useState<Reservation[]>(initialReservations);
-  const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(initialMatchingPosts);
+  const [reservations, setReservations] = useState<Reservation[]>(supabaseConfigured ? [] : initialReservations);
+  const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(supabaseConfigured ? [] : initialMatchingPosts);
 
   const syncMatchingPost = useCallback(async (post: MatchingPost) => {
     if (!supabaseConfigured) return;
@@ -1058,8 +1058,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
-  const sendTelegramTest = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+  const sendTelegramTest = useCallback(async (cfg?: { botToken: string; chatId: string }): Promise<{ ok: boolean; error?: string }> => {
     if (!supabaseConfigured) return { ok: false, error: 'Supabase가 연결되지 않았습니다.' };
+    const token = cfg?.botToken || telegramConfig.botToken;
+    const chatId = cfg?.chatId || telegramConfig.chatId;
+    if (!token || !chatId) return { ok: false, error: 'Bot Token과 Chat ID를 모두 입력하세요.' };
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/telegram-notify`, {
         method: 'POST',
@@ -1070,8 +1073,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         body: JSON.stringify({
           title: '테스트 알림',
           body: '텔레그램 알림 연동이 정상적으로 작동합니다.',
-          token: telegramConfig.botToken || undefined,
-          chatId: telegramConfig.chatId || undefined,
+          token,
+          chatId,
         }),
       });
       const data = await res.json();

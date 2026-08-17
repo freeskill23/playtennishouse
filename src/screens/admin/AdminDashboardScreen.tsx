@@ -662,7 +662,7 @@ export function AdminDashboardScreen() {
           <button
             onClick={async () => {
               setTelegramTesting(true);
-              const res = await sendTelegramTest();
+              const res = await sendTelegramTest(telegramEdit);
               setTelegramTesting(false);
               if (res.ok) {
                 pushToast('텔레그램 테스트 메시지가 전송되었습니다.');
@@ -670,7 +670,7 @@ export function AdminDashboardScreen() {
                 pushToast(`테스트 실패: ${res.error}`, 'error');
               }
             }}
-            disabled={telegramTesting || (!telegramEdit.botToken && !telegramConfig.botToken)}
+            disabled={telegramTesting || !telegramEdit.botToken.trim() || !telegramEdit.chatId.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition bg-sky-100 text-sky-700 hover:bg-sky-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Send size={14} /> {telegramTesting ? '전송 중...' : '테스트 전송'}
