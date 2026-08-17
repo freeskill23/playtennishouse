@@ -1861,7 +1861,27 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         imageUrl: n.imageUrl,
         isMustRead: n.isMustRead ?? false,
       };
-      setNotices((prev) => [notice, ...prev]);
+      setNotices((prev) => {
+        const next = [notice, ...prev];
+        if (notice.isMustRead) {
+          // Enforce limit synchronously on the new list
+          const mustReads = next
+            .filter((m) => m.isMustRead)
+            .sort((a, b) => b.createdAt - a.createdAt);
+          if (mustReads.length > 2) {
+            const unsetIds = new Set(mustReads.slice(2).map((m) => m.id));
+            if (supabaseConfigured) {
+              mustReads.slice(2).forEach((m) => {
+                supabase.from('notices').update({ is_must_read: false }).eq('id', m.id).then(({ error }) => {
+                  if (error) console.error('must_read unset failed', error);
+                });
+              });
+            }
+            return next.map((m) => (unsetIds.has(m.id) ? { ...m, isMustRead: false } : m));
+          }
+        }
+        return next;
+      });
       if (supabaseConfigured) {
         supabase.from('notices').insert({
           id: notice.id,
@@ -1887,13 +1907,30 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const updateNotice = useCallback(
     (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => {
-      setNotices((prev) =>
-        prev.map((it) =>
+      setNotices((prev) => {
+        const next = prev.map((it) =>
           it.id === id
             ? { ...it, title: n.title, content: n.content, type: n.type, imageUrl: n.imageUrl, isMustRead: n.isMustRead ?? false }
             : it,
-        ),
-      );
+        );
+        if (n.isMustRead) {
+          const mustReads = next
+            .filter((m) => m.isMustRead)
+            .sort((a, b) => b.createdAt - a.createdAt);
+          if (mustReads.length > 2) {
+            const unsetIds = new Set(mustReads.slice(2).map((m) => m.id));
+            if (supabaseConfigured) {
+              mustReads.slice(2).forEach((m) => {
+                supabase.from('notices').update({ is_must_read: false }).eq('id', m.id).then(({ error }) => {
+                  if (error) console.error('must_read unset failed', error);
+                });
+              });
+            }
+            return next.map((m) => (unsetIds.has(m.id) ? { ...m, isMustRead: false } : m));
+          }
+        }
+        return next;
+      });
       if (supabaseConfigured) {
         supabase
           .from('notices')
