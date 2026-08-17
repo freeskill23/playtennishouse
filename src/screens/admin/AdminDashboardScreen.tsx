@@ -17,6 +17,7 @@ import {
   Landmark,
   StickyNote,
   Pencil,
+  Send,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -49,6 +50,9 @@ export function AdminDashboardScreen() {
     updateLogoImage,
     bankAccount,
     updateBankAccount,
+    telegramConfig,
+    updateTelegramConfig,
+    sendTelegramTest,
     updateRoom,
     cancelReservation,
     createAdminCourtReservation,
@@ -72,6 +76,8 @@ export function AdminDashboardScreen() {
   const [bannerUrlInput, setBannerUrlInput] = useState('');
   const [logoUrlInput, setLogoUrlInput] = useState('');
   const [bankEdit, setBankEdit] = useState({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });
+  const [telegramEdit, setTelegramEdit] = useState({ botToken: telegramConfig.botToken, chatId: telegramConfig.chatId });
+  const [telegramTesting, setTelegramTesting] = useState(false);
   const [roomEdits, setRoomEdits] = useState(() =>
     Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])),
   );
@@ -85,6 +91,10 @@ export function AdminDashboardScreen() {
   useEffect(() => {
     setBankEdit({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });
   }, [bankAccount]);
+
+  useEffect(() => {
+    setTelegramEdit({ botToken: telegramConfig.botToken, chatId: telegramConfig.chatId });
+  }, [telegramConfig]);
 
   // Sync roomEdits when rooms load/update from Supabase
   useEffect(() => {
@@ -107,6 +117,9 @@ export function AdminDashboardScreen() {
     bankEdit.bank !== bankAccount.bank ||
     bankEdit.number !== bankAccount.number ||
     bankEdit.holder !== bankAccount.holder;
+  const telegramDirty =
+    telegramEdit.botToken !== telegramConfig.botToken ||
+    telegramEdit.chatId !== telegramConfig.chatId;
 
   const handleSavePrice = () => {
     updatePensionPrice(priceEdit.weekday, priceEdit.weekend);
@@ -602,6 +615,76 @@ export function AdminDashboardScreen() {
             }`}
           >
             <Save size={14} /> 입금 계좌 저장
+          </button>
+        </div>
+      </div>
+
+      {/* Telegram notification settings */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center">
+            <Send size={16} className="text-sky-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-navy-900 text-sm">텔레그램 알림</h3>
+            <p className="text-xs text-slate-400">새 예약 신청, 매칭, 공지 등 관리자 알림을 텔레그램으로 받습니다</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">Bot Token</span>
+            <input
+              type="text"
+              value={telegramEdit.botToken}
+              onChange={(e) => setTelegramEdit((s) => ({ ...s, botToken: e.target.value }))}
+              placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">Chat ID</span>
+            <input
+              type="text"
+              value={telegramEdit.chatId}
+              onChange={(e) => setTelegramEdit((s) => ({ ...s, chatId: e.target.value }))}
+              placeholder="-1001234567890"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+            />
+          </label>
+        </div>
+
+        <p className="text-xs text-slate-400 mt-2">
+          봇 생성: @BotFather → 채팅 ID 확인: @userinfobot
+        </p>
+
+        <div className="flex justify-end gap-2 mt-3">
+          <button
+            onClick={async () => {
+              setTelegramTesting(true);
+              const res = await sendTelegramTest();
+              setTelegramTesting(false);
+              if (res.ok) {
+                pushToast('텔레그램 테스트 메시지가 전송되었습니다.');
+              } else {
+                pushToast(`테스트 실패: ${res.error}`, 'error');
+              }
+            }}
+            disabled={telegramTesting || (!telegramEdit.botToken && !telegramConfig.botToken)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition bg-sky-100 text-sky-700 hover:bg-sky-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Send size={14} /> {telegramTesting ? '전송 중...' : '테스트 전송'}
+          </button>
+          <button
+            onClick={() => updateTelegramConfig(telegramEdit)}
+            disabled={!telegramDirty}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              telegramDirty
+                ? 'bg-volt-500 text-navy-950 hover:bg-volt-400 shadow-volt'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <Save size={14} /> 저장
           </button>
         </div>
       </div>

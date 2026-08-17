@@ -243,6 +243,11 @@ interface AppState {
   bankAccount: { bank: string; number: string; holder: string };
   updateBankAccount: (acct: { bank: string; number: string; holder: string }) => void;
 
+  // telegram notifications
+  telegramConfig: { botToken: string; chatId: string };
+  updateTelegramConfig: (cfg: { botToken: string; chatId: string }) => void;
+  sendTelegramTest: () => Promise<{ ok: boolean; error?: string }>;
+
   // temporary holidays
   tempHolidays: string[];
   toggleHoliday: (dateStr: string) => void;
@@ -646,6 +651,25 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   }, []);
 
   // ===== Notification helper =====
+  const sendTelegramNotification = useCallback(
+    async (title: string, body: string) => {
+      if (!supabaseConfigured) return;
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/telegram-notify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ title, body }),
+        });
+      } catch {
+        // silent fail — Telegram is a best-effort notification channel
+      }
+    },
+    [],
+  );
+
   const addNotification = useCallback(
     (n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
       setNotifications((prev) => [
@@ -657,8 +681,19 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         },
         ...prev,
       ]);
+      // Forward admin-relevant notifications to Telegram
+      const adminKinds: AppNotification['kind'][] = [
+        'reservation_new',
+        'matching_new',
+        'notice_new',
+        'waiting_promoted',
+        'waiting_timeout',
+      ];
+      if (adminKinds.includes(n.kind)) {
+        void sendTelegramNotification(n.title, n.body);
+      }
     },
-    [],
+    [sendTelegramNotification],
   );
 
   const getUser = useCallback(
@@ -681,6 +716,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [bannerGradientColors, setBannerGradientColors] = useState<{ from: string; via: string; to: string } | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
+  const [telegramConfig, setTelegramConfig] = useState({ botToken: '', chatId: '' });
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
   const [dateMemos, setDateMemos] = useState<Record<string, string>>({});
   const [focusMatchingPostId, setFocusMatchingPostId] = useState<string | null>(null);
@@ -710,6 +746,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
         if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
         if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
+        if (data.telegram_bot_token || data.telegram_chat_id) {
+          setTelegramConfig({
+            botToken: (data.telegram_bot_token as string) || '',
+            chatId: (data.telegram_chat_id as string) || '',
+          });
+        }
       }
     })();
   }, []);
@@ -994,6 +1036,51 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     },
     [pushToast, bannerImageUrl, bannerGradientColors, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
   );
+
+  const updateTelegramConfig = useCallback(
+    (cfg: { botToken: string; chatId: string }) => {
+      setTelegramConfig(cfg);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            telegram_bot_token: cfg.botToken,
+            telegram_chat_id: cfg.chatId,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('텔레그램 설정 저장 실패', 'error');
+          });
+      }
+      pushToast('텔레그램 알림 설정이 저장되었습니다.');
+    },
+    [pushToast],
+  );
+
+  const sendTelegramTest = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!supabaseConfigured) return { ok: false, error: 'Supabase가 연결되지 않았습니다.' };
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/telegram-notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          title: '테스트 알림',
+          body: '텔레그램 알림 연동이 정상적으로 작동합니다.',
+          token: telegramConfig.botToken || undefined,
+          chatId: telegramConfig.chatId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { ok: false, error: data.error || data.detail || '전송 실패' };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }, [telegramConfig]);
 
   const toggleHoliday = useCallback(
     (dateStr: string) => {
@@ -2331,6 +2418,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateLogoImage,
     bankAccount,
     updateBankAccount,
+    telegramConfig,
+    updateTelegramConfig,
+    sendTelegramTest,
     tempHolidays,
     toggleHoliday,
     isHoliday,
