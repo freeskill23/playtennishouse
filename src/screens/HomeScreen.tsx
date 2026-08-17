@@ -10,13 +10,13 @@ import {
   CheckCircle2,
   Clock,
   MapPin,
+  Pin,
   User,
   Phone,
   MessageSquare,
   Send,
   Trash2,
   ShieldAlert,
-  Pin,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -228,28 +228,25 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
         </div>
       </div>
 
-      {/* Must-read notices */}
+      {/* Must-read notices (no title bar) */}
       {mustReadNotices.length > 0 && (
-        <div>
-          <SectionTitle title="필독 공지" subtitle="꼭 확인해주세요" />
-          <div className="space-y-2">
-            {mustReadNotices.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => setSelectedNotice(n)}
-                className="card w-full p-4 flex items-center gap-3 text-left hover:border-rose-200 transition border-rose-100 bg-rose-50/30"
-              >
-                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
-                  <Pin size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-navy-900 truncate">{n.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{n.content}</p>
-                </div>
-                <span className="chip bg-rose-100 text-rose-600 shrink-0">{n.type}</span>
-              </button>
-            ))}
-          </div>
+        <div className="space-y-2">
+          {mustReadNotices.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => setSelectedNotice(n)}
+              className="card w-full p-4 flex items-center gap-3 text-left hover:border-rose-200 transition border-rose-100 bg-rose-50/30"
+            >
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                <Pin size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-navy-900 truncate">{n.title}</p>
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{n.content}</p>
+              </div>
+              <span className="chip bg-rose-100 text-rose-600 shrink-0">{n.type}</span>
+            </button>
+          ))}
         </div>
       )}
 
