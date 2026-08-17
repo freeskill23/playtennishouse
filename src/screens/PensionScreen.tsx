@@ -211,7 +211,11 @@ export function PensionScreen() {
                   value={depositorName}
                   onChange={(e) => setDepositorName(e.target.value)}
                   placeholder="입금자명"
-                  className="input py-2.5"
+                  className={`input py-2.5 transition-all ${
+                    depositorName.trim()
+                      ? 'border-2 border-volt-500 ring-2 ring-volt-200 font-bold'
+                      : ''
+                  }`}
                   maxLength={20}
                 />
                 {isGuest && (

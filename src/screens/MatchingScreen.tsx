@@ -909,7 +909,11 @@ function CreateMatchingModal({
               value={depositorName}
               onChange={(e) => setDepositorName(e.target.value.slice(0, 20))}
               placeholder="입금자명을 입력해주세요"
-              className="input py-2.5"
+              className={`input py-2.5 transition-all ${
+                depositorName.trim()
+                  ? 'border-2 border-volt-500 ring-2 ring-volt-200 font-bold'
+                  : ''
+              }`}
               maxLength={20}
             />
           </div>
