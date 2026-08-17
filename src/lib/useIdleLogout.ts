@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const IDLE_MS = 60 * 60 * 1000;
+const DEFAULT_IDLE_MS = 30 * 60 * 1000;
 const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
   'mousemove',
   'mousedown',
@@ -11,27 +11,49 @@ const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
 ];
 
 /**
- * Calls `onIdle` once after `IDLE_MS` of no user activity.
+ * Calls `onIdle` once after `idleMs` of no user activity.
  * Resets the timer on any input event. No-op when `enabled` is false.
+ * Also checks elapsed time when the tab becomes visible again,
+ * so background-tab timer throttling doesn't prevent logout.
  */
-export function useIdleLogout(onIdle: () => void, enabled: boolean) {
+export function useIdleLogout(onIdle: () => void, enabled: boolean, idleMs: number = DEFAULT_IDLE_MS) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
   const cbRef = useRef(onIdle);
   cbRef.current = onIdle;
 
   useEffect(() => {
     if (!enabled) return;
 
-    const reset = () => {
+    const fire = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => cbRef.current(), IDLE_MS);
+      cbRef.current();
+    };
+
+    const reset = () => {
+      lastActivityRef.current = Date.now();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(fire, idleMs);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (Date.now() - lastActivityRef.current >= idleMs) {
+          fire();
+        } else {
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(fire, idleMs - (Date.now() - lastActivityRef.current));
+        }
+      }
     };
 
     reset();
     ACTIVITY_EVENTS.forEach((ev) => window.addEventListener(ev, reset, { passive: true }));
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       ACTIVITY_EVENTS.forEach((ev) => window.removeEventListener(ev, reset));
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [enabled]);
+  }, [enabled, idleMs]);
 }

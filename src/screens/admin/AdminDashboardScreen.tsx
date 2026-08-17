@@ -15,6 +15,8 @@ import {
   CalendarPlus,
   CalendarMinus,
   Landmark,
+  StickyNote,
+  Pencil,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -52,6 +54,8 @@ export function AdminDashboardScreen() {
     toggleHoliday,
     isHoliday,
     reservations,
+    getDateMemo,
+    saveDateMemo,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [date, setDate] = useState(todayYMD());
@@ -846,6 +850,9 @@ export function AdminDashboardScreen() {
         })}
       </div>
 
+      {/* Date memo */}
+      <DateMemoEditor date={date} getDateMemo={getDateMemo} saveDateMemo={saveDateMemo} />
+
       {/* Matching count + list */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
@@ -935,6 +942,103 @@ export function AdminDashboardScreen() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function DateMemoEditor({
+  date,
+  getDateMemo,
+  saveDateMemo,
+}: {
+  date: string;
+  getDateMemo: (dateStr: string) => string;
+  saveDateMemo: (dateStr: string, content: string) => void;
+}) {
+  const savedMemo = getDateMemo(date);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(savedMemo);
+
+  useEffect(() => {
+    setDraft(savedMemo);
+    setEditing(false);
+  }, [date, savedMemo]);
+
+  const dirty = draft.trim() !== savedMemo.trim();
+
+  const handleSave = () => {
+    saveDateMemo(date, draft);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setDraft(savedMemo);
+    setEditing(false);
+  };
+
+  return (
+    <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+            <StickyNote size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-navy-900 text-sm">
+              날짜 메모 <span className="text-xs text-slate-400 font-normal">({date})</span>
+            </h3>
+            <p className="text-xs text-slate-400">해당 날짜의 간단한 메모를 입력할 수 있습니다</p>
+          </div>
+        </div>
+        {!editing && (
+          <button
+            onClick={() => {
+              setDraft(savedMemo);
+              setEditing(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-navy-50 text-navy-700 hover:bg-navy-100 transition"
+          >
+            <Pencil size={12} /> {savedMemo ? '수정' : '입력'}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="메모를 입력하세요"
+            className="input min-h-[60px] text-sm"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={handleCancel}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 text-slate-600 hover:bg-slate-50 transition"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!dirty}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                dirty
+                  ? 'bg-volt-500 text-navy-950 hover:bg-volt-400'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <Save size={12} /> 저장
+            </button>
+          </div>
+        </div>
+      ) : savedMemo ? (
+        <p className="text-sm text-navy-800 whitespace-pre-wrap rounded-lg bg-amber-50/50 border border-amber-100 p-3">
+          {savedMemo}
+        </p>
+      ) : (
+        <p className="text-sm text-slate-400 py-2">입력된 메모가 없습니다.</p>
       )}
     </div>
   );

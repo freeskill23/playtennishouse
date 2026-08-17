@@ -16,6 +16,7 @@ import {
   Send,
   Trash2,
   ShieldAlert,
+  Pin,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -126,6 +127,11 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
     (r) => r.userId === currentUser.id && r.type === 'pension' && r.status !== '취소' && !isEnded(r.date),
   );
 
+  const mustReadNotices = notices
+    .filter((n) => n.isMustRead)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 2);
+
   // Group court reservations by date + targetLabel to collapse consecutive slots into one row
   const courtBatchGroups = (() => {
     const map = new Map<string, Reservation[]>();
@@ -221,6 +227,31 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
           <p className="mt-3 text-lg font-bold text-white">{isGuest ? '플테하에 오신 것을 환영합니다!' : `${currentUser.name}님 플테하에서 오늘도 즐테하세요!`}</p>
         </div>
       </div>
+
+      {/* Must-read notices */}
+      {mustReadNotices.length > 0 && (
+        <div>
+          <SectionTitle title="필독 공지" subtitle="꼭 확인해주세요" />
+          <div className="space-y-2">
+            {mustReadNotices.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => setSelectedNotice(n)}
+                className="card w-full p-4 flex items-center gap-3 text-left hover:border-rose-200 transition border-rose-100 bg-rose-50/30"
+              >
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                  <Pin size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-navy-900 truncate">{n.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{n.content}</p>
+                </div>
+                <span className="chip bg-rose-100 text-rose-600 shrink-0">{n.type}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* My activity summary */}
       <div>

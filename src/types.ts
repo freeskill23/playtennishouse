@@ -115,6 +115,7 @@ export interface Notice {
   createdAt: number;
   sortOrder?: number;
   imageUrl?: string;
+  isMustRead?: boolean;
 }
 
 export interface NoticeComment {

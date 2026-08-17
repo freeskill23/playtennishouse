@@ -184,8 +184,8 @@ interface AppState {
   deleteMatchingPost: (postId: string) => void;
 
   // notices
-  createNotice: (n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => void;
-  updateNotice: (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => void;
+  createNotice: (n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => void;
+  updateNotice: (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => void;
   deleteNotice: (id: string) => void;
   reorderNotices: (orderedIds: string[]) => void;
   noticeComments: NoticeComment[];
@@ -235,6 +235,11 @@ interface AppState {
   tempHolidays: string[];
   toggleHoliday: (dateStr: string) => void;
   isHoliday: (dateStr: string) => boolean;
+
+  // date memos (admin calendar)
+  dateMemos: Record<string, string>;
+  getDateMemo: (dateStr: string) => string;
+  saveDateMemo: (dateStr: string, content: string) => void;
 
   // queries
   isPensionBlockedByCourt: (date: string) => boolean;
@@ -454,6 +459,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
               createdAt: n.created_at as number,
               sortOrder: n.sort_order as number | undefined,
               imageUrl: (n.image_url as string | null) || undefined,
+              isMustRead: (n.is_must_read as boolean) ?? false,
             }))
             .sort((a, b) => {
               const sa = a.sortOrder ?? a.createdAt;
@@ -663,6 +669,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
+  const [dateMemos, setDateMemos] = useState<Record<string, string>>({});
   const [focusMatchingPostId, setFocusMatchingPostId] = useState<string | null>(null);
 
   // Load all settings (pension prices, overrides, banner, logo) from Supabase
@@ -987,6 +994,82 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const isHoliday = useCallback(
     (dateStr: string): boolean => isWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr),
     [tempHolidays],
+  );
+
+  // Load date memos from Supabase
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase.from('date_memos').select('date, content');
+      if (data) {
+        const map: Record<string, string> = {};
+        for (const m of data) {
+          map[m.date as string] = m.content as string;
+        }
+        setDateMemos(map);
+      }
+    })();
+    const channel = supabase
+      .channel('date_memos_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'date_memos' },
+        async () => {
+          const { data } = await supabase.from('date_memos').select('date, content');
+          if (data) {
+            const map: Record<string, string> = {};
+            for (const m of data) {
+              map[m.date as string] = m.content as string;
+            }
+            setDateMemos(map);
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const getDateMemo = useCallback(
+    (dateStr: string): string => dateMemos[dateStr] ?? '',
+    [dateMemos],
+  );
+
+  const saveDateMemo = useCallback(
+    (dateStr: string, content: string) => {
+      const trimmed = content.trim();
+      setDateMemos((prev) => {
+        const next = { ...prev };
+        if (trimmed) {
+          next[dateStr] = trimmed;
+        } else {
+          delete next[dateStr];
+        }
+        return next;
+      });
+      if (supabaseConfigured) {
+        if (trimmed) {
+          supabase
+            .from('date_memos')
+            .upsert({
+              id: `memo-${dateStr}`,
+              date: dateStr,
+              content: trimmed,
+              updated_at: Date.now(),
+            })
+            .then(({ error }) => {
+              if (error) pushToast('메모 저장 실패: ' + error.message, 'error');
+            });
+        } else {
+          supabase.from('date_memos').delete().eq('id', `memo-${dateStr}`).then(({ error }) => {
+            if (error) pushToast('메모 삭제 실패: ' + error.message, 'error');
+          });
+        }
+      }
+      pushToast(trimmed ? '메모가 저장되었습니다.' : '메모가 삭제되었습니다.', 'info');
+    },
+    [pushToast],
   );
 
   // ===== Business rule: mutual exclusion =====
@@ -1768,7 +1851,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Notices =====
   const createNotice = useCallback(
-    (n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => {
+    (n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => {
       const notice: Notice = {
         id: uid('n'),
         title: n.title,
@@ -1776,6 +1859,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         type: n.type,
         createdAt: Date.now(),
         imageUrl: n.imageUrl,
+        isMustRead: n.isMustRead ?? false,
       };
       setNotices((prev) => [notice, ...prev]);
       if (supabaseConfigured) {
@@ -1786,6 +1870,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           type: notice.type,
           created_at: notice.createdAt,
           image_url: notice.imageUrl ?? null,
+          is_must_read: notice.isMustRead,
         }).then(({ error }) => {
           if (error) pushToast('공지 저장 실패: ' + error.message, 'error');
         });
@@ -1801,11 +1886,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   const updateNotice = useCallback(
-    (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string }) => {
+    (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => {
       setNotices((prev) =>
         prev.map((it) =>
           it.id === id
-            ? { ...it, title: n.title, content: n.content, type: n.type, imageUrl: n.imageUrl }
+            ? { ...it, title: n.title, content: n.content, type: n.type, imageUrl: n.imageUrl, isMustRead: n.isMustRead ?? false }
             : it,
         ),
       );
@@ -1817,6 +1902,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             content: n.content,
             type: n.type,
             image_url: n.imageUrl ?? null,
+            is_must_read: n.isMustRead ?? false,
           })
           .eq('id', id)
           .then(({ error }) => {
@@ -2145,6 +2231,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     tempHolidays,
     toggleHoliday,
     isHoliday,
+    dateMemos,
+    getDateMemo,
+    saveDateMemo,
     isPensionBlockedByCourt,
     isCourtBlockedByPension,
     isCourtSlotBlockedByPension,

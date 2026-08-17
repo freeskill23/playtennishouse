@@ -76,6 +76,7 @@ export function AdminNoticeScreen() {
     content: '',
     type: '일반공지' as NoticeType,
     imageUrl: '' as string,
+    isMustRead: false,
   });
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Notice | null>(null);
@@ -84,6 +85,7 @@ export function AdminNoticeScreen() {
     content: '',
     type: '일반공지' as NoticeType,
     imageUrl: '' as string,
+    isMustRead: false,
   });
   const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
@@ -132,6 +134,7 @@ export function AdminNoticeScreen() {
       content: n.content,
       type: n.type,
       imageUrl: n.imageUrl ?? '',
+      isMustRead: n.isMustRead ?? false,
     });
     setEditPreviewUrl(n.imageUrl ?? null);
     setEditPendingFile(null);
@@ -202,6 +205,7 @@ export function AdminNoticeScreen() {
       content: editForm.content.trim(),
       type: editForm.type,
       imageUrl: imageUrl || undefined,
+      isMustRead: editForm.isMustRead,
     });
     closeEdit();
   };
@@ -234,8 +238,9 @@ export function AdminNoticeScreen() {
       content: form.content.trim(),
       type: form.type,
       imageUrl: imageUrl || undefined,
+      isMustRead: form.isMustRead,
     });
-    setForm({ title: '', content: '', type: '일반공지', imageUrl: '' });
+    setForm({ title: '', content: '', type: '일반공지', imageUrl: '', isMustRead: false });
     clearPick();
     setShowForm(false);
   };
@@ -322,6 +327,18 @@ export function AdminNoticeScreen() {
               placeholder="공지 내용을 입력하세요"
               className="input min-h-[100px]"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="mustReadCreate"
+              checked={form.isMustRead}
+              onChange={(e) => setForm((f) => ({ ...f, isMustRead: e.target.checked }))}
+              className="w-4 h-4 rounded border-slate-300 text-volt-500 focus:ring-volt-400"
+            />
+            <label htmlFor="mustReadCreate" className="text-sm font-semibold text-navy-900">
+              필독공지 (메인 노출, 최대 2개)
+            </label>
           </div>
           {form.type === '이벤트' && (
             <div>
@@ -412,6 +429,9 @@ export function AdminNoticeScreen() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className={`chip ${NOTICE_META[n.type].cls}`}>{n.type}</span>
+                    {n.isMustRead && (
+                      <span className="chip bg-rose-100 text-rose-600 !px-1.5 !py-0.5 !text-[10px]">필독</span>
+                    )}
                     <p className="font-bold text-navy-900 truncate">{n.title}</p>
                   </div>
                   <p className="text-xs text-slate-500 mt-1 line-clamp-2">{n.content}</p>
@@ -631,6 +651,18 @@ export function AdminNoticeScreen() {
                   );
                 })}
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="mustReadEdit"
+                checked={editForm.isMustRead}
+                onChange={(e) => setEditForm((f) => ({ ...f, isMustRead: e.target.checked }))}
+                className="w-4 h-4 rounded border-slate-300 text-volt-500 focus:ring-volt-400"
+              />
+              <label htmlFor="mustReadEdit" className="text-sm font-semibold text-navy-900">
+                필독공지 (메인 노출, 최대 2개)
+              </label>
             </div>
             <div>
               <label className="label">제목</label>
