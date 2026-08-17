@@ -182,7 +182,7 @@ export function CourtScreen() {
           <div>
             <p className="font-bold text-amber-800">해당 날짜 펜션 예약 완료</p>
             <p className="text-sm text-amber-700 mt-0.5">
-              이 날짜에는 펜션 예약이 완료되어 모든 코트 시간대 이용이 불가합니다.
+              이 날짜에는 펜션 예약이 완료되어 당일 15:00 ~ 익일 11:00 코트 이용이 불가합니다. (그 외 시간대 예약 가능)
             </p>
           </div>
         </div>

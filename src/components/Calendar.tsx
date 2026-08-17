@@ -24,6 +24,12 @@ export const addMonthsYMD = (n: number) => {
   return toYMD(d);
 };
 
+export const addDaysToYMD = (ymd: string, n: number) => {
+  const d = new Date(ymd + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return toYMD(d);
+};
+
 export function Calendar({
   value,
   onChange,

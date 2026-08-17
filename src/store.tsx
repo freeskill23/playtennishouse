@@ -12,6 +12,7 @@ import type {
   Room,
   Reservation,
   MatchingPost,
+  MatchingStatus,
   Notice,
   GalleryItem,
   AppNotification,
@@ -29,6 +30,7 @@ import type {
   GamePreference,
 } from './types';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS, mergeTimeSlots } from './types';
+import { addDaysToYMD } from './components/Calendar';
 import {
   initialUsers,
   initialRooms,
@@ -41,6 +43,17 @@ import {
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
 import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
+
+// Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
+const PENSION_BLOCK_START_HOUR = 15;
+const PENSION_BLOCK_END_HOUR = 11;
+
+function slotOverlapsPensionWindow(slot: string): boolean {
+  const start = parseInt(slot.split('-')[0].split(':')[0], 10);
+  if (start >= PENSION_BLOCK_START_HOUR) return true;
+  if (start < PENSION_BLOCK_END_HOUR) return true;
+  return false;
+}
 
 type ReservationRow = {
   id: string;
@@ -233,6 +246,7 @@ interface AppState {
   // queries
   isPensionBlockedByCourt: (date: string) => boolean;
   isCourtBlockedByPension: (date: string, court: CourtName) => boolean;
+  isCourtSlotBlockedByPension: (date: string, court: CourtName, slot: string) => boolean;
   getPensionStatusForDate: (date: string, roomName: RoomName) => {
     status: 'available' | 'full' | 'booked' | 'pending';
     reservation?: Reservation;
@@ -983,26 +997,43 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   // ===== Business rule: mutual exclusion =====
-  // Pension reserved (예약완료) -> all court slots that day become unavailable
+  // Pension reserved (예약완료) -> court slots from 15:00 that day to 11:00 next day blocked
   const isPensionBlockedByCourt = useCallback(
     (date: string) => {
-      // If any court reservation is 예약완료 on that date, pension is blocked
-      return reservations.some(
+      // Pension check-in is 15:00 on `date`. A court reservation on the same date
+      // conflicts only if it uses slots at/after 15:00; court on the previous date
+      // conflicts only if it uses slots before 11:00 (check-out).
+      const prevDate = addDaysToYMD(date, -1);
+      const courtSameDay = reservations.some(
         (r) =>
           r.type === 'court' &&
           r.date === date &&
           r.status === '예약완료' &&
-          r.waitingSequence === null,
+          r.waitingSequence === null &&
+          r.timeSlot &&
+          slotOverlapsPensionWindow(r.timeSlot),
       );
+      if (courtSameDay) return true;
+      // Previous-day court sessions before 11:00 overlap the checkout morning.
+      const courtPrevDay = reservations.some(
+        (r) =>
+          r.type === 'court' &&
+          r.date === prevDate &&
+          r.status === '예약완료' &&
+          r.waitingSequence === null &&
+          r.timeSlot &&
+          parseInt(r.timeSlot.split(':')[0], 10) < PENSION_BLOCK_END_HOUR,
+      );
+      return courtPrevDay;
     },
     [reservations],
   );
 
   const isCourtBlockedByPension = useCallback(
     (date: string, court: CourtName) => {
-      // A동 pension blocks A코트 only; B동 pension blocks B코트 only
       const courtBuilding = court[0];
-      return reservations.some(
+      const nextDate = addDaysToYMD(date, 1);
+      const pensionSameDay = reservations.some(
         (r) =>
           r.type === 'pension' &&
           r.date === date &&
@@ -1010,6 +1041,87 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           r.waitingSequence === null &&
           r.targetLabel[0] === courtBuilding,
       );
+      const pensionNextDay = reservations.some(
+        (r) =>
+          r.type === 'pension' &&
+          r.date === nextDate &&
+          r.status === '예약완료' &&
+          r.waitingSequence === null &&
+          r.targetLabel[0] === courtBuilding,
+      );
+      return pensionSameDay || pensionNextDay;
+    },
+    [reservations],
+  );
+
+  // Returns true if a specific court slot is blocked by a pension reservation's
+  // 15:00 ~ next-day 11:00 usage window.
+  const isCourtSlotBlockedByPension = useCallback(
+    (date: string, court: CourtName, slot: string): boolean => {
+      const courtBuilding = court[0];
+      const startHour = parseInt(slot.split(':')[0], 10);
+      const nextDate = addDaysToYMD(date, 1);
+      // Pension on same date blocks slots at/after 15:00.
+      if (startHour >= PENSION_BLOCK_START_HOUR) {
+        const pensionSameDay = reservations.some(
+          (r) =>
+            r.type === 'pension' &&
+            r.date === date &&
+            r.status === '예약완료' &&
+            r.waitingSequence === null &&
+            r.targetLabel[0] === courtBuilding,
+        );
+        if (pensionSameDay) return true;
+      }
+      // Pension on next date blocks slots before 11:00 (check-out morning).
+      if (startHour < PENSION_BLOCK_END_HOUR) {
+        const pensionNextDay = reservations.some(
+          (r) =>
+            r.type === 'pension' &&
+            r.date === nextDate &&
+            r.status === '예약완료' &&
+            r.waitingSequence === null &&
+            r.targetLabel[0] === courtBuilding,
+        );
+        if (pensionNextDay) return true;
+      }
+      return false;
+    },
+    [reservations],
+  );
+
+  // Returns true if a pension reservation on `date` conflicts with a specific court slot.
+  const isPensionSlotBlockedByCourt = useCallback(
+    (date: string, slot: string): boolean => {
+      const startHour = parseInt(slot.split(':')[0], 10);
+      const prevDate = addDaysToYMD(date, -1);
+      // Court on same date before 11:00 overlaps the checkout morning of a pension
+      // whose checkout would be the next day — not a conflict for check-in day.
+      // Conflict: same-date court at/after 15:00 (pension check-in time).
+      if (startHour >= PENSION_BLOCK_START_HOUR) {
+        const courtSameDay = reservations.some(
+          (r) =>
+            r.type === 'court' &&
+            r.date === date &&
+            r.status === '예약완료' &&
+            r.waitingSequence === null &&
+            r.timeSlot === slot,
+        );
+        if (courtSameDay) return true;
+      }
+      // Conflict: previous-date court before 11:00 (overlaps pension check-in day morning).
+      if (startHour < PENSION_BLOCK_END_HOUR) {
+        const courtPrevDay = reservations.some(
+          (r) =>
+            r.type === 'court' &&
+            r.date === prevDate &&
+            r.status === '예약완료' &&
+            r.waitingSequence === null &&
+            r.timeSlot === slot,
+        );
+        if (courtPrevDay) return true;
+      }
+      return false;
     },
     [reservations],
   );
@@ -1052,8 +1164,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const getCourtSlotStatus = useCallback(
     (date: string, court: CourtName, slot: string): 'available' | 'booked' | 'pending' | 'blocked' => {
-      // Blocked by pension
-      if (isCourtBlockedByPension(date, court)) return 'blocked';
+      // Blocked by pension (slot-level: 15:00 ~ next-day 11:00)
+      if (isCourtSlotBlockedByPension(date, court, slot)) return 'blocked';
       const found = reservations.find(
         (r) =>
           r.type === 'court' &&
@@ -1067,7 +1179,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (found.status === '예약완료' || found.status === '이용완료') return 'booked';
       return 'pending';
     },
-    [reservations, isCourtBlockedByPension],
+    [reservations, isCourtSlotBlockedByPension],
   );
 
   const getReservationsByDate = useCallback(
@@ -1151,11 +1263,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           return { ok: false, reason: '잘못된 시간대입니다.' };
         }
       }
-      if (isCourtBlockedByPension(input.date, input.court)) {
-        return { ok: false, reason: '해당 날짜에 펜션 예약이 완료되어 코트 이용이 불가합니다.' };
-      }
       for (const slot of input.timeSlots) {
         const slotStatus = getCourtSlotStatus(input.date, input.court, slot);
+        if (slotStatus === 'blocked') {
+          return { ok: false, reason: `${slot}은(는) 펜션 예약(15:00~익일 11:00)으로 이용이 불가합니다.` };
+        }
         if (slotStatus === 'booked' || slotStatus === 'pending') {
           return { ok: false, reason: `${slot}은(는) 이미 예약되었거나 신청 중인 시간대입니다.` };
         }
@@ -1189,7 +1301,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
       return { ok: true, reservations: newReservations };
     },
-    [isCourtBlockedByPension, getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   // ===== Waiting request =====
@@ -1444,13 +1556,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (input.maxPlayers < 2 || input.maxPlayers > MATCHING_MAX_PLAYERS) {
         return { ok: false, reason: `모집 인원은 2~${MATCHING_MAX_PLAYERS}명이어야 합니다.` };
       }
-      // Blocked by pension reservation?
-      if (isCourtBlockedByPension(input.date, input.court)) {
-        return { ok: false, reason: '해당 날짜에 펜션 예약이 완료되어 코트 이용이 불가합니다.' };
-      }
       // Check court slot availability (same as court reservation)
       for (const slot of input.timeSlots) {
         const slotStatus = getCourtSlotStatus(input.date, input.court, slot);
+        if (slotStatus === 'blocked') {
+          return { ok: false, reason: `${slot}은(는) 펜션 예약(15:00~익일 11:00)으로 이용이 불가합니다.` };
+        }
         if (slotStatus === 'booked' || slotStatus === 'pending') {
           return { ok: false, reason: `${slot}은(는) 이미 예약되었거나 신청 중인 시간대입니다.` };
         }
@@ -1508,7 +1619,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast('매칭글이 등록되었습니다. 코트 예약 신청도 함께 접수되었습니다.');
       return { ok: true, post };
     },
-    [isCourtBlockedByPension, getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
   );
 
   const createMatchingPostFromReservation = useCallback(
@@ -2076,6 +2187,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     isHoliday,
     isPensionBlockedByCourt,
     isCourtBlockedByPension,
+    isCourtSlotBlockedByPension,
     getPensionStatusForDate,
     getCourtSlotStatus,
     getReservationsByDate,
