@@ -643,12 +643,12 @@ export function AdminDashboardScreen() {
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold text-navy-600 mb-1 block">Chat ID</span>
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">Chat ID (쉼표로 여러 명 가능)</span>
             <input
               type="text"
               value={telegramEdit.chatId}
               onChange={(e) => setTelegramEdit((s) => ({ ...s, chatId: e.target.value }))}
-              placeholder="-1001234567890"
+              placeholder="8921509543, -1001234567890"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
             />
           </label>

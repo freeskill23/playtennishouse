@@ -35,9 +35,9 @@ Deno.serve(async (req: Request) => {
     );
 
     let botToken = typeof token === "string" && token.trim() ? token.trim() : null;
-    let targetChatId = typeof chatId === "string" && chatId.trim() ? chatId.trim() : null;
+    let rawChatId = typeof chatId === "string" && chatId.trim() ? chatId.trim() : null;
 
-    if (!botToken || !targetChatId) {
+    if (!botToken || !rawChatId) {
       const { data, error } = await supabase
         .from("settings")
         .select("telegram_bot_token, telegram_chat_id")
@@ -52,37 +52,59 @@ Deno.serve(async (req: Request) => {
       }
 
       botToken = botToken || data?.telegram_bot_token || null;
-      targetChatId = targetChatId || data?.telegram_chat_id || null;
+      rawChatId = rawChatId || data?.telegram_chat_id || null;
     }
 
-    if (!botToken || !targetChatId) {
+    if (!botToken) {
       return new Response(
-        JSON.stringify({ error: "Telegram bot token 또는 chat ID가 설정되지 않았습니다." }),
+        JSON.stringify({ error: "Telegram bot token이 설정되지 않았습니다." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const chatIds = (rawChatId || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (chatIds.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Telegram chat ID가 설정되지 않았습니다." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const text = `🔔 ${title}\n\n${typeof msgBody === "string" ? msgBody : ""}`;
 
-    const tgRes = await fetch(
-      `https://api.telegram.org/bot${botToken}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: targetChatId,
-          text,
-          parse_mode: "HTML",
-          disable_web_page_preview: true,
-        }),
-      },
+    const results = await Promise.all(
+      chatIds.map(async (cid) => {
+        const tgRes = await fetch(
+          `https://api.telegram.org/bot${botToken}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: cid,
+              text,
+              parse_mode: "HTML",
+              disable_web_page_preview: true,
+            }),
+          },
+        );
+        if (!tgRes.ok) {
+          const tgErr = await tgRes.json().catch(() => null);
+          return { chatId: cid, ok: false, error: tgErr?.description || `HTTP ${tgRes.status}` };
+        }
+        return { chatId: cid, ok: true };
+      }),
     );
 
-    if (!tgRes.ok) {
-      const tgErr = await tgRes.json().catch(() => null);
-      const detail = tgErr?.description || await tgRes.text();
+    const failures = results.filter((r) => !r.ok);
+    if (failures.length > 0) {
+      const failedIds = failures.map((f) => f.chatId).join(", ");
+      const firstError = failures[0].error;
       return new Response(
-        JSON.stringify({ error: detail || "Telegram 전송 실패" }),
+        JSON.stringify({ error: `전송 실패 [${failedIds}]: ${firstError}` }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
