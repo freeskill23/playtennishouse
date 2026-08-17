@@ -130,6 +130,186 @@ export function AdminDashboardScreen() {
         }
       />
 
+      <Calendar
+        value={date}
+        onChange={setDate}
+        minDate={todayYMD()}
+        dayRender={(d) => {
+          const res = getReservationsByDate(d);
+          if (res.length === 0) return null;
+          const pensionRes = res.filter((r) => r.type === 'pension');
+          if (pensionRes.length > 0) {
+            const hasA = pensionRes.some((r) => r.targetId === 'roomA');
+            const hasB = pensionRes.some((r) => r.targetId === 'roomB');
+            let label = '';
+            if (hasA && hasB) label = 'AB동';
+            else if (hasA) label = 'A동';
+            else if (hasB) label = 'B동';
+            return (
+              <span className="text-[8px] font-bold leading-none text-volt-700 bg-volt-100 rounded px-1 py-0.5">
+                {label}예약
+              </span>
+            );
+          }
+          const aBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'booked');
+          const bBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'booked');
+          if (aBooked || bBooked) return <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />;
+          const aPending = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'pending');
+          const bPending = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'pending');
+          if (aPending || bPending) return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />;
+          return null;
+        }}
+      />
+
+      {/* Dashboard cards */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* Pension status */}
+        {rooms.map((room) => {
+          const st = getPensionStatusForDate(date, room.name as RoomName);
+          const roomReservations = pensionReservations.filter(
+            (r) => r.targetId === room.id && r.waitingSequence === null,
+          );
+          const waitings = pensionReservations.filter(
+            (r) => r.targetId === room.id && r.waitingSequence !== null,
+          );
+          return (
+            <div key={room.id} className="card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-volt-100 flex items-center justify-center text-volt-700">
+                    <BedDouble size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-navy-900">{room.name}</p>
+                    <p className="text-xs text-slate-500">펜션</p>
+                  </div>
+                </div>
+                {st.status === 'booked' && <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 예약완료</span>}
+                {st.status === 'pending' && <span className="chip bg-amber-100 text-amber-700">신청중</span>}
+                {st.status === 'available' && <span className="chip bg-slate-100 text-slate-600">예약가능</span>}
+                {st.status === 'full' && <span className="chip bg-rose-100 text-rose-600">만석(대기)</span>}
+              </div>
+              <div className="space-y-1.5">
+                {roomReservations.length === 0 && waitings.length === 0 ? (
+                  <p className="text-sm text-slate-400 py-2">예약 내역 없음</p>
+                ) : (
+                  <>
+                    {roomReservations.map((r) => {
+                      const u = getUser(r.userId);
+                      return (
+                        <div key={r.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                          <img src={u?.profileImg} className="w-7 h-7 rounded-lg object-cover" alt="" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-navy-900 truncate">{u?.nickname || u?.name}{r.depositorName ? `(${r.depositorName})` : ''} · {r.capacity}명</p>
+                          </div>
+                          <StatusBadge status={r.status} />
+                          {r.status === '예약완료' && r.waitingSequence === null && (
+                            <button
+                              onClick={() => setCancelTarget({ id: r.id, label: `${(u?.nickname || u?.name) ?? ''}${r.depositorName ? `(${r.depositorName})` : ''} ${room.name} 펜션` })}
+                              className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition"
+                              aria-label="관리자 취소"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {waitings.length > 0 && (
+                      <p className="text-xs text-amber-600 px-1 pt-1 flex items-center gap-1">
+                        <Clock size={12} /> 대기 {waitings.length}명
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Court timelines */}
+        {(['A코트', 'B코트'] as CourtName[]).map((court) => {
+          const courtRes = courtReservations.filter((r) => r.targetId === court);
+          return (
+            <div key={court} className="card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-navy-50 flex items-center justify-center text-navy-700">
+                    <CalendarRange size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-navy-900">{court}</p>
+                    <p className="text-xs text-slate-500">코트 타임라인</p>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-400">{courtRes.length}건</span>
+              </div>
+              <div className="space-y-1">
+                {COURT_TIME_SLOTS.map((slot) => {
+                  const status = getCourtSlotStatus(date, court, slot);
+                  const res = courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status !== '취소')
+                    || courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status === '취소')
+                    || null;
+                  const u = res ? getUser(res.userId) : null;
+                  const resName = res ? `${u?.nickname || u?.name || '비회원'}${res.depositorName ? `(${res.depositorName})` : ''}` : '비회원';
+                  const isCancelled = res?.status === '취소';
+                  return (
+                    <div
+                      key={slot}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                        status === 'booked'
+                          ? 'bg-volt-50 text-navy-900'
+                          : status === 'pending'
+                            ? 'bg-amber-50 text-navy-900'
+                            : status === 'blocked'
+                              ? 'bg-slate-100 text-slate-400'
+                              : isCancelled
+                                ? 'bg-rose-50 text-rose-400'
+                                : 'bg-slate-50 text-slate-500'
+                      }`}
+                    >
+                      <Clock size={13} className="shrink-0" />
+                      <span className={`font-semibold w-28 shrink-0 ${isCancelled ? 'line-through' : ''}`}>{slot}</span>
+                      {status === 'available' && !isCancelled && <span className="text-xs">예약가능</span>}
+                      {status === 'available' && !isCancelled && (
+                        <button
+                          onClick={() => { setAdminReserveTarget({ court, slot }); setAdminReserveLabel(''); }}
+                          className="ml-auto text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg px-2 py-1 transition flex items-center gap-1"
+                        >
+                          <CalendarPlus size={12} /> 관리자예약
+                        </button>
+                      )}
+                      {status === 'blocked' && (
+                        <span className="text-xs flex items-center gap-1"><Lock size={11} /> 펜션전용</span>
+                      )}
+                      {res && (
+                        <span className={`flex-1 min-w-0 truncate text-xs ${isCancelled ? 'line-through' : ''}`}>
+                          {resName} {res.capacity ? `· ${res.capacity}명` : ''}{res.depositorPhone ? ` · ${res.depositorPhone}` : ''}
+                        </span>
+                      )}
+                      {res && <StatusBadge status={res.status} />}
+                      {res && res.status === '예약완료' && res.waitingSequence === null && (
+                        <button
+                          onClick={() => setCancelTarget({ id: res.id, label: `${resName} ${court} ${slot}` })}
+                          className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition ml-auto"
+                          aria-label="관리자 취소"
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Date memo */}
+      <DateMemoEditor date={date} getDateMemo={getDateMemo} saveDateMemo={saveDateMemo} />
+
+
       {/* Pension pricing control */}
       <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
@@ -703,184 +883,6 @@ export function AdminDashboardScreen() {
         </div>
       </div>
 
-      <Calendar
-        value={date}
-        onChange={setDate}
-        minDate={todayYMD()}
-        dayRender={(d) => {
-          const res = getReservationsByDate(d);
-          if (res.length === 0) return null;
-          const pensionRes = res.filter((r) => r.type === 'pension');
-          if (pensionRes.length > 0) {
-            const hasA = pensionRes.some((r) => r.targetId === 'roomA');
-            const hasB = pensionRes.some((r) => r.targetId === 'roomB');
-            let label = '';
-            if (hasA && hasB) label = 'AB동';
-            else if (hasA) label = 'A동';
-            else if (hasB) label = 'B동';
-            return (
-              <span className="text-[8px] font-bold leading-none text-volt-700 bg-volt-100 rounded px-1 py-0.5">
-                {label}예약
-              </span>
-            );
-          }
-          const aBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'booked');
-          const bBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'booked');
-          if (aBooked || bBooked) return <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />;
-          const aPending = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'pending');
-          const bPending = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'pending');
-          if (aPending || bPending) return <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />;
-          return null;
-        }}
-      />
-
-      {/* Dashboard cards */}
-      <div className="grid lg:grid-cols-2 gap-4">
-        {/* Pension status */}
-        {rooms.map((room) => {
-          const st = getPensionStatusForDate(date, room.name as RoomName);
-          const roomReservations = pensionReservations.filter(
-            (r) => r.targetId === room.id && r.waitingSequence === null,
-          );
-          const waitings = pensionReservations.filter(
-            (r) => r.targetId === room.id && r.waitingSequence !== null,
-          );
-          return (
-            <div key={room.id} className="card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-volt-100 flex items-center justify-center text-volt-700">
-                    <BedDouble size={18} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-navy-900">{room.name}</p>
-                    <p className="text-xs text-slate-500">펜션</p>
-                  </div>
-                </div>
-                {st.status === 'booked' && <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 예약완료</span>}
-                {st.status === 'pending' && <span className="chip bg-amber-100 text-amber-700">신청중</span>}
-                {st.status === 'available' && <span className="chip bg-slate-100 text-slate-600">예약가능</span>}
-                {st.status === 'full' && <span className="chip bg-rose-100 text-rose-600">만석(대기)</span>}
-              </div>
-              <div className="space-y-1.5">
-                {roomReservations.length === 0 && waitings.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-2">예약 내역 없음</p>
-                ) : (
-                  <>
-                    {roomReservations.map((r) => {
-                      const u = getUser(r.userId);
-                      return (
-                        <div key={r.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                          <img src={u?.profileImg} className="w-7 h-7 rounded-lg object-cover" alt="" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-navy-900 truncate">{u?.nickname || u?.name}{r.depositorName ? `(${r.depositorName})` : ''} · {r.capacity}명</p>
-                          </div>
-                          <StatusBadge status={r.status} />
-                          {r.status === '예약완료' && r.waitingSequence === null && (
-                            <button
-                              onClick={() => setCancelTarget({ id: r.id, label: `${(u?.nickname || u?.name) ?? ''}${r.depositorName ? `(${r.depositorName})` : ''} ${room.name} 펜션` })}
-                              className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition"
-                              aria-label="관리자 취소"
-                            >
-                              <XCircle size={16} />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {waitings.length > 0 && (
-                      <p className="text-xs text-amber-600 px-1 pt-1 flex items-center gap-1">
-                        <Clock size={12} /> 대기 {waitings.length}명
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Court timelines */}
-        {(['A코트', 'B코트'] as CourtName[]).map((court) => {
-          const courtRes = courtReservations.filter((r) => r.targetId === court);
-          return (
-            <div key={court} className="card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-navy-50 flex items-center justify-center text-navy-700">
-                    <CalendarRange size={18} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-navy-900">{court}</p>
-                    <p className="text-xs text-slate-500">코트 타임라인</p>
-                  </div>
-                </div>
-                <span className="text-xs text-slate-400">{courtRes.length}건</span>
-              </div>
-              <div className="space-y-1">
-                {COURT_TIME_SLOTS.map((slot) => {
-                  const status = getCourtSlotStatus(date, court, slot);
-                  const res = courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status !== '취소')
-                    || courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status === '취소')
-                    || null;
-                  const u = res ? getUser(res.userId) : null;
-                  const resName = res ? `${u?.nickname || u?.name || '비회원'}${res.depositorName ? `(${res.depositorName})` : ''}` : '비회원';
-                  const isCancelled = res?.status === '취소';
-                  return (
-                    <div
-                      key={slot}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                        status === 'booked'
-                          ? 'bg-volt-50 text-navy-900'
-                          : status === 'pending'
-                            ? 'bg-amber-50 text-navy-900'
-                            : status === 'blocked'
-                              ? 'bg-slate-100 text-slate-400'
-                              : isCancelled
-                                ? 'bg-rose-50 text-rose-400'
-                                : 'bg-slate-50 text-slate-500'
-                      }`}
-                    >
-                      <Clock size={13} className="shrink-0" />
-                      <span className={`font-semibold w-28 shrink-0 ${isCancelled ? 'line-through' : ''}`}>{slot}</span>
-                      {status === 'available' && !isCancelled && <span className="text-xs">예약가능</span>}
-                      {status === 'available' && !isCancelled && (
-                        <button
-                          onClick={() => { setAdminReserveTarget({ court, slot }); setAdminReserveLabel(''); }}
-                          className="ml-auto text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg px-2 py-1 transition flex items-center gap-1"
-                        >
-                          <CalendarPlus size={12} /> 관리자예약
-                        </button>
-                      )}
-                      {status === 'blocked' && (
-                        <span className="text-xs flex items-center gap-1"><Lock size={11} /> 펜션전용</span>
-                      )}
-                      {res && (
-                        <span className={`flex-1 min-w-0 truncate text-xs ${isCancelled ? 'line-through' : ''}`}>
-                          {resName} {res.capacity ? `· ${res.capacity}명` : ''}{res.depositorPhone ? ` · ${res.depositorPhone}` : ''}
-                        </span>
-                      )}
-                      {res && <StatusBadge status={res.status} />}
-                      {res && res.status === '예약완료' && res.waitingSequence === null && (
-                        <button
-                          onClick={() => setCancelTarget({ id: res.id, label: `${resName} ${court} ${slot}` })}
-                          className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition ml-auto"
-                          aria-label="관리자 취소"
-                        >
-                          <XCircle size={16} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Date memo */}
-      <DateMemoEditor date={date} getDateMemo={getDateMemo} saveDateMemo={saveDateMemo} />
 
       {/* Matching count + list */}
       <div className="card p-5">

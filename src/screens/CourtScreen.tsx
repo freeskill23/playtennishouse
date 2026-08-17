@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
-import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
+import { getCourtSlotPriceWithConfig, formatWon } from '../pricing';
 import { COURT_TIME_SLOTS } from '../types';
 import type { CourtName } from '../types';
 
@@ -24,6 +24,7 @@ export function CourtScreen() {
     requestWaiting,
     tempHolidays,
     bankAccount,
+    courtPricing,
   } = useApp();
   const { isGuest } = useAuth();
   const [date, setDate] = useState(todayYMD());
@@ -116,7 +117,7 @@ export function CourtScreen() {
   };
 
   const sortedSlots = [...selectedSlots].sort();
-  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPrice(date, slot, tempHolidays), 0);
+  const totalAmount = selectedSlots.reduce((sum, slot) => sum + getCourtSlotPriceWithConfig(courtPricing, date, slot, tempHolidays), 0);
 
   return (
     <div className="space-y-5 pb-4">
@@ -126,10 +127,16 @@ export function CourtScreen() {
         right={
           <div className="flex flex-col items-end gap-1">
             <span className="chip bg-navy-50 text-navy-700">
-              <CalendarRange size={14} /> 평일 주간 {formatWon(COURT_SLOT_PRICE)}
+              <CalendarRange size={14} /> 평일 주간 {formatWon(courtPricing.weekdayDay.pricePerHour)}
+            </span>
+            <span className="chip bg-navy-50 text-navy-700">
+              <Clock size={14} /> 평일 야간 {formatWon(courtPricing.weekdayNight.pricePerHour)}
             </span>
             <span className="chip bg-amber-50 text-amber-700">
-              <Clock size={14} /> 야간·주말·공휴일 {formatWon(COURT_SLOT_PRICE_PEAK)}
+              <CalendarRange size={14} /> 주말·공휴일 주간 {formatWon(courtPricing.weekendDay.pricePerHour)}
+            </span>
+            <span className="chip bg-amber-50 text-amber-700">
+              <Clock size={14} /> 주말·공휴일 야간 {formatWon(courtPricing.weekendNight.pricePerHour)}
             </span>
           </div>
         }
