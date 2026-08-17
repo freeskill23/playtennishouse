@@ -125,20 +125,9 @@ export function CourtScreen() {
         title="코트 예약"
         subtitle="1시간 단위 · 05:00 ~ 24:00 · 여러 시간대 선택 가능"
         right={
-          <div className="flex flex-col items-end gap-1">
-            <span className="chip bg-navy-50 text-navy-700">
-              <CalendarRange size={14} /> 평일 주간 {formatWon(courtPricing.weekdayDay.pricePerHour)}
-            </span>
-            <span className="chip bg-navy-50 text-navy-700">
-              <Clock size={14} /> 평일 야간 {formatWon(courtPricing.weekdayNight.pricePerHour)}
-            </span>
-            <span className="chip bg-amber-50 text-amber-700">
-              <CalendarRange size={14} /> 주말·공휴일 주간 {formatWon(courtPricing.weekendDay.pricePerHour)}
-            </span>
-            <span className="chip bg-amber-50 text-amber-700">
-              <Clock size={14} /> 주말·공휴일 야간 {formatWon(courtPricing.weekendNight.pricePerHour)}
-            </span>
-          </div>
+          <span className="chip bg-navy-50 text-navy-700">
+            <CalendarRange size={14} /> 기본요금 {formatWon(courtPricing.weekdayDay.pricePerHour)}/시간
+          </span>
         }
       />
 
