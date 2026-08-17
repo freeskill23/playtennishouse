@@ -17,6 +17,7 @@ import {
   LogIn,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -57,6 +58,8 @@ export function AdminMembersScreen() {
   const [badModal, setBadModal] = useState<MemberRow | null>(null);
   const [badReason, setBadReason] = useState('');
   const [badBusy, setBadBusy] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<MemberRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
@@ -166,6 +169,30 @@ export function AdminMembersScreen() {
       setError(e instanceof Error ? e.message : '오류');
     } finally {
       setBadBusy(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteModal) return;
+    setDeleteBusy(true);
+    try {
+      const res = await fetch(`${FUNCTION_URL}?action=delete_user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ANON_KEY}`,
+          apikey: ANON_KEY,
+        },
+        body: JSON.stringify({ userId: deleteModal.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || '삭제 실패');
+      setMembers((prev) => prev.filter((m) => m.id !== deleteModal.id));
+      setDeleteModal(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '오류');
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -326,6 +353,12 @@ export function AdminMembersScreen() {
                   <ShieldAlert size={14} />
                   {m.is_bad_member ? '해제' : '불량회원 지정'}
                 </button>
+                <button
+                  onClick={() => setDeleteModal(m)}
+                  className="ml-auto text-sm py-2 px-3 rounded-xl font-bold transition flex items-center gap-1.5 bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <Trash2 size={14} /> 회원 삭제
+                </button>
               </div>
             </div>
             );
@@ -457,6 +490,44 @@ export function AdminMembersScreen() {
                 현재 사유: {badModal.bad_member_reason || '사유 없음'}
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Delete member modal */}
+      <Modal
+        open={!!deleteModal}
+        onClose={() => setDeleteModal(null)}
+        title="회원 삭제"
+        size="sm"
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setDeleteModal(null)}>
+              취소
+            </button>
+            <button
+              className="btn-danger"
+              onClick={handleDeleteUser}
+              disabled={deleteBusy}
+            >
+              {deleteBusy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              영구 삭제
+            </button>
+          </>
+        }
+      >
+        {deleteModal && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3">
+              <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-rose-800">
+                <span className="font-bold">{deleteModal.name}</span>님 ({deleteModal.email})의
+                계정과 모든 예약·매칭·프로필 데이터가 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              삭제 시 해당 회원의 로그인 권한도 함께 제거되며, 기존 예약 내역도 모두 사라집니다.
+            </p>
           </div>
         )}
       </Modal>

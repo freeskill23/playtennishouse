@@ -126,6 +126,35 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // POST ?action=delete_user — permanently delete a user and their data
+    if (req.method === "POST" && action === "delete_user") {
+      const { userId } = await req.json();
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "userId required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Delete user's reservations
+      await admin.from("reservations").delete().eq("user_id", userId);
+      // Delete user's matching posts
+      await admin.from("matching_posts").delete().eq("user_id", userId);
+      // Delete profile row
+      await admin.from("profiles").delete().eq("id", userId);
+      // Delete auth user
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
