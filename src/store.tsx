@@ -42,7 +42,8 @@ import {
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
-import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
+import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
+import type { CourtPricing } from './pricing';
 
 // Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
 const PENSION_BLOCK_START_HOUR = 15;
@@ -223,6 +224,10 @@ interface AppState {
   updatePensionPrice: (weekday: number, weekend: number) => void;
   setPensionPriceForDate: (dateStr: string, price: number) => void;
   removePensionPriceOverride: (dateStr: string) => void;
+
+  // court pricing
+  courtPricing: CourtPricing;
+  updateCourtPricing: (pricing: CourtPricing) => void;
 
   // banner
   bannerImageUrl: string | null;
@@ -671,6 +676,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionWeekdayPrice, setPensionWeekdayPrice] = useState(PENSION_WEEKDAY_PRICE);
   const [pensionWeekendPrice, setPensionWeekendPrice] = useState(PENSION_WEEKEND_PRICE);
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
+  const [courtPricing, setCourtPricing] = useState<CourtPricing>(DEFAULT_COURT_PRICING);
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
   const [bannerGradientColors, setBannerGradientColors] = useState<{ from: string; via: string; to: string } | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
@@ -685,7 +691,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (async () => {
       const { data } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing')
         .eq('id', 1)
         .maybeSingle();
       if (data) {
@@ -703,6 +709,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
         if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
         if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
+        if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
       }
     })();
   }, []);
@@ -859,6 +866,26 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(`${dateStr} 개별 요금이 삭제되었습니다.`, 'info');
     },
     [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, bannerGradientColors, logoImageUrl, tempHolidays],
+  );
+
+  const updateCourtPricing = useCallback(
+    (pricing: CourtPricing) => {
+      setCourtPricing(pricing);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            court_pricing: pricing,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('코트 요금 저장 실패', 'error');
+          });
+      }
+      pushToast('코트 대관 요금이 변경되었습니다.');
+    },
+    [pushToast],
   );
 
   const updateBannerImage = useCallback(
@@ -1334,7 +1361,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         timeSlot: slot,
         status: '신청',
         waitingSequence: null,
-        amount: getCourtSlotPrice(input.date, slot, tempHolidays),
+        amount: getCourtSlotPriceWithConfig(courtPricing, input.date, slot, tempHolidays),
         createdAt: Date.now(),
         batchId,
         depositorName: input.depositorName,
@@ -1351,7 +1378,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
       return { ok: true, reservations: newReservations };
     },
-    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing],
   );
 
   // ===== Admin direct court reservation (bypass deposit/approval) =====
@@ -1667,7 +1694,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         timeSlot: slot,
         status: '신청',
         waitingSequence: null,
-        amount: getCourtSlotPrice(input.date, slot, tempHolidays),
+        amount: getCourtSlotPriceWithConfig(courtPricing, input.date, slot, tempHolidays),
         createdAt: Date.now(),
         matchingPostId,
         batchId,
@@ -1707,7 +1734,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast('매칭글이 등록되었습니다. 코트 예약 신청도 함께 접수되었습니다.');
       return { ok: true, post };
     },
-    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing],
   );
 
   const createMatchingPostFromReservation = useCallback(
@@ -2303,6 +2330,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updatePensionPrice,
     setPensionPriceForDate,
     removePensionPriceOverride,
+    courtPricing,
+    updateCourtPricing,
     bannerImageUrl,
     updateBannerImage,
     bannerGradientColors,

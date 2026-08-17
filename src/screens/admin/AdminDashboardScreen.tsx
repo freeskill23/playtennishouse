@@ -23,6 +23,7 @@ import { Calendar, todayYMD } from '../../components/Calendar';
 import { SectionTitle, StatusBadge } from '../../components/ui';
 import { COURT_TIME_SLOTS } from '../../types';
 import { formatWon } from '../../pricing';
+import type { CourtPricing, CourtPricingTier } from '../../pricing';
 import type { CourtName, RoomName } from '../../types';
 
 export function AdminDashboardScreen() {
@@ -58,11 +59,14 @@ export function AdminDashboardScreen() {
     reservations,
     getDateMemo,
     saveDateMemo,
+    courtPricing,
+    updateCourtPricing,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [adminReserveTarget, setAdminReserveTarget] = useState<{ court: CourtName; slot: string } | null>(null);
   const [adminReserveLabel, setAdminReserveLabel] = useState('');
   const [date, setDate] = useState(todayYMD());
+  const [courtPricingEdit, setCourtPricingEdit] = useState<CourtPricing>(courtPricing);
   const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
   const [bannerUrlInput, setBannerUrlInput] = useState('');
@@ -86,6 +90,11 @@ export function AdminDashboardScreen() {
   useEffect(() => {
     setRoomEdits(Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])));
   }, [rooms]);
+
+  // Sync courtPricingEdit when courtPricing loads/updates from Supabase
+  useEffect(() => {
+    setCourtPricingEdit(courtPricing);
+  }, [courtPricing]);
 
   const dayReservations = reservations.filter((r) => r.date === date);
   const dayMatchings = getMatchingsByDate(date);
@@ -275,6 +284,14 @@ export function AdminDashboardScreen() {
           )}
         </div>
       </div>
+
+      {/* Court pricing control */}
+      <CourtPricingEditor
+        edit={courtPricingEdit}
+        setEdit={setCourtPricingEdit}
+        saved={courtPricing}
+        onSave={() => updateCourtPricing(courtPricingEdit)}
+      />
 
       {/* Temporary holiday control */}
       <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
@@ -1114,6 +1131,116 @@ function DateMemoEditor({
       ) : (
         <p className="text-sm text-slate-400 py-2">입력된 메모가 없습니다.</p>
       )}
+    </div>
+  );
+}
+
+function CourtPricingEditor({
+  edit,
+  setEdit,
+  saved,
+  onSave,
+}: {
+  edit: CourtPricing;
+  setEdit: (p: CourtPricing) => void;
+  saved: CourtPricing;
+  onSave: () => void;
+}) {
+  const dirty = JSON.stringify(edit) !== JSON.stringify(saved);
+
+  const updateTier = (
+    key: keyof CourtPricing,
+    field: keyof CourtPricingTier,
+    value: number,
+  ) => {
+    setEdit({
+      ...edit,
+      [key]: { ...edit[key], [field]: value },
+    });
+  };
+
+  const tiers: {
+    key: keyof CourtPricing;
+    label: string;
+    hint: string;
+    accent: string;
+  }[] = [
+    { key: 'weekdayDay', label: '평일 주간', hint: '예: 05시~17시', accent: 'bg-sky-50 text-sky-700' },
+    { key: 'weekdayNight', label: '평일 야간', hint: '예: 17시~24시', accent: 'bg-indigo-50 text-indigo-700' },
+    { key: 'weekendDay', label: '주말·공휴일 주간', hint: '예: 05시~17시', accent: 'bg-amber-50 text-amber-700' },
+    { key: 'weekendNight', label: '주말·공휴일 야간', hint: '예: 17시~24시', accent: 'bg-rose-50 text-rose-700' },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center">
+          <CalendarRange size={16} className="text-navy-700" />
+        </div>
+        <div>
+          <h3 className="font-bold text-navy-900 text-sm">코트 대관 요금 설정</h3>
+          <p className="text-xs text-slate-400">시간대별 1시간 요금을 구간별로 설정할 수 있습니다 (17시 기준 주간/야간 구분)</p>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        {tiers.map((t) => {
+          const tier = edit[t.key];
+          return (
+            <div key={t.key} className="rounded-xl border border-slate-100 p-3 bg-slate-50/50">
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded ${t.accent}`}>{t.label}</span>
+                <span className="text-[11px] text-slate-400">{t.hint}</span>
+              </div>
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={24}
+                  value={tier.startHour}
+                  onChange={(e) => updateTier(t.key, 'startHour', Math.max(0, Math.min(24, Number(e.target.value))))}
+                  className="w-14 rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold text-navy-900 text-center focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-500">시 ~</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={tier.endHour}
+                  onChange={(e) => updateTier(t.key, 'endHour', Math.max(1, Math.min(24, Number(e.target.value))))}
+                  className="w-14 rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold text-navy-900 text-center focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-500">시</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step={1000}
+                  min={0}
+                  value={tier.pricePerHour}
+                  onChange={(e) => updateTier(t.key, 'pricePerHour', Math.max(0, Number(e.target.value)))}
+                  className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-400 shrink-0">원/시간</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-end mt-3">
+        <button
+          onClick={onSave}
+          disabled={!dirty}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+            dirty
+              ? 'bg-volt-500 text-navy-950 hover:bg-volt-400 shadow-volt'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+          }`}
+        >
+          <Save size={14} /> 코트 요금 저장
+        </button>
+      </div>
     </div>
   );
 }

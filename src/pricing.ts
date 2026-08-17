@@ -1,11 +1,54 @@
 // 펜션 요금: 평일 65만원, 주말·공휴일 85만원 (1박 기준) — 기본값, 관리자가 변경 가능
-// 코트 요금: 평일 주간 1시간 2만원, 평일 야간(17:00~24:00)·주말·공휴일 1시간 2만5천원
+// 코트 요금: 평일 주간·야간, 주말/공휴일 주간·야간 각각 관리자가 설정 가능 (시간대 + 시간당 금액)
 
 export const COURT_PRICE_PER_HOUR = 20000;
 export const COURT_PRICE_PER_HOUR_PEAK = 25000;
 export const COURT_SLOT_HOURS = 1;
 export const COURT_SLOT_PRICE = COURT_PRICE_PER_HOUR * COURT_SLOT_HOURS; // 20000
 export const COURT_SLOT_PRICE_PEAK = COURT_PRICE_PER_HOUR_PEAK * COURT_SLOT_HOURS; // 25000
+
+export interface CourtPricingTier {
+  startHour: number; // 0-23
+  endHour: number; // 1-24 (exclusive)
+  pricePerHour: number;
+}
+
+export interface CourtPricing {
+  weekdayDay: CourtPricingTier;
+  weekdayNight: CourtPricingTier;
+  weekendDay: CourtPricingTier;
+  weekendNight: CourtPricingTier;
+}
+
+export const DEFAULT_COURT_PRICING: CourtPricing = {
+  weekdayDay: { startHour: 5, endHour: 17, pricePerHour: 20000 },
+  weekdayNight: { startHour: 17, endHour: 24, pricePerHour: 25000 },
+  weekendDay: { startHour: 5, endHour: 17, pricePerHour: 25000 },
+  weekendNight: { startHour: 17, endHour: 24, pricePerHour: 25000 },
+};
+
+export function isWeekendOrHolidayDate(dateStr: string, extraHolidays?: string[]): boolean {
+  return isWeekendOrHoliday(dateStr) || (extraHolidays?.includes(dateStr) ?? false);
+}
+
+export function getCourtSlotPriceWithConfig(
+  pricing: CourtPricing,
+  dateStr: string,
+  slot: string,
+  extraHolidays?: string[],
+): number {
+  const startHour = parseInt(slot.slice(0, 2), 10);
+  const isHolidayDate = isWeekendOrHolidayDate(dateStr, extraHolidays);
+  const isNight = startHour >= 17;
+  const tier = isHolidayDate
+    ? isNight
+      ? pricing.weekendNight
+      : pricing.weekendDay
+    : isNight
+      ? pricing.weekdayNight
+      : pricing.weekdayDay;
+  return tier.pricePerHour * COURT_SLOT_HOURS;
+}
 
 // 오후 5시(17:00) 이후 슬롯을 피크 시간으로 간주
 function isPeakSlot(slot: string): boolean {
