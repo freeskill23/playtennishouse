@@ -134,15 +134,15 @@ export function Calendar({
               key={i}
               disabled={disabled}
               onClick={() => onChange(d)}
-              className={`relative aspect-square rounded-xl text-sm font-semibold transition-all flex flex-col items-center justify-center gap-0.5
+              className={`relative aspect-[2/1] rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-0.5
                 ${isSelected ? 'bg-navy-900 text-white shadow-navy' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-800 hover:bg-navy-50'}
               `}
             >
-              <span className={isToday && !isSelected ? 'flex items-center justify-center w-7 h-7 rounded-full bg-volt-100 text-volt-800' : ''}>
+              <span className={isToday && !isSelected ? 'flex items-center justify-center w-6 h-6 rounded-full bg-volt-100 text-volt-800' : ''}>
                 {Number(d.slice(-2))}
               </span>
               {dayRender && !disabled && (
-                <div className="absolute bottom-1 left-0 right-0 flex justify-center">
+                <div className="absolute bottom-0.5 left-0 right-0 flex justify-center">
                   {dayRender(d)}
                 </div>
               )}

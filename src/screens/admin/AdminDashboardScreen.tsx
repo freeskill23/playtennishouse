@@ -228,6 +228,9 @@ export function AdminDashboardScreen() {
         })}
 
         {/* Court timelines */}
+        <div className="lg:col-span-2">
+          <DateMemoEditor date={date} getDateMemo={getDateMemo} saveDateMemo={saveDateMemo} />
+        </div>
         {(['A코트', 'B코트'] as CourtName[]).map((court) => {
           const courtRes = courtReservations.filter((r) => r.targetId === court);
           return (
@@ -305,9 +308,6 @@ export function AdminDashboardScreen() {
           );
         })}
       </div>
-
-      {/* Date memo */}
-      <DateMemoEditor date={date} getDateMemo={getDateMemo} saveDateMemo={saveDateMemo} />
 
 
       {/* Pension pricing control */}
