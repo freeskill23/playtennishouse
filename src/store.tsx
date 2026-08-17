@@ -1510,11 +1510,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (id: string) => {
       const target = reservations.find((r) => r.id === id);
       if (!target) return;
-      const cancelled: Reservation = { ...target, status: '취소' as ReservationStatus, depositTimeoutUntil: null, updatedAt: Date.now() };
-      setReservations((prev) =>
-        prev.map((r) => (r.id === id ? cancelled : r)),
-      );
-      upsertReservationToSupabase(cancelled);
+      setReservations((prev) => prev.filter((r) => r.id !== id));
+      deleteReservationFromSupabase(id);
       if (target.waitingSequence === null && target.status === '예약완료') {
         setTimeout(() => promoteNextWaiting(target), 30);
       }
@@ -1526,7 +1523,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       pushToast('예약이 취소되었습니다.', 'info');
     },
-    [reservations, promoteNextWaiting, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [reservations, promoteNextWaiting, addNotification, getUser, pushToast, deleteReservationFromSupabase],
   );
 
   // ===== Approve reservation (admin) =====
@@ -1612,11 +1609,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (id: string) => {
       const target = reservations.find((r) => r.id === id);
       if (!target) return;
-      const rejected: Reservation = { ...target, status: '취소' as ReservationStatus, updatedAt: Date.now() };
-      setReservations((prev) =>
-        prev.map((r) => (r.id === id ? rejected : r)),
-      );
-      upsertReservationToSupabase(rejected);
+      setReservations((prev) => prev.filter((r) => r.id !== id));
+      deleteReservationFromSupabase(id);
       addNotification({
         kind: 'reservation_rejected',
         title: '예약 거절',
@@ -1645,7 +1639,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         });
       }
     },
-    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, supabaseConfigured],
+    [reservations, addNotification, getUser, pushToast, deleteReservationFromSupabase, supabaseConfigured],
   );
 
   // ===== Matching =====
@@ -1907,18 +1901,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         });
       }
       if (post && post.reservationIds.length > 0) {
-        setReservations((prev) =>
-          prev.map((r) => {
-            if (!post.reservationIds.includes(r.id)) return r;
-            const cancelled = { ...r, status: '취소' as ReservationStatus, updatedAt: Date.now() };
-            upsertReservationToSupabase(cancelled);
-            return cancelled;
-          }),
-        );
+        setReservations((prev) => prev.filter((r) => !post.reservationIds.includes(r.id)));
+        post.reservationIds.forEach((rid) => deleteReservationFromSupabase(rid));
       }
       pushToast('매칭글이 삭제되었습니다.', 'info');
     },
-    [matchingPosts, upsertReservationToSupabase, pushToast],
+    [matchingPosts, deleteReservationFromSupabase, pushToast],
   );
 
   // ===== Notices =====
