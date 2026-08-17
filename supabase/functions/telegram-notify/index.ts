@@ -79,9 +79,10 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!tgRes.ok) {
-      const tgErr = await tgRes.text();
+      const tgErr = await tgRes.json().catch(() => null);
+      const detail = tgErr?.description || await tgRes.text();
       return new Response(
-        JSON.stringify({ error: "Telegram 전송 실패", detail: tgErr }),
+        JSON.stringify({ error: detail || "Telegram 전송 실패" }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
