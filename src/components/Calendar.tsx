@@ -38,6 +38,7 @@ export function Calendar({
   dayRender,
   selected,
   onMonthChange,
+  compact,
 }: {
   value: string;
   onChange: (ymd: string) => void;
