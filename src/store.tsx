@@ -168,6 +168,7 @@ interface AppState {
     maxPlayers: number;
     gameType: GameType;
     description: string;
+    depositorName?: string;
   }) => { ok: boolean; reason?: string; post?: MatchingPost };
   createMatchingPostFromReservation: (input: {
     reservationIds: string[];
@@ -1592,9 +1593,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       maxPlayers: number;
       gameType: GameType;
       description: string;
+      depositorName?: string;
     }) => {
       if (input.timeSlots.length === 0) {
         return { ok: false, reason: '시간대를 선택해주세요.' };
+      }
+      if (!input.depositorName?.trim()) {
+        return { ok: false, reason: '입금자명을 입력해주세요.' };
       }
       if (input.maxPlayers < 2 || input.maxPlayers > MATCHING_MAX_PLAYERS) {
         return { ok: false, reason: `모집 인원은 2~${MATCHING_MAX_PLAYERS}명이어야 합니다.` };
@@ -1627,6 +1632,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
         matchingPostId,
         batchId,
+        depositorName: input.depositorName,
       }));
       setReservations((prev) => [...prev, ...newReservations]);
       newReservations.forEach((r) => upsertReservationToSupabase(r));

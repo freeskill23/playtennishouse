@@ -662,6 +662,7 @@ function CreateMatchingModal({
     maxPlayers: number;
     gameType: GameType;
     description: string;
+    depositorName?: string;
   }) => { ok: boolean; reason?: string; post?: MatchingPost };
   getCourtSlotStatus: (date: string, court: CourtName, slot: string) => string;
   isCourtBlockedByPension: (date: string, court: CourtName) => boolean;
@@ -678,6 +679,7 @@ function CreateMatchingModal({
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [gameType, setGameType] = useState<GameType>('doubles');
   const [description, setDescription] = useState('');
+  const [depositorName, setDepositorName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successModal, setSuccessModal] = useState(false);
 
@@ -732,6 +734,7 @@ function CreateMatchingModal({
       maxPlayers,
       gameType,
       description: description.slice(0, 500),
+      depositorName: depositorName.trim(),
     });
     if (res.ok) {
       setSuccessModal(true);
@@ -743,6 +746,7 @@ function CreateMatchingModal({
   const resetAndClose = () => {
     setSelectedSlots([]);
     setDescription('');
+    setDepositorName('');
     setError(null);
     setSuccessModal(false);
     onClose();
@@ -759,7 +763,7 @@ function CreateMatchingModal({
           <button
             className="btn-primary"
             onClick={handleSubmit}
-            disabled={selectedSlots.length === 0 || !description.trim()}
+            disabled={selectedSlots.length === 0 || !description.trim() || !depositorName.trim()}
           >
             <Wallet size={16} /> 매칭글 등록 + 입금 신청
           </button>
@@ -895,6 +899,19 @@ function CreateMatchingModal({
               className="input resize-none"
             />
             <p className="text-xs text-slate-400 mt-1 text-right">{description.length}/500</p>
+          </div>
+
+          {/* Depositor name */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1.5">입금자명</p>
+            <input
+              type="text"
+              value={depositorName}
+              onChange={(e) => setDepositorName(e.target.value.slice(0, 20))}
+              placeholder="입금자명을 입력해주세요"
+              className="input py-2.5"
+              maxLength={20}
+            />
           </div>
 
           {/* Summary */}

@@ -37,17 +37,13 @@ export function PensionScreen() {
 
   const handleReserve = () => {
     if (!selectedRoom) return;
-    if (isGuest && !depositorName.trim()) {
-      pushToast('예약자(입금자명)를 입력해주세요.');
-      return;
-    }
-    if (isGuest && !depositorPhone.trim()) {
-      pushToast('연락처를 입력해주세요.');
+    if (!depositorName.trim()) {
+      pushToast('입금자명을 입력해주세요.');
       return;
     }
     const room = rooms.find((r) => r.name === selectedRoom);
     if (!room) return;
-    const res = createPensionReservation({ roomId: room.id, date, capacity, depositorName: depositorName.trim() || undefined, depositorPhone: depositorPhone.trim() || undefined });
+    const res = createPensionReservation({ roomId: room.id, date, capacity, depositorName: depositorName.trim(), depositorPhone: (isGuest ? depositorPhone.trim() : undefined) || undefined });
     if (!res.ok) {
       return;
     }
@@ -209,16 +205,16 @@ export function PensionScreen() {
             </div>
           ) : (
             <div className="space-y-3">
-              {isGuest && (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={depositorName}
-                    onChange={(e) => setDepositorName(e.target.value)}
-                    placeholder="예약자(입금자명)"
-                    className="input py-2.5"
-                    maxLength={20}
-                  />
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={depositorName}
+                  onChange={(e) => setDepositorName(e.target.value)}
+                  placeholder="입금자명"
+                  className="input py-2.5"
+                  maxLength={20}
+                />
+                {isGuest && (
                   <input
                     type="tel"
                     value={depositorPhone}
@@ -227,9 +223,9 @@ export function PensionScreen() {
                     className="input py-2.5"
                     maxLength={20}
                   />
-                </div>
-              )}
-              <button onClick={handleReserve} className="btn-primary w-full py-3 text-base">
+                )}
+              </div>
+              <button onClick={handleReserve} disabled={!depositorName.trim()} className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed">
                 <Wallet size={18} /> 입금 신청하기
               </button>
             </div>
