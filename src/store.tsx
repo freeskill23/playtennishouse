@@ -697,7 +697,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   useEffect(() => {
     if (!supabaseConfigured) return;
     const loadRooms = async () => {
-      const { data } = await supabase.from('rooms').select('*');
+      const { data } = await supabase.from('rooms').select('*').order('name', { ascending: true });
       if (!data || data.length === 0) return;
       setRooms(
         data.map((r) => ({
