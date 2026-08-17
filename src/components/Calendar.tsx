@@ -136,7 +136,7 @@ export function Calendar({
               key={i}
               disabled={disabled}
               onClick={() => onChange(d)}
-              className={`relative ${compact ? 'aspect-[2/1] items-center' : 'aspect-square flex-col items-center justify-center gap-0.5'} rounded-xl text-sm font-semibold transition-all flex
+              className={`relative ${compact ? 'aspect-[2/1] items-center justify-center' : 'aspect-square flex-col items-center justify-center gap-0.5'} rounded-xl text-sm font-semibold transition-all flex
                 ${isSelected ? 'bg-navy-900 text-white shadow-navy' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-800 hover:bg-navy-50'}
               `}
             >

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BedDouble, Users, Wallet, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+// Clock still used for waiting count indicator on room cards
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addMonthsYMD } from '../components/Calendar';
@@ -13,7 +14,6 @@ export function PensionScreen() {
     rooms,
     getPensionStatusForDate,
     createPensionReservation,
-    requestWaiting,
     isPensionBlockedByCourt,
     currentUser,
     getPensionPrice,
@@ -26,7 +26,6 @@ export function PensionScreen() {
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
   const [capacity, setCapacity] = useState(4);
   const [modalOpen, setModalOpen] = useState(false);
-  const [waitingTarget, setWaitingTarget] = useState<string | null>(null);
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
 
@@ -50,12 +49,6 @@ export function PensionScreen() {
     setModalOpen(true);
     setDepositorName('');
     setDepositorPhone('');
-  };
-
-  const handleWaiting = () => {
-    if (!waitingTarget) return;
-    requestWaiting(waitingTarget);
-    setWaitingTarget(null);
   };
 
   return (
@@ -182,26 +175,13 @@ export function PensionScreen() {
           </div>
 
           {roomStatus?.status === 'booked' || roomStatus?.status === 'pending' ? (
-            <div className="space-y-3">
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 flex items-start gap-2">
-                <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-sm text-amber-800">
-                  {roomStatus.status === 'booked'
-                    ? '이미 예약완료된 객실입니다. 대기 신청을 통해 취소 시 우선권을 받을 수 있습니다.'
-                    : '신청 중인 객실입니다. 대기 신청을 통해 대기자 명단에 등록됩니다.'}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  if (roomStatus?.reservation) {
-                    setWaitingTarget(roomStatus.reservation.id);
-                    handleWaiting();
-                  }
-                }}
-                className="btn-navy w-full"
-              >
-                <Clock size={18} /> 예약 대기 신청하기
-              </button>
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 flex items-start gap-2">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                {roomStatus.status === 'booked'
+                  ? '이미 예약완료된 객실입니다. 다른 날짜나 다른 객실을 선택해주세요.'
+                  : '신청 중인 객실입니다. 다른 날짜나 다른 객실을 선택해주세요.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
