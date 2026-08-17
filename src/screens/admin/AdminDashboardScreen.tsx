@@ -752,12 +752,12 @@ export function AdminDashboardScreen() {
                         <div key={r.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
                           <img src={u?.profileImg} className="w-7 h-7 rounded-lg object-cover" alt="" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-navy-900 truncate">{u?.name} · {r.capacity}명</p>
+                            <p className="text-sm font-semibold text-navy-900 truncate">{u?.nickname || u?.name}{r.depositorName ? `(${r.depositorName})` : ''} · {r.capacity}명</p>
                           </div>
                           <StatusBadge status={r.status} />
                           {r.status === '예약완료' && r.waitingSequence === null && (
                             <button
-                              onClick={() => setCancelTarget({ id: r.id, label: `${u?.name ?? ''} ${room.name} 펜션` })}
+                              onClick={() => setCancelTarget({ id: r.id, label: `${(u?.nickname || u?.name) ?? ''}${r.depositorName ? `(${r.depositorName})` : ''} ${room.name} 펜션` })}
                               className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition"
                               aria-label="관리자 취소"
                             >
@@ -803,7 +803,7 @@ export function AdminDashboardScreen() {
                     || courtRes.find((r) => r.timeSlot === slot && r.waitingSequence === null && r.status === '취소')
                     || null;
                   const u = res ? getUser(res.userId) : null;
-                  const resName = res?.depositorName || u?.name || '비회원';
+                  const resName = res ? `${u?.nickname || u?.name || '비회원'}${res.depositorName ? `(${res.depositorName})` : ''}` : '비회원';
                   const isCancelled = res?.status === '취소';
                   return (
                     <div
@@ -877,7 +877,7 @@ export function AdminDashboardScreen() {
                   <img src={u?.profileImg} className="w-7 h-7 rounded-lg object-cover" alt="" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-navy-900 truncate">
-                      {u?.name} · {m.court} {m.time}
+                      {u?.nickname || u?.name} · {m.court} {m.time}
                     </p>
                     <p className="text-xs text-slate-500">{m.applications.length}명 신청</p>
                   </div>
