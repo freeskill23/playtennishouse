@@ -46,6 +46,7 @@ export function Calendar({
   dayRender?: (ymd: string) => React.ReactNode;
   selected?: string;
   onMonthChange?: (ymd: string) => void;
+  compact?: boolean;
 }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date(value || todayYMD());
@@ -134,15 +135,15 @@ export function Calendar({
               key={i}
               disabled={disabled}
               onClick={() => onChange(d)}
-              className={`relative aspect-[2/1] rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-0.5
+              className={`relative ${compact ? 'aspect-[2/1] items-center' : 'aspect-square flex-col items-center justify-center gap-0.5'} rounded-xl text-sm font-semibold transition-all flex
                 ${isSelected ? 'bg-navy-900 text-white shadow-navy' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-800 hover:bg-navy-50'}
               `}
             >
-              <span className={isToday && !isSelected ? 'flex items-center justify-center w-6 h-6 rounded-full bg-volt-100 text-volt-800' : ''}>
+              <span className={isToday && !isSelected ? `flex items-center justify-center ${compact ? 'w-6 h-6' : 'w-7 h-7'} rounded-full bg-volt-100 text-volt-800` : ''}>
                 {Number(d.slice(-2))}
               </span>
               {dayRender && !disabled && (
-                <div className="absolute bottom-0.5 left-0 right-0 flex justify-center">
+                <div className={`absolute ${compact ? 'bottom-0.5' : 'bottom-1'} left-0 right-0 flex justify-center`}>
                   {dayRender(d)}
                 </div>
               )}

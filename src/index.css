@@ -77,3 +77,13 @@ body {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
   }
 }
+
+@keyframes placeholderBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.input-blink::placeholder {
+  animation: placeholderBlink 1.1s ease-in-out infinite;
+  color: #f59e0b;
+}

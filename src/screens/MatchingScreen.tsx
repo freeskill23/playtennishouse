@@ -912,7 +912,7 @@ function CreateMatchingModal({
               className={`input py-2.5 transition-all ${
                 depositorName.trim()
                   ? 'border-2 border-volt-500 ring-2 ring-volt-200 font-bold'
-                  : ''
+                  : 'input-blink'
               }`}
               maxLength={20}
             />

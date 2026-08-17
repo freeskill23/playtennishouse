@@ -134,6 +134,7 @@ export function AdminDashboardScreen() {
         value={date}
         onChange={setDate}
         minDate={todayYMD()}
+        compact
         dayRender={(d) => {
           const res = getReservationsByDate(d);
           if (res.length === 0) return null;
