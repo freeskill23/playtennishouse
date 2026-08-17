@@ -727,7 +727,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (async () => {
       const { data } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id')
         .eq('id', 1)
         .maybeSingle();
       if (data) {
