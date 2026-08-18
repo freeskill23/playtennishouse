@@ -24,6 +24,13 @@ export const addMonthsYMD = (n: number) => {
   return toYMD(d);
 };
 
+// 현재 월 기준 N개월 후의 마지막 날 (예: 오늘이 8월이면 N=2 → 10월 31일)
+export const endOfMonthPlusN = (n: number) => {
+  const d = new Date();
+  const target = new Date(d.getFullYear(), d.getMonth() + n + 1, 0);
+  return toYMD(target);
+};
+
 export const addDaysToYMD = (ymd: string, n: number) => {
   const d = new Date(ymd + 'T00:00:00');
   d.setDate(d.getDate() + n);

@@ -722,39 +722,57 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [focusMatchingPostId, setFocusMatchingPostId] = useState<string | null>(null);
 
   // Load all settings (pension prices, overrides, banner, logo) from Supabase
+  const loadSettings = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data } = await supabase
+      .from('settings')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id')
+      .eq('id', 1)
+      .maybeSingle();
+    if (data) {
+      setBannerImageUrl(data.banner_image_url);
+      if (data.banner_gradient_colors) setBannerGradientColors(data.banner_gradient_colors as { from: string; via: string; to: string });
+      setLogoImageUrl(data.logo_image_url);
+      if (data.bank_name || data.bank_account_number || data.bank_account_holder) {
+        setBankAccount({
+          bank: data.bank_name || BANK_ACCOUNT.bank,
+          number: data.bank_account_number || BANK_ACCOUNT.number,
+          holder: data.bank_account_holder || BANK_ACCOUNT.holder,
+        });
+      }
+      if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
+      if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
+      if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
+      if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
+      if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
+      setTelegramConfig({
+        botToken: (data.telegram_bot_token as string) || '',
+        chatId: (data.telegram_chat_id as string) || '',
+      });
+    }
+  }, [supabaseConfigured]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // Realtime sync: when settings row changes on another device, reload
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase
-        .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id')
-        .eq('id', 1)
-        .maybeSingle();
-      if (data) {
-        setBannerImageUrl(data.banner_image_url);
-        if (data.banner_gradient_colors) setBannerGradientColors(data.banner_gradient_colors as { from: string; via: string; to: string });
-        setLogoImageUrl(data.logo_image_url);
-        if (data.bank_name || data.bank_account_number || data.bank_account_holder) {
-          setBankAccount({
-            bank: data.bank_name || BANK_ACCOUNT.bank,
-            number: data.bank_account_number || BANK_ACCOUNT.number,
-            holder: data.bank_account_holder || BANK_ACCOUNT.holder,
-          });
-        }
-        if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
-        if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
-        if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
-        if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
-        if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
-        if (data.telegram_bot_token || data.telegram_chat_id) {
-          setTelegramConfig({
-            botToken: (data.telegram_bot_token as string) || '',
-            chatId: (data.telegram_chat_id as string) || '',
-          });
-        }
-      }
-    })();
-  }, []);
+    const channel = supabase
+      .channel('settings_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'settings' },
+        () => loadSettings(),
+      )
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED') console.warn('[settings_realtime]', status);
+      });
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabaseConfigured, loadSettings]);
 
   // Load rooms from Supabase so admin edits are shared across sessions
   useEffect(() => {
@@ -834,13 +852,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           .from('settings')
           .upsert({
             id: 1,
-            banner_image_url: bannerImageUrl,
-            banner_gradient_colors: bannerGradientColors,
-            logo_image_url: logoImageUrl,
             pension_weekday_price: weekday,
             pension_weekend_price: weekend,
-            pension_price_overrides: pensionPriceOverrides,
-            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -849,7 +862,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast('펜션 기본 요금이 변경되었습니다.');
     },
-    [pushToast, pensionPriceOverrides, bannerImageUrl, bannerGradientColors, logoImageUrl, tempHolidays],
+    [pushToast],
   );
 
   const setPensionPriceForDate = useCallback(
@@ -861,11 +874,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             .from('settings')
             .upsert({
               id: 1,
-              banner_image_url: bannerImageUrl,
-              banner_gradient_colors: bannerGradientColors,
-              logo_image_url: logoImageUrl,
-              pension_weekday_price: pensionWeekdayPrice,
-              pension_weekend_price: pensionWeekendPrice,
               pension_price_overrides: next,
               updated_at: new Date().toISOString(),
             })
@@ -877,7 +885,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       pushToast(`${dateStr} 요금이 설정되었습니다.`);
     },
-    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, bannerGradientColors, logoImageUrl],
+    [pushToast],
   );
 
   const removePensionPriceOverride = useCallback(
@@ -890,13 +898,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             .from('settings')
             .upsert({
               id: 1,
-              banner_image_url: bannerImageUrl,
-              banner_gradient_colors: bannerGradientColors,
-              logo_image_url: logoImageUrl,
-              pension_weekday_price: pensionWeekdayPrice,
-              pension_weekend_price: pensionWeekendPrice,
               pension_price_overrides: next,
-              temp_holidays: tempHolidays,
               updated_at: new Date().toISOString(),
             })
             .then(({ error }) => {
@@ -907,7 +909,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       pushToast(`${dateStr} 개별 요금이 삭제되었습니다.`, 'info');
     },
-    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, bannerGradientColors, logoImageUrl, tempHolidays],
+    [pushToast],
   );
 
   const updateCourtPricing = useCallback(
@@ -939,12 +941,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           .upsert({
             id: 1,
             banner_image_url: url,
-            banner_gradient_colors: bannerGradientColors,
-            logo_image_url: logoImageUrl,
-            pension_weekday_price: pensionWeekdayPrice,
-            pension_weekend_price: pensionWeekendPrice,
-            pension_price_overrides: pensionPriceOverrides,
-            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -953,7 +949,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast(url ? '배너 이미지가 변경되었습니다.' : '배너 이미지가 초기화되었습니다.');
     },
-    [pushToast, bannerGradientColors, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
+    [pushToast],
   );
 
   const updateBannerGradientColors = useCallback(
@@ -964,13 +960,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           .from('settings')
           .upsert({
             id: 1,
-            banner_image_url: bannerImageUrl,
             banner_gradient_colors: colors,
-            logo_image_url: logoImageUrl,
-            pension_weekday_price: pensionWeekdayPrice,
-            pension_weekend_price: pensionWeekendPrice,
-            pension_price_overrides: pensionPriceOverrides,
-            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -979,7 +969,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast(colors ? '배너 그라데이션이 변경되었습니다.' : '배너 그라데이션이 초기화되었습니다.');
     },
-    [pushToast, bannerImageUrl, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
+    [pushToast],
   );
 
   const updateLogoImage = useCallback(
@@ -990,13 +980,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           .from('settings')
           .upsert({
             id: 1,
-            banner_image_url: bannerImageUrl,
-            banner_gradient_colors: bannerGradientColors,
             logo_image_url: url,
-            pension_weekday_price: pensionWeekdayPrice,
-            pension_weekend_price: pensionWeekendPrice,
-            pension_price_overrides: pensionPriceOverrides,
-            temp_holidays: tempHolidays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -1005,7 +989,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast(url ? '로고 이미지가 변경되었습니다.' : '로고 이미지가 초기화되었습니다.');
     },
-    [pushToast, bannerImageUrl, bannerGradientColors, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
+    [pushToast],
   );
 
   const updateBankAccount = useCallback(
@@ -1016,13 +1000,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           .from('settings')
           .upsert({
             id: 1,
-            banner_image_url: bannerImageUrl,
-            banner_gradient_colors: bannerGradientColors,
-            logo_image_url: logoImageUrl,
-            pension_weekday_price: pensionWeekdayPrice,
-            pension_weekend_price: pensionWeekendPrice,
-            pension_price_overrides: pensionPriceOverrides,
-            temp_holidays: tempHolidays,
             bank_name: acct.bank,
             bank_account_number: acct.number,
             bank_account_holder: acct.holder,
@@ -1034,7 +1011,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       pushToast('입금 계좌가 변경되었습니다.');
     },
-    [pushToast, bannerImageUrl, bannerGradientColors, logoImageUrl, pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],
+    [pushToast],
   );
 
   const updateTelegramConfig = useCallback(
@@ -1096,12 +1073,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             .from('settings')
             .upsert({
               id: 1,
-              banner_image_url: bannerImageUrl,
-              banner_gradient_colors: bannerGradientColors,
-              logo_image_url: logoImageUrl,
-              pension_weekday_price: pensionWeekdayPrice,
-              pension_weekend_price: pensionWeekendPrice,
-              pension_price_overrides: pensionPriceOverrides,
               temp_holidays: next,
               updated_at: new Date().toISOString(),
             })
@@ -1112,7 +1083,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return next;
       });
     },
-    [pushToast, pensionWeekdayPrice, pensionWeekendPrice, bannerImageUrl, bannerGradientColors, logoImageUrl, pensionPriceOverrides],
+    [pushToast],
   );
 
   const isHoliday = useCallback(

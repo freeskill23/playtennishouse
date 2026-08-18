@@ -3,7 +3,7 @@ import { BedDouble, Users, Wallet, Clock, AlertTriangle, CheckCircle2 } from 'lu
 // Clock still used for waiting count indicator on room cards
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
-import { Calendar, todayYMD, addMonthsYMD } from '../components/Calendar';
+import { Calendar, todayYMD, endOfMonthPlusN } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
 import { formatWon } from '../pricing';
@@ -85,7 +85,7 @@ export function PensionScreen() {
         value={date}
         onChange={setDate}
         minDate={todayYMD()}
-        maxDate={addMonthsYMD(5)}
+        maxDate={endOfMonthPlusN(2)}
         dayRender={(d) => {
           const a = getPensionStatusForDate(d, 'A동');
           const b = getPensionStatusForDate(d, 'B동');
