@@ -42,7 +42,7 @@ import {
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
-import { isWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
+import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
 import type { CourtPricing } from './pricing';
 
 // Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
@@ -819,7 +819,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const getPensionPrice = useCallback(
     (dateStr: string) => {
       if (pensionPriceOverrides[dateStr] != null) return pensionPriceOverrides[dateStr];
-      const isHolidayDate = isWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr);
+      const isHolidayDate = isPensionWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr);
       return isHolidayDate ? pensionWeekendPrice : pensionWeekdayPrice;
     },
     [pensionWeekdayPrice, pensionWeekendPrice, pensionPriceOverrides, tempHolidays],

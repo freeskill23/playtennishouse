@@ -94,6 +94,18 @@ export function isWeekendOrHoliday(dateStr: string): boolean {
   return false;
 }
 
+// 펜션 주말 요금 기준: 금요일·토요일 체크인만 주말 요금.
+// 일요일은 평일 요금 적용 (일요일→월요일 1박이 평일이 되도록).
+// 공휴일은 요일과 무관하게 주말 요금 적용.
+export function isPensionWeekendOrHoliday(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay(); // 0=일, 5=금, 6=토
+  const md = dateStr.slice(5);
+  if (FIXED_HOLIDAYS.has(md)) return true;
+  if (LUNAR_HOLIDAYS_2026.has(dateStr)) return true;
+  return day === 5 || day === 6;
+}
+
 // 기본 요금 기준 (mockData 초기값용)
 export function getPensionPrice(dateStr: string): number {
   return isWeekendOrHoliday(dateStr) ? PENSION_WEEKEND_PRICE : PENSION_WEEKDAY_PRICE;
