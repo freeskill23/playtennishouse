@@ -23,7 +23,7 @@ import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
 import { SectionTitle, StatusBadge } from '../../components/ui';
 import { COURT_TIME_SLOTS } from '../../types';
-import { formatWon } from '../../pricing';
+import { formatWon, getBuiltInHolidays } from '../../pricing';
 import type { CourtPricing, CourtPricingTier } from '../../pricing';
 import type { CourtName, RoomName } from '../../types';
 
@@ -130,6 +130,9 @@ export function AdminDashboardScreen() {
   const sortedOverrides = Object.entries(pensionPriceOverrides).sort(([a], [b]) => a.localeCompare(b));
   const selectedIsTempHoliday = tempHolidays.includes(date);
   const sortedTempHolidays = [...tempHolidays].sort();
+  const builtInHolidays = getBuiltInHolidays();
+  const todayStr = todayYMD();
+  const upcomingBuiltInHolidays = builtInHolidays.filter((d) => d >= todayStr);
 
   return (
     <div className="space-y-5 pb-4">
@@ -552,6 +555,28 @@ export function AdminDashboardScreen() {
                   >
                     ×
                   </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {upcomingBuiltInHolidays.length > 0 && (
+          <div className="rounded-xl bg-sky-50 border border-sky-100 p-3 mt-2">
+            <p className="text-xs font-bold text-sky-700 mb-1.5">고정 공휴일 (자동 주말 요금 적용)</p>
+            <p className="text-[11px] text-sky-500 mb-2">임시 지정 없이도 주말·공휴일 요금이 자동 적용되는 날짜입니다</p>
+            <div className="flex flex-wrap gap-2">
+              {upcomingBuiltInHolidays.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDate(d)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                    date === d
+                      ? 'bg-sky-600 text-white'
+                      : 'bg-white text-sky-700 border border-sky-200 hover:border-sky-400'
+                  }`}
+                >
+                  {d}
                 </button>
               ))}
             </div>

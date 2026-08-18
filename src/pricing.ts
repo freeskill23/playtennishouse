@@ -66,7 +66,7 @@ export const PENSION_WEEKDAY_PRICE = 650000;
 export const PENSION_WEEKEND_PRICE = 850000;
 
 // 고정 공휴일 (MM-DD)
-const FIXED_HOLIDAYS = new Set([
+export const FIXED_HOLIDAYS = new Set([
   '01-01', // 새해
   '03-01', // 삼일절
   '05-05', // 어린이날
@@ -78,11 +78,24 @@ const FIXED_HOLIDAYS = new Set([
 ]);
 
 // 2026년 음력 공휴일 (YYYY-MM-DD)
-const LUNAR_HOLIDAYS_2026 = new Set([
+export const LUNAR_HOLIDAYS_2026 = new Set([
   '2026-02-16', '2026-02-17', '2026-02-18', // 설날 연휴
   '2026-05-27', // 부처님 오신 날
   '2026-09-23', '2026-09-24', '2026-09-25', // 추석 연휴
 ]);
+
+// 지정된 고정/음력 공휴일 목록 반환 (관리자 페이지 표시용)
+export function getBuiltInHolidays(): string[] {
+  const year = new Date().getFullYear();
+  const result: string[] = [];
+  for (const md of FIXED_HOLIDAYS) {
+    result.push(`${year}-${md}`);
+  }
+  for (const ymd of LUNAR_HOLIDAYS_2026) {
+    result.push(ymd);
+  }
+  return result.sort();
+}
 
 export function isWeekendOrHoliday(dateStr: string): boolean {
   const d = new Date(dateStr + 'T00:00:00');
