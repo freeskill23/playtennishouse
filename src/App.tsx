@@ -8,7 +8,7 @@ import {
   Ticket,
   LayoutDashboard,
   CheckSquare,
-  Bell,
+  StickyNote,
   Menu,
   X,
   Lock,
@@ -34,7 +34,7 @@ import { GalleryScreen } from './screens/GalleryScreen';
 import { AdminDashboardScreen } from './screens/admin/AdminDashboardScreen';
 import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
 import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
-import { AdminNotificationScreen } from './screens/admin/AdminNotificationScreen';
+import { AdminMemoScreen } from './screens/admin/AdminMemoScreen';
 import { AdminMembersScreen } from './screens/admin/AdminMembersScreen';
 import { AdminMatchingScreen } from './screens/admin/AdminMatchingScreen';
 import { AdminGalleryScreen } from './screens/admin/AdminGalleryScreen';
@@ -57,7 +57,7 @@ const ADMIN_AUTH_USER: AuthUser = {
 };
 
 type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'notification';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'memo';
 
 const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
@@ -76,7 +76,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'matching', label: '매칭관리', icon: Users },
   { key: 'notice', label: '공지관리', icon: Megaphone },
   { key: 'gallery', label: '갤러리관리', icon: Images },
-  { key: 'notification', label: '알림로그', icon: Bell },
+  { key: 'memo', label: '관리자메모', icon: StickyNote },
 ];
 
 const ADMIN_PASSWORD = 'admin123';
@@ -333,7 +333,7 @@ function UserShell() {
 }
 
 function AdminShell() {
-  const { notifications, logoImageUrl } = useApp();
+  const { logoImageUrl } = useApp();
   const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === '1');
   const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard', 'admin_tab');
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -344,8 +344,6 @@ function AdminShell() {
   }, authed);
 
   if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const go = (k: string) => {
     goRaw(k as AdminTab);
@@ -381,11 +379,6 @@ function AdminShell() {
                 >
                   <Icon size={16} />
                   {n.label}
-                  {n.key === 'notification' && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
-                      {unreadCount}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -437,7 +430,7 @@ function AdminShell() {
         {tab === 'matching' && <AdminMatchingScreen />}
         {tab === 'notice' && <AdminNoticeScreen />}
         {tab === 'gallery' && <AdminGalleryScreen />}
-        {tab === 'notification' && <AdminNotificationScreen />}
+        {tab === 'memo' && <AdminMemoScreen />}
       </main>
 
       <ToastStack />
