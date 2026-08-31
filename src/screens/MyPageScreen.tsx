@@ -309,7 +309,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                                   </div>
                                 </div>
                               )}
-                              {!allCancelled && !ended && activeItems.some((r) => r.status === '신청' || r.status === '입금대기' || r.status === '승인대기' || r.status === '예약완료') && (
+                              {!allCancelled && !ended && activeItems.some((r) => r.status === '신청' || r.status === '입금대기' || r.status === '승인대기') && (
                                 <div className="mt-3">
                                   <button
                                     onClick={() => setCancelTarget(activeItems.map((r) => r.id))}
