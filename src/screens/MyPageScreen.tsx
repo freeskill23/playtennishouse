@@ -16,6 +16,7 @@ import {
   Loader2,
   Wallet,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -65,11 +66,14 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     getUser,
     updateCurrentUser,
     bankAccount,
+    cancelReservation,
   } = useApp();
   const { signOut, updateProfile, changePassword, uploadProfileImage } = useAuth();
   const [matchingTarget, setMatchingTarget] = useState<string[] | null>(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [pwChangeOpen, setPwChangeOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<string[] | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const myReservations = reservations.filter((r) => r.userId === currentUser.id);
   const myMatchings = matchingPosts
@@ -305,6 +309,16 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                                   </div>
                                 </div>
                               )}
+                              {!allCancelled && !ended && activeItems.some((r) => r.status === '신청' || r.status === '입금대기' || r.status === '승인대기' || r.status === '예약완료') && (
+                                <div className="mt-3">
+                                  <button
+                                    onClick={() => setCancelTarget(activeItems.map((r) => r.id))}
+                                    className="flex items-center justify-center gap-1.5 w-full rounded-xl py-2 text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition"
+                                  >
+                                    <Trash2 size={15} /> 예약 취소
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -524,6 +538,49 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
         onClose={() => setPwChangeOpen(false)}
         changePassword={changePassword}
       />
+
+      {/* Cancel reservation confirmation modal */}
+      <Modal
+        open={!!cancelTarget}
+        onClose={() => !cancelLoading && setCancelTarget(null)}
+        title="예약 취소"
+        size="sm"
+        footer={
+          <>
+            <button
+              className="btn-ghost"
+              onClick={() => setCancelTarget(null)}
+              disabled={cancelLoading}
+            >
+              아니오
+            </button>
+            <button
+              className="btn-primary bg-rose-500 hover:bg-rose-600"
+              onClick={async () => {
+                if (!cancelTarget) return;
+                setCancelLoading(true);
+                for (const id of cancelTarget) {
+                  cancelReservation(id);
+                }
+                setCancelLoading(false);
+                setCancelTarget(null);
+              }}
+              disabled={cancelLoading}
+            >
+              {cancelLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+              {cancelLoading ? '취소 중...' : '네, 취소합니다'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center">
+            <AlertTriangle size={24} className="text-rose-500" />
+          </div>
+          <p className="text-sm font-bold text-navy-900">취소된 예약건은 바로 삭제됩니다.</p>
+          <p className="text-xs text-slate-500">정말 예약을 취소하시겠습니까?</p>
+        </div>
+      </Modal>
     </div>
   );
 }
