@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Search, Trash2, Pencil, X, Calendar, StickyNote, Check, Loader2 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -34,6 +34,7 @@ export function AdminMemoScreen() {
   const [formContent, setFormContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const editFormRef = useRef<HTMLDivElement | null>(null);
 
   const loadMemos = useCallback(async () => {
     if (!supabaseConfigured) {
@@ -81,6 +82,9 @@ export function AdminMemoScreen() {
     setFormTitle(memo.title);
     setFormContent(memo.content);
     setShowForm(true);
+    setTimeout(() => {
+      editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
 
   const handleSave = async () => {
@@ -188,12 +192,12 @@ export function AdminMemoScreen() {
         )}
       </div>
 
-      {/* Write/Edit form */}
-      {showForm && (
+      {/* Write form (new memo only — edit form renders inline above the memo) */}
+      {showForm && !editingId && (
         <div className="card p-5 space-y-4 animate-slide-up">
           <div className="flex items-center gap-2 text-navy-900 font-bold text-sm">
             <StickyNote size={18} className="text-volt-500" />
-            {editingId ? '메모 수정' : '새 메모 작성'}
+            새 메모 작성
           </div>
           <div>
             <label className="label">날짜</label>
@@ -243,7 +247,7 @@ export function AdminMemoScreen() {
                 </>
               ) : (
                 <>
-                  <Check size={18} /> {editingId ? '수정 완료' : '저장'}
+                  <Check size={18} /> 저장
                 </>
               )}
             </button>
@@ -306,10 +310,77 @@ export function AdminMemoScreen() {
               </div>
               <div className="space-y-2">
                 {grouped[date].map((memo) => (
-                  <div
-                    key={memo.id}
-                    className="card p-4 group hover:border-navy-200 transition"
-                  >
+                  <div key={memo.id}>
+                    {editingId === memo.id && showForm && (
+                      <div ref={editFormRef} className="card p-5 space-y-4 animate-slide-up mb-2 border-volt-300">
+                        <div className="flex items-center gap-2 text-navy-900 font-bold text-sm">
+                          <StickyNote size={18} className="text-volt-500" />
+                          메모 수정
+                        </div>
+                        <div>
+                          <label className="label">날짜</label>
+                          <div className="relative">
+                            <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input
+                              type="date"
+                              value={formDate}
+                              onChange={(e) => setFormDate(e.target.value)}
+                              className="input pl-10"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="label">제목</label>
+                          <input
+                            value={formTitle}
+                            onChange={(e) => setFormTitle(e.target.value)}
+                            placeholder="메모 제목을 입력하세요"
+                            maxLength={100}
+                            className="input"
+                          />
+                        </div>
+                        <div>
+                          <label className="label">내용</label>
+                          <textarea
+                            value={formContent}
+                            onChange={(e) => setFormContent(e.target.value)}
+                            placeholder="메모 내용을 입력하세요"
+                            rows={5}
+                            maxLength={2000}
+                            className="input resize-none"
+                          />
+                          <p className="text-[11px] text-slate-400 mt-1 text-right">
+                            {formContent.length} / 2000
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleSave}
+                            disabled={saving || !formTitle.trim()}
+                            className="btn-primary flex-1 disabled:opacity-50"
+                          >
+                            {saving ? (
+                              <>
+                                <Loader2 size={18} className="animate-spin" /> 저장 중...
+                              </>
+                            ) : (
+                              <>
+                                <Check size={18} /> 수정 완료
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={resetForm}
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-sm hover:bg-slate-200 transition"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      className="card p-4 group hover:border-navy-200 transition"
+                    >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-navy-900 text-sm">{memo.title}</h4>
@@ -344,8 +415,9 @@ export function AdminMemoScreen() {
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                    </div>
+                    </div>
+                  ))}
               </div>
             </div>
           ))}
