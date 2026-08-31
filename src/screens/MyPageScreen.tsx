@@ -14,6 +14,8 @@ import {
   KeyRound,
   Camera,
   Loader2,
+  Wallet,
+  AlertTriangle,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -62,6 +64,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     createMatchingPostFromReservation,
     getUser,
     updateCurrentUser,
+    bankAccount,
   } = useApp();
   const { signOut, updateProfile, changePassword, uploadProfileImage } = useAuth();
   const [matchingTarget, setMatchingTarget] = useState<string[] | null>(null);
@@ -281,6 +284,27 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                                   statuses.map((s) => <StatusBadge key={s} status={s} />)
                                 )}
                               </div>
+                              {!allCancelled && activeItems.some((r) => r.status === '신청' || r.status === '입금대기' || r.status === '승인대기') && (
+                                <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-2">
+                                  <div className="flex items-center gap-2 text-sm">
+                                    <Wallet size={15} className="text-amber-600 shrink-0" />
+                                    <span className="text-amber-900 font-bold">
+                                      입금 계좌: {bankAccount.bank} {bankAccount.number} ({bankAccount.holder})
+                                    </span>
+                                  </div>
+                                  <p className="text-sm font-bold text-amber-900">
+                                    입금 금액: {totalAmount.toLocaleString()}원
+                                  </p>
+                                  <div className="flex items-start gap-1.5 text-xs text-amber-700 font-semibold pt-1 border-t border-amber-200">
+                                    <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                                    <span>
+                                      {isCourt
+                                        ? '24시간 안에 입금 확인이 되지 않으면 예약이 자동 취소됩니다.'
+                                        : '48시간 안에 입금 확인이 되지 않으면 예약이 자동 취소됩니다.'}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

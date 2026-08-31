@@ -147,6 +147,17 @@ export function AdminApprovalScreen() {
                     </div>
                   </div>
                 </div>
+                {(() => {
+                  const thresholdHours = g.type === 'pension' ? 48 : 24;
+                  const elapsed = Date.now() - g.minCreatedAt;
+                  if (elapsed < thresholdHours * 60 * 60 * 1000) return null;
+                  return (
+                    <div className="mt-3 rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs font-bold text-red-600 flex items-center gap-1.5">
+                      <Clock size={14} className="text-red-500" />
+                      {thresholdHours}시간 경과된 승인입니다
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2 mt-3">
                   {allNew ? (
                     <button
