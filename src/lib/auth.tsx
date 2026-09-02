@@ -87,8 +87,8 @@ function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isGuest, setIsGuest] = useState<boolean>(() => sessionStorage.getItem('pth-guest') === '1');
-  const [guestId, setGuestId] = useState<string | null>(() => sessionStorage.getItem('pth-guest-id'));
+  const [isGuest, setIsGuest] = useState<boolean>(() => localStorage.getItem('pth-guest') === '1');
+  const [guestId, setGuestId] = useState<string | null>(() => localStorage.getItem('pth-guest-id'));
   const [loading, setLoading] = useState(true);
   const signingOutRef = useRef(false);
   const configError = supabaseConfigured
@@ -183,12 +183,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInAsGuest = useCallback(() => {
-    let id = sessionStorage.getItem('pth-guest-id');
+    let id = localStorage.getItem('pth-guest-id');
     if (!id) {
       id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      sessionStorage.setItem('pth-guest-id', id);
+      localStorage.setItem('pth-guest-id', id);
     }
-    sessionStorage.setItem('pth-guest', '1');
+    localStorage.setItem('pth-guest', '1');
     setGuestId(id);
     setIsGuest(true);
   }, []);
@@ -218,8 +218,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     setSession(null);
-    sessionStorage.removeItem('pth-guest');
-    sessionStorage.removeItem('pth-guest-id');
+    localStorage.removeItem('pth-guest');
+    localStorage.removeItem('pth-guest-id');
     setIsGuest(false);
     setGuestId(null);
   }, []);
