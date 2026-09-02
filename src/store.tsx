@@ -685,7 +685,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const adminKinds: AppNotification['kind'][] = [
         'reservation_new',
         'matching_new',
-        'notice_new',
         'waiting_promoted',
         'waiting_timeout',
       ];
@@ -2318,6 +2317,31 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
     };
   }, [addNotification, getUser, pushToast, promoteNextWaiting]);
+
+  // ===== Telegram alert for approaching deposit deadline =====
+  const alertedDeadlineRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const check = () => {
+      for (const r of reservations) {
+        if (r.status !== '신청' && r.status !== '입금대기' && r.status !== '승인대기') continue;
+        const alertKey = `${r.id}:${r.type}`;
+        if (alertedDeadlineRef.current.has(alertKey)) continue;
+        const thresholdMs = r.type === 'pension' ? 47 * 60 * 60 * 1000 : 23 * 60 * 60 * 1000;
+        if (Date.now() - r.createdAt >= thresholdMs) {
+          alertedDeadlineRef.current.add(alertKey);
+          const label = r.type === 'pension' ? '펜션예약건' : '코트예약건';
+          const userName = r.depositorName || getUser(r.userId)?.name || '사용자';
+          sendTelegramNotification(
+            '곧 입금 시간이 종료되는 ' + label + '이 있습니다.',
+            `${userName}님의 ${r.targetLabel} ${r.date}${r.timeSlot ? ' ' + r.timeSlot : ''} ${label}이 곧 입금 시간 종료됩니다. 확인해주세요.`,
+          );
+        }
+      }
+    };
+    check();
+    const id = setInterval(check, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [reservations, getUser, sendTelegramNotification]);
 
   // cleanup timers on unmount
   useEffect(() => {
