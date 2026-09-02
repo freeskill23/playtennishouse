@@ -440,7 +440,7 @@ function AdminShell() {
 
 function Shell() {
   const isAdmin = useAdminRoute();
-  const { user, loading, configError, isGuest } = useAuth();
+  const { user, loading, configError, isGuest, guestId } = useAuth();
   useClickSound();
 
   if (isAdmin) {
@@ -475,7 +475,10 @@ function Shell() {
 
   if (!user && !isGuest) return <AuthScreen />;
 
-  const authUser = user || GUEST_AUTH_USER;
+  const authUser = user || {
+    ...GUEST_AUTH_USER,
+    id: guestId || GUEST_AUTH_USER.id,
+  };
   return (
     <AppProvider authUser={authUser}>
       <UserShell />
