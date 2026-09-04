@@ -2,19 +2,82 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/logo_png.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>플테하 PLAY TENNIS HOUSE</title>
-    <meta name="description" content="플테하 (PLAY TENNIS HOUSE) - 테니스 펜션 예약 및 매칭 서비스" />
+    <title>플테하 PLAY TENNIS HOUSE | 테니스펜션 · 테니스코트대관 · 테니스 매칭</title>
+    <meta name="description" content="플테하(PLAY TENNIS HOUSE) - 예쁜 테니스펜션과 테니스코트 대관, 테니스 매칭 서비스를 한곳에서! 테니스펜션, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션, 테니스 동호회, 테니스 예약" />
+    <meta name="keywords" content="테니스펜션, 테니스, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션, 테니스매칭, 테니스동호회, 테니스예약, 테니스펜션예약, 플테하, PLAY TENNIS HOUSE, 테니스 숙박, 테니스 여행, 강원도 테니스펜션, 테니스 코트 대관 예약" />
+    <meta name="author" content="플테하 PLAY TENNIS HOUSE" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="language" content="Korean" />
+    <meta name="geo.region" content="KR" />
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="플테하 PLAY TENNIS HOUSE" />
+    <meta property="og:title" content="플테하 PLAY TENNIS HOUSE | 테니스펜션 · 테니스코트대관 · 테니스 매칭" />
+    <meta property="og:description" content="예쁜 테니스펜션과 테니스코트 대관, 테니스 매칭 서비스를 한곳에서! 테니스펜션, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션" />
+    <meta property="og:image" content="https://playtennis.co.kr/og_image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="플테하 PLAY TENNIS HOUSE - 테니스펜션·테니스코트대관·테니스 매칭" />
+    <meta property="og:locale" content="ko_KR" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="플테하 PLAY TENNIS HOUSE | 테니스펜션 · 테니스코트대관 · 테니스 매칭" />
+    <meta name="twitter:description" content="예쁜 테니스펜션과 테니스코트 대관, 테니스 매칭 서비스를 한곳에서!" />
+    <meta name="twitter:image" content="https://playtennis.co.kr/og_image.png" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://playtennis.co.kr/" />
+
+    <!-- Sitemap & Robots -->
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+
+    <!-- Structured Data: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SportsActivityLocation",
+      "name": "플테하 PLAY TENNIS HOUSE",
+      "description": "테니스펜션, 테니스코트 대관, 테니스 매칭 서비스를 제공하는 테니스 전용 플랫폼입니다.",
+      "image": "https://playtennis.co.kr/og_image.png",
+      "url": "https://playtennis.co.kr/",
+      "keywords": "테니스펜션, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션, 테니스매칭",
+      "sport": "Tennis",
+      "address": {
+        "@type": "PostalAddress",
+        "addressCountry": "KR"
+      }
+    }
+    </script>
+
+    <!-- Structured Data: Service -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "name": "테니스펜션 & 테니스코트 대관 예약 서비스",
+      "serviceType": "테니스코트대관, 테니스펜션예약, 테니스매칭",
+      "provider": {
+        "@type": "Organization",
+        "name": "플테하 PLAY TENNIS HOUSE",
+        "url": "https://playtennis.co.kr/"
+      },
+      "areaServed": "KR",
+      "description": "예쁜 테니스펜션 숙박 예약, 테니스코트 대관, 테니스 매칭 서비스를 온라인으로 편리하게 이용하세요."
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap" rel="stylesheet" />
-    <meta property="og:image" content="https://bolt.new/static/og_default.png">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
-</head>
+  </head>
   <body>
     <div id="root"></div>
+    <noscript>플테하 PLAY TENNIS HOUSE - 테니스펜션, 테니스코트대관, 테니스 매칭 서비스를 이용하려면 JavaScript를 활성화해주세요.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -116,7 +116,7 @@ export function AuthScreen() {
         <div className="flex flex-col items-center mb-6">
           <Logo size={144} />
           <h1 className="mt-4 text-2xl font-extrabold text-green-900 tracking-tight">PLAY TENNIS HOUSE</h1>
-          <p className="text-xs text-green-700/70 mt-1">테니스 펜션 예약 &amp; 매칭 서비스</p>
+          <p className="text-xs text-green-700/70 mt-1">테니스 코트 대관, 펜션 예약, 매칭 서비스</p>
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-2xl animate-slide-up">
