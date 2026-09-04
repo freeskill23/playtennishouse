@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
 
-const MAX_WIDTH = 500;
+const MAX_WIDTH = 1200;
 
 function resizeImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -28,7 +28,7 @@ function resizeImage(file: File): Promise<Blob> {
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
         'image/jpeg',
-        0.85,
+        0.9,
       );
     };
     img.onerror = () => {
@@ -40,7 +40,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminGalleryScreen() {
-  const { galleryItems, createGalleryItem, deleteGalleryItem } = useApp();
+  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured } = useApp();
   const [summary, setSummary] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -89,7 +89,7 @@ export function AdminGalleryScreen() {
     <div className="space-y-5 pb-4">
       <SectionTitle
         title="갤러리 관리"
-        subtitle="사진과 한줄 요약을 등록하세요"
+        subtitle="사진과 한줄 요약을 등록하세요 · 별표를 눌러 메인 슬라이드에 표시할 사진을 선택하세요"
       />
 
       <div className="card p-5 space-y-4 animate-slide-up">
@@ -127,7 +127,7 @@ export function AdminGalleryScreen() {
             </button>
           )}
           <p className="text-[11px] text-slate-400 mt-1">
-            가로 500px로 자동 리사이즈되어 업로드됩니다.
+            가로 1200px로 자동 리사이즈되어 업로드됩니다.
           </p>
         </div>
         <div>
@@ -183,6 +183,13 @@ export function AdminGalleryScreen() {
                     {new Date(item.createdAt).toLocaleDateString('ko-KR')}
                   </p>
                 </figcaption>
+                <button
+                  onClick={() => toggleGalleryFeatured(item.id)}
+                  className={`absolute top-1.5 left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow transition ${item.isFeatured ? 'bg-volt-400 text-navy-900 opacity-100' : 'bg-white/90 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-volt-500'}`}
+                  aria-label={item.isFeatured ? '추천 해제' : '추천 설정'}
+                >
+                  <Star size={14} fill={item.isFeatured ? 'currentColor' : 'none'} />
+                </button>
                 <button
                   onClick={() => deleteGalleryItem(item.id)}
                   className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/90 text-rose-500 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition"

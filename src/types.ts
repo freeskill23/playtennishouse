@@ -103,6 +103,7 @@ export interface GalleryItem {
   imageUrl: string;
   summary: string;
   createdAt: number;
+  isFeatured?: boolean;
 }
 
 export type NoticeType = '일반공지' | '이벤트' | '우천' | '환불' | '이용수칙';

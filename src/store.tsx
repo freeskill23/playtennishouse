@@ -206,6 +206,7 @@ interface AppState {
   // gallery
   createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
   deleteGalleryItem: (id: string) => void;
+  toggleGalleryFeatured: (id: string) => void;
 
   // notifications
   markNotificationRead: (id: string) => void;
@@ -503,6 +504,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             imageUrl: g.image_url as string,
             summary: g.summary as string,
             createdAt: g.created_at as number,
+            isFeatured: (g.is_featured as boolean) || false,
           })),
         );
       }
@@ -2286,6 +2288,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const toggleGalleryFeatured = useCallback(
+    (id: string) => {
+      setGalleryItems((prev) =>
+        prev.map((g) => {
+          if (g.id !== id) return g;
+          const next = !g.isFeatured;
+          if (supabaseConfigured) {
+            supabase.from('gallery_items').update({ is_featured: next }).eq('id', id).then(({ error }) => {
+              if (error) pushToast('추천 설정 실패: ' + error.message, 'error');
+            });
+          }
+          return { ...g, isFeatured: next };
+        }),
+      );
+    },
+    [pushToast],
+  );
+
   // ===== Notifications =====
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -2320,13 +2340,15 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Telegram alert for approaching deposit deadline =====
   const alertedDeadlineRef = useRef<Set<string>>(new Set());
+  const reservationsRef = useRef(reservations);
+  reservationsRef.current = reservations;
   useEffect(() => {
     const check = () => {
-      for (const r of reservations) {
+      for (const r of reservationsRef.current) {
         if (r.status !== '신청' && r.status !== '입금대기' && r.status !== '승인대기') continue;
         const alertKey = `${r.id}:${r.type}`;
         if (alertedDeadlineRef.current.has(alertKey)) continue;
-        const thresholdMs = r.type === 'pension' ? 47 * 60 * 60 * 1000 : 23 * 60 * 60 * 1000;
+        const thresholdMs = r.type === 'pension' ? 48 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
         if (Date.now() - r.createdAt >= thresholdMs) {
           alertedDeadlineRef.current.add(alertKey);
           const label = r.type === 'pension' ? '펜션예약건' : '코트예약건';
@@ -2338,10 +2360,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }
       }
     };
-    check();
     const id = setInterval(check, 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [reservations, getUser, sendTelegramNotification]);
+  }, [getUser, sendTelegramNotification]);
 
   // cleanup timers on unmount
   useEffect(() => {
@@ -2394,6 +2415,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     deleteNoticeComment,
     createGalleryItem,
     deleteGalleryItem,
+    toggleGalleryFeatured,
     markNotificationRead,
     markAllNotificationsRead,
     toasts,

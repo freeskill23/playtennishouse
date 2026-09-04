@@ -52,12 +52,27 @@ const GENDER_LABEL: Record<GenderRequirement, string> = {
 type DetailKind = 'myMatching' | 'joinedMatching' | 'court' | 'pension' | null;
 
 export function HomeScreen({ go }: { go: (k: string) => void }) {
-  const { reservations, matchingPosts, notices, currentUser, getUser, bannerImageUrl, bannerGradientColors, logoImageUrl, setFocusMatchingPostId, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment } = useApp();
+  const { reservations, matchingPosts, notices, currentUser, getUser, setFocusMatchingPostId, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment, galleryItems } = useApp();
   const { user, isGuest } = useAuth();
   const [detail, setDetail] = useState<DetailKind>(null);
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const featuredSlides = galleryItems.filter((g) => g.isFeatured);
+  const [slideIndex, setSlideIndex] = useState(0);
+
+  useEffect(() => {
+    if (featuredSlides.length <= 1) return;
+    const timer = setInterval(() => {
+      setSlideIndex((prev) => (prev + 1) % featuredSlides.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [featuredSlides.length]);
+
+  useEffect(() => {
+    if (slideIndex >= featuredSlides.length) setSlideIndex(0);
+  }, [featuredSlides.length, slideIndex]);
 
   useEffect(() => {
     if (selectedNotice) {
@@ -190,43 +205,55 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Hero */}
-      <div
-        className={`relative overflow-hidden rounded-3xl shadow-navy${!bannerImageUrl && !bannerGradientColors ? ' bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700' : ''}`}
-        style={
-          bannerImageUrl
-            ? undefined
-            : bannerGradientColors
-              ? { background: `linear-gradient(135deg, ${bannerGradientColors.from}, ${bannerGradientColors.via}, ${bannerGradientColors.to})` }
-              : undefined
-        }
-      >
-        {bannerImageUrl ? (
-          <>
-            <img
-              src={bannerImageUrl}
-              alt="배너"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-navy-950/85 via-navy-900/60 to-transparent" />
-          </>
-        ) : (
-          <>
-            <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-volt-500/20 blur-2xl" />
-            <div className="absolute bottom-0 right-6 w-24 h-24 rounded-full bg-volt-400/30 blur-xl animate-bounce-ball" />
-          </>
-        )}
-        <div className="relative p-6 sm:p-8">
-          <div className="flex items-center gap-3">
-            <img
-              src={isGuest ? (logoImageUrl || `${import.meta.env.BASE_URL}logo_png.png`) : currentUser.profileImg}
-              alt={currentUser.name}
-              className="w-11 h-11 rounded-xl object-cover ring-2 ring-white/20"
-            />
-          </div>
-          <p className="mt-3 text-lg font-bold text-white">{isGuest ? '플테하에 오신 것을 환영합니다!' : `${currentUser.name}님 플테하에서 오늘도 즐테하세요!`}</p>
-        </div>
+      {/* Greeting */}
+      <div className="flex flex-col items-center pt-2 pb-1">
+        <p className="text-sm font-bold text-navy-900 flex items-center gap-1.5">
+          {isGuest ? (
+            '플테하에 오신 것을 환영합니다!'
+          ) : (
+            <>
+              <Hand size={16} className="text-volt-500" />
+              {`${currentUser.name}님 오늘도 즐테하세요!`}
+            </>
+          )}
+        </p>
       </div>
+
+      {/* Featured gallery slideshow */}
+      {featuredSlides.length > 0 && (
+        <div className="relative overflow-hidden rounded-2xl shadow-navy">
+          <div
+            className="flex transition-transform duration-700 ease-out"
+            style={{ transform: `translateX(-${slideIndex * 100}%)` }}
+          >
+            {featuredSlides.map((slide) => (
+              <div key={slide.id} className="relative w-full shrink-0 aspect-[16/10] sm:aspect-[16/8]">
+                <img
+                  src={slide.imageUrl}
+                  alt={slide.summary}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <p className="absolute bottom-3 right-4 text-sm font-semibold text-white text-right drop-shadow-lg max-w-[70%]">
+                  {slide.summary}
+                </p>
+              </div>
+            ))}
+          </div>
+          {featuredSlides.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {featuredSlides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSlideIndex(i)}
+                  className={`h-1.5 rounded-full transition-all ${i === slideIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`}
+                  aria-label={`슬라이드 ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Must-read notices (no title bar) */}
       {mustReadNotices.length > 0 && (
