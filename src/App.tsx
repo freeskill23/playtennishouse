@@ -184,6 +184,52 @@ function useTabHistory<T extends string>(initial: T, storageKey: string) {
   return { tab, go };
 }
 
+const TAB_SEO: Record<string, { title: string; description: string }> = {
+  home: {
+    title: '플테하 PLAY TENNIS HOUSE | 테니스펜션 · 테니스코트대관 · 테니스 매칭',
+    description: '플테하(PLAY TENNIS HOUSE) - 예쁜 테니스펜션과 테니스코트 대관, 테니스 매칭 서비스를 한곳에서! 테니스펜션, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션',
+  },
+  pension: {
+    title: '테니스펜션 예약 | 플테하 PLAY TENNIS HOUSE - 예쁜 테니스펜션 숙박',
+    description: '예쁜 테니스펜션 A동·B동 숙박 예약. 테니스코트와 함께하는 테니스펜션 여행을 플테하에서 편리하게 예약하세요. 테니스펜션, 예쁜테니스펜션, 테니스 숙박 예약',
+  },
+  court: {
+    title: '테니스코트 대관 예약 | 플테하 PLAY TENNIS HOUSE - 테니스장 대관',
+    description: '테니스코트 1시간 단위 대관 예약. 테니스코트대관, 테니스장, 테니스 예약을 온라인으로 간편하게. 플테하에서 테니스코트 대관하세요',
+  },
+  matching: {
+    title: '테니스 매칭 | 플테하 PLAY TENNIS HOUSE - 테니스 메이트 모집',
+    description: '테니스 매칭 서비스 - 단식·복식·혼복 테니스 메이트를 모집하고 참여하세요. 테니스매칭, 테니스동호회, 테니스 메이트 찾기',
+  },
+  notices: {
+    title: '공지사항 | 플테하 PLAY TENNIS HOUSE - 테니스 이벤트·안내',
+    description: '플테하 테니스펜션·테니스코트 이벤트 및 공지사항을 확인하세요. 테니스 이벤트, 테니스 대회 안내',
+  },
+  gallery: {
+    title: '갤러리 | 플테하 PLAY TENNIS HOUSE - 예쁜 테니스장 사진',
+    description: '플테하 예쁜 테니스장, 테니스펜션 현장 사진 갤러리. 테니스장, 예쁜테니스장, 테니스펜션 사진',
+  },
+  mypage: {
+    title: '내 예약 | 플테하 PLAY TENNIS HOUSE - 테니스 예약 내역',
+    description: '나의 테니스코트 대관, 테니스펜션 예약, 테니스 매칭 참여 내역을 확인하세요',
+  },
+};
+
+function useTabSEO(tab: string) {
+  useEffect(() => {
+    const seo = TAB_SEO[tab];
+    if (seo) {
+      document.title = seo.title;
+      const descMeta = document.querySelector('meta[name="description"]');
+      if (descMeta) descMeta.setAttribute('content', seo.description);
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) ogTitle.setAttribute('content', seo.title);
+      const ogDesc = document.querySelector('meta[property="og:description"]');
+      if (ogDesc) ogDesc.setAttribute('content', seo.description);
+    }
+  }, [tab]);
+}
+
 const GUEST_AUTH_USER: AuthUser = {
   id: 'guest',
   email: '',
@@ -203,6 +249,7 @@ function UserShell() {
   const { currentUser, logoImageUrl } = useApp();
   const { signOut, isGuest } = useAuth();
   const { tab, go: goRaw } = useTabHistory<UserTab>('home', 'user_tab');
+  useTabSEO(tab);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
 
@@ -306,6 +353,11 @@ function UserShell() {
           <Logo size={28} imageUrl={logoImageUrl} />
           <p className="text-xs text-slate-400">
             © 2026 PLAY TENNIS HOUSE · 테니스 펜션 예약 & 매칭 서비스
+          </p>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-4">
+          <p className="text-[11px] text-slate-300 text-center leading-relaxed">
+            테니스펜션 · 테니스 · 테니스코트 · 테니스코트대관 · 테니스장 · 예쁜테니스장 · 예쁜테니스펜션 · 테니스매칭 · 테니스동호회 · 테니스예약 · 테니스펜션예약 · 테니스 숙박 · 테니스 여행
           </p>
         </div>
       </footer>

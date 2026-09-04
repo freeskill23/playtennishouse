@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   BedDouble,
   CalendarRange,
@@ -6,6 +6,7 @@ import {
   Megaphone,
   Ticket,
   Images,
+  ChevronRight,
   Hand,
   CheckCircle2,
   Clock,
@@ -60,19 +61,81 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
   const [submitting, setSubmitting] = useState(false);
 
   const featuredSlides = galleryItems.filter((g) => g.isFeatured);
-  const [slideIndex, setSlideIndex] = useState(0);
+  const slideCount = featuredSlides.length;
+  // extended list: [last, ...slides, first] for seamless loop
+  const extendedSlides = slideCount > 1 ? [featuredSlides[slideCount - 1], ...featuredSlides, featuredSlides[0]] : featuredSlides;
+  const [displayIndex, setDisplayIndex] = useState(1); // start at first real slide (index 1 in extended)
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [noTransition, setNoTransition] = useState(false);
+  const dragStartRef = useRef<{ x: number } | null>(null);
 
+  // Auto-advance
   useEffect(() => {
-    if (featuredSlides.length <= 1) return;
+    if (slideCount <= 1) return;
     const timer = setInterval(() => {
-      setSlideIndex((prev) => (prev + 1) % featuredSlides.length);
+      setDragOffset(0);
+      setDisplayIndex((prev) => prev + 1);
     }, 4000);
     return () => clearInterval(timer);
-  }, [featuredSlides.length]);
+  }, [slideCount]);
 
+  // After transition ends, if we're on a clone, jump to the real one without transition
+  const onTransitionEnd = () => {
+    if (slideCount <= 1) return;
+    if (displayIndex === 0) {
+      setNoTransition(true);
+      setDisplayIndex(slideCount);
+    } else if (displayIndex === slideCount + 1) {
+      setNoTransition(true);
+      setDisplayIndex(1);
+    }
+  };
+
+  // Re-enable transition after the no-transition jump is rendered
   useEffect(() => {
-    if (slideIndex >= featuredSlides.length) setSlideIndex(0);
-  }, [featuredSlides.length, slideIndex]);
+    if (noTransition) {
+      requestAnimationFrame(() => setNoTransition(false));
+    }
+  }, [noTransition]);
+
+  // Reset when slide data changes
+  useEffect(() => {
+    setDisplayIndex(slideCount > 0 ? 1 : 0);
+  }, [slideCount]);
+
+  const realIndex = (() => {
+    if (slideCount <= 1) return 0;
+    if (displayIndex === 0) return slideCount - 1;
+    if (displayIndex === slideCount + 1) return 0;
+    return displayIndex - 1;
+  })();
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (slideCount <= 1) return;
+    dragStartRef.current = { x: e.clientX };
+    setIsDragging(true);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!isDragging || !dragStartRef.current) return;
+    setDragOffset(e.clientX - dragStartRef.current.x);
+  };
+
+  const onPointerUp = () => {
+    if (!isDragging || !dragStartRef.current) return;
+    const containerWidth = window.innerWidth;
+    const threshold = containerWidth * 0.15;
+    const delta = dragOffset;
+    setDragOffset(0);
+    setIsDragging(false);
+    dragStartRef.current = null;
+    if (delta < -threshold) {
+      setDisplayIndex((prev) => prev + 1);
+    } else if (delta > threshold) {
+      setDisplayIndex((prev) => prev - 1);
+    }
+  };
 
   useEffect(() => {
     if (selectedNotice) {
@@ -206,8 +269,8 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
   return (
     <div className="space-y-6 pb-4">
       {/* Greeting */}
-      <div className="flex flex-col items-center pt-2 pb-1">
-        <p className="text-sm font-bold text-navy-900 flex items-center gap-1.5">
+      <div>
+        <h1 className="text-sm font-bold text-navy-900 flex items-center gap-1.5">
           {isGuest ? (
             '플테하에 오신 것을 환영합니다!'
           ) : (
@@ -216,42 +279,65 @@ export function HomeScreen({ go }: { go: (k: string) => void }) {
               {`${currentUser.name}님 오늘도 즐테하세요!`}
             </>
           )}
-        </p>
+        </h1>
       </div>
 
       {/* Featured gallery slideshow */}
       {featuredSlides.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl shadow-navy">
-          <div
-            className="flex transition-transform duration-700 ease-out"
-            style={{ transform: `translateX(-${slideIndex * 100}%)` }}
-          >
-            {featuredSlides.map((slide) => (
-              <div key={slide.id} className="relative w-full shrink-0 aspect-[16/10] sm:aspect-[16/8]">
-                <img
-                  src={slide.imageUrl}
-                  alt={slide.summary}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <p className="absolute bottom-3 right-4 text-sm font-semibold text-white text-right drop-shadow-lg max-w-[70%]">
-                  {slide.summary}
-                </p>
-              </div>
-            ))}
+        <div className="space-y-2">
+          <div className="flex justify-end">
+            <button
+              onClick={() => go('gallery')}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-navy-500 hover:text-navy-900 transition"
+            >
+              갤러리 더보기
+              <ChevronRight size={14} />
+            </button>
           </div>
-          {featuredSlides.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {featuredSlides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSlideIndex(i)}
-                  className={`h-1.5 rounded-full transition-all ${i === slideIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`}
-                  aria-label={`슬라이드 ${i + 1}`}
-                />
+          <div
+            className="relative overflow-hidden rounded-2xl shadow-navy touch-pan-y select-none"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onPointerLeave={onPointerUp}
+            style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+          >
+            <div
+              className={`flex ${isDragging || noTransition ? '' : 'transition-transform duration-700 ease-out'}`}
+              style={{
+                transform: `translateX(calc(-${displayIndex * 100}% + ${dragOffset}px))`,
+              }}
+              onTransitionEnd={onTransitionEnd}
+            >
+              {extendedSlides.map((slide, i) => (
+                <div key={`${slide.id}-${i}`} className="relative w-full shrink-0 aspect-[16/10] sm:aspect-[16/8] pointer-events-none">
+                  <img
+                    src={slide.imageUrl}
+                    alt={slide.summary}
+                    className="w-full h-full object-cover"
+                    draggable={false}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  <p className="absolute bottom-3 right-4 text-sm font-semibold text-white text-right drop-shadow-lg max-w-[70%]">
+                    {slide.summary}
+                  </p>
+                </div>
               ))}
             </div>
-          )}
+            {slideCount > 1 && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {featuredSlides.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setDragOffset(0); setDisplayIndex(i + 1); }}
+                    className={`h-1.5 rounded-full transition-all ${i === realIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`}
+                    aria-label={`슬라이드 ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
