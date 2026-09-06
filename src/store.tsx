@@ -16,6 +16,7 @@ import type {
   Notice,
   GalleryItem,
   AppNotification,
+  Review,
   ReservationType,
   ReservationStatus,
   CourtName,
@@ -207,6 +208,12 @@ interface AppState {
   createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
   deleteGalleryItem: (id: string) => void;
   toggleGalleryFeatured: (id: string) => void;
+
+  // reviews
+  reviews: Review[];
+  createReview: (input: { authorName: string; content: string; rating: number; imageUrls: string[] }) => Promise<{ ok: boolean; error?: string }>;
+  deleteReview: (id: string) => void;
+  replyReview: (id: string, reply: string) => void;
 
   // notifications
   markNotificationRead: (id: string) => void;
@@ -457,6 +464,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   }, [loadMatchingPosts]);
   const [notices, setNotices] = useState<Notice[]>(supabaseConfigured ? [] : initialNotices);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   // Load notices from Supabase so admin edits are shared across sessions
   useEffect(() => {
@@ -509,6 +517,69 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         );
       }
     })();
+  }, []);
+
+  // Load reviews from Supabase
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    (async () => {
+      const { data } = await supabase
+        .from('reviews')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (data) {
+        setReviews(
+          data
+            .map((r) => ({
+              id: r.id as string,
+              authorName: r.author_name as string,
+              authorId: (r.author_id as string | null) ?? null,
+              content: r.content as string,
+              rating: r.rating as number,
+              imageUrls: (r.image_urls as string[]) || [],
+              adminReply: (r.admin_reply as string | null) ?? null,
+              adminReplyAt: (r.admin_reply_at as number | null) ?? null,
+              isDeleted: (r.is_deleted as boolean) ?? false,
+              createdAt: r.created_at as number,
+            }))
+            .filter((r) => !r.isDeleted),
+        );
+      }
+    })();
+    const channel = supabase
+      .channel('reviews_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reviews' },
+        async () => {
+          const { data } = await supabase
+            .from('reviews')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (data) {
+            setReviews(
+              data
+                .map((r) => ({
+                  id: r.id as string,
+                  authorName: r.author_name as string,
+                  authorId: (r.author_id as string | null) ?? null,
+                  content: r.content as string,
+                  rating: r.rating as number,
+                  imageUrls: (r.image_urls as string[]) || [],
+                  adminReply: (r.admin_reply as string | null) ?? null,
+                  adminReplyAt: (r.admin_reply_at as number | null) ?? null,
+                  isDeleted: (r.is_deleted as boolean) ?? false,
+                  createdAt: r.created_at as number,
+                }))
+                .filter((r) => !r.isDeleted),
+            );
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
   const [notifications, setNotifications] = useState<AppNotification[]>(supabaseConfigured ? [] : initialNotifications);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -2306,6 +2377,85 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  // ===== Reviews =====
+  const createReview = useCallback(
+    async (input: { authorName: string; content: string; rating: number; imageUrls: string[] }): Promise<{ ok: boolean; error?: string }> => {
+      const trimmedName = input.authorName.trim();
+      const trimmedContent = input.content.trim();
+      if (!trimmedName) return { ok: false, error: '이름을 입력해주세요.' };
+      if (!trimmedContent) return { ok: false, error: '후기 내용을 입력해주세요.' };
+      if (input.rating < 1 || input.rating > 5) return { ok: false, error: '별점은 1~5점입니다.' };
+      if (input.imageUrls.length > 5) return { ok: false, error: '사진은 최대 5장입니다.' };
+
+      const id = uid('rv');
+      const review: Review = {
+        id,
+        authorName: trimmedName,
+        authorId: null,
+        content: trimmedContent,
+        rating: input.rating,
+        imageUrls: input.imageUrls,
+        adminReply: null,
+        adminReplyAt: null,
+        isDeleted: false,
+        createdAt: Date.now(),
+      };
+      setReviews((prev) => [review, ...prev]);
+      if (supabaseConfigured) {
+        const { error } = await supabase.from('reviews').insert({
+          id,
+          author_name: trimmedName,
+          author_id: null,
+          content: trimmedContent,
+          rating: input.rating,
+          image_urls: input.imageUrls,
+          is_deleted: false,
+          created_at: review.createdAt,
+        });
+        if (error) return { ok: false, error: error.message };
+      }
+      pushToast('이용후기가 등록되었습니다.');
+      return { ok: true };
+    },
+    [pushToast],
+  );
+
+  const deleteReview = useCallback(
+    (id: string) => {
+      setReviews((prev) => prev.filter((r) => r.id !== id));
+      if (supabaseConfigured) {
+        supabase.from('reviews').update({ is_deleted: true }).eq('id', id).then(({ error }) => {
+          if (error) {
+            pushToast('후기 삭제 실패: ' + error.message, 'error');
+          } else {
+            pushToast('후기가 삭제되었습니다.', 'info');
+          }
+        });
+      } else {
+        pushToast('후기가 삭제되었습니다.', 'info');
+      }
+    },
+    [pushToast],
+  );
+
+  const replyReview = useCallback(
+    (id: string, reply: string) => {
+      const trimmed = reply.trim();
+      if (!trimmed) return;
+      const now = Date.now();
+      setReviews((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, adminReply: trimmed, adminReplyAt: now } : r)),
+      );
+      if (supabaseConfigured) {
+        supabase.from('reviews').update({ admin_reply: trimmed, admin_reply_at: now }).eq('id', id).then(({ error }) => {
+          if (error) pushToast('답변 등록 실패: ' + error.message, 'error');
+        });
+      }
+      pushToast('답변이 등록되었습니다.');
+    },
+    [pushToast],
+  );
+
   // ===== Notifications =====
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -2416,6 +2566,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     createGalleryItem,
     deleteGalleryItem,
     toggleGalleryFeatured,
+    reviews,
+    createReview,
+    deleteReview,
+    replyReview,
     markNotificationRead,
     markAllNotificationsRead,
     toasts,

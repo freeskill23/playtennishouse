@@ -130,6 +130,19 @@ export interface NoticeComment {
   parentId?: string | null;
 }
 
+export interface Review {
+  id: string;
+  authorName: string;
+  authorId: string | null;
+  content: string;
+  rating: number;
+  imageUrls: string[];
+  adminReply: string | null;
+  adminReplyAt: number | null;
+  isDeleted: boolean;
+  createdAt: number;
+}
+
 export type NotificationKind =
   | 'reservation_new'
   | 'reservation_approved'

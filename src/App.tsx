@@ -14,6 +14,7 @@ import {
   Lock,
   LogOut,
   Loader2,
+  Star,
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -39,6 +40,8 @@ import { AdminMembersScreen } from './screens/admin/AdminMembersScreen';
 import { AdminMatchingScreen } from './screens/admin/AdminMatchingScreen';
 import { AdminGalleryScreen } from './screens/admin/AdminGalleryScreen';
 import { AuthScreen } from './screens/AuthScreen';
+import { ReviewScreen } from './screens/ReviewScreen';
+import { AdminReviewScreen } from './screens/admin/AdminReviewScreen';
 import type { AuthUser } from './lib/auth';
 
 const ADMIN_AUTH_USER: AuthUser = {
@@ -56,8 +59,8 @@ const ADMIN_AUTH_USER: AuthUser = {
   bio: '플테하 운영진',
 };
 
-type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'memo';
+type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'reviews' | 'mypage';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'reviews' | 'memo';
 
 const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
@@ -66,6 +69,7 @@ const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'matching', label: '매칭', icon: Users },
   { key: 'notices', label: '공지', icon: Megaphone },
   { key: 'gallery', label: '갤러리', icon: Images },
+  { key: 'reviews', label: '이용후기', icon: Star },
   { key: 'mypage', label: '내예약', icon: Ticket },
 ];
 
@@ -76,6 +80,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'matching', label: '매칭관리', icon: Users },
   { key: 'notice', label: '공지관리', icon: Megaphone },
   { key: 'gallery', label: '갤러리관리', icon: Images },
+  { key: 'reviews', label: '이용후기관리', icon: Star },
   { key: 'memo', label: '관리자메모', icon: StickyNote },
 ];
 
@@ -345,6 +350,7 @@ function UserShell() {
         {tab === 'matching' && (isGuest ? null : <MatchingScreen />)}
         {tab === 'notices' && <NoticesScreen />}
         {tab === 'gallery' && <GalleryScreen />}
+        {tab === 'reviews' && <ReviewScreen />}
         {tab === 'mypage' && <MyPageScreen go={go} />}
       </main>
 
@@ -482,6 +488,7 @@ function AdminShell() {
         {tab === 'matching' && <AdminMatchingScreen />}
         {tab === 'notice' && <AdminNoticeScreen />}
         {tab === 'gallery' && <AdminGalleryScreen />}
+        {tab === 'reviews' && <AdminReviewScreen />}
         {tab === 'memo' && <AdminMemoScreen />}
       </main>
 
