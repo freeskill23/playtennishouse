@@ -31,6 +31,8 @@ interface Stats {
   totalVisits: number;
   todayVisits: number;
   todayUniqueVisitors: number;
+  yesterdayVisits: number;
+  yesterdayUniqueVisitors: number;
   weekVisits: number;
   weekUniqueVisitors: number;
   monthVisits: number;
@@ -68,6 +70,13 @@ function isToday(dateStr: string): boolean {
   const d = new Date(dateStr);
   const now = new Date();
   return d.toDateString() === now.toDateString();
+}
+
+function isYesterday(dateStr: string): boolean {
+  const d = new Date(dateStr);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return d.toDateString() === yesterday.toDateString();
 }
 
 function isWithinDays(dateStr: string, days: number): boolean {
@@ -162,21 +171,31 @@ function BarRow({ label, value, max }: { label: string; value: number; max: numb
 export function AdminAnalyticsScreen() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<RawLog[]>([]);
-  const [range, setRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
+  const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
 
   const fetchLogs = useCallback(async () => {
     if (!supabaseConfigured) return;
     setLoading(true);
-    const cutoff = new Date();
+    let cutoff = new Date();
+    let endCutoff: Date | null = null;
     if (range === 'today') cutoff.setHours(0, 0, 0, 0);
-    else if (range === 'week') cutoff.setDate(cutoff.getDate() - 7);
+    else if (range === 'yesterday') {
+      cutoff.setDate(cutoff.getDate() - 1);
+      cutoff.setHours(0, 0, 0, 0);
+      endCutoff = new Date();
+      endCutoff.setHours(0, 0, 0, 0);
+    } else if (range === 'week') cutoff.setDate(cutoff.getDate() - 7);
     else if (range === 'month') cutoff.setMonth(cutoff.getMonth() - 1);
     else cutoff.setFullYear(2020);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('visitor_logs')
       .select('*')
-      .gte('created_at', cutoff.toISOString())
+      .gte('created_at', cutoff.toISOString());
+    if (endCutoff) {
+      query = query.lt('created_at', endCutoff.toISOString());
+    }
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(5000);
 
@@ -199,6 +218,10 @@ export function AdminAnalyticsScreen() {
     todayVisits: logs.filter((l) => isToday(l.created_at)).length,
     todayUniqueVisitors: new Set(
       logs.filter((l) => isToday(l.created_at)).map((l) => l.session_id),
+    ).size,
+    yesterdayVisits: logs.filter((l) => isYesterday(l.created_at)).length,
+    yesterdayUniqueVisitors: new Set(
+      logs.filter((l) => isYesterday(l.created_at)).map((l) => l.session_id),
     ).size,
     weekVisits: logs.filter((l) => isWithinDays(l.created_at, 7)).length,
     weekUniqueVisitors: new Set(
@@ -280,6 +303,7 @@ export function AdminAnalyticsScreen() {
 
   const rangeLabels: Record<typeof range, string> = {
     today: '오늘',
+    yesterday: '어제',
     week: '최근 7일',
     month: '이번 달',
     all: '전체',
@@ -300,6 +324,7 @@ export function AdminAnalyticsScreen() {
               className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-navy-800 bg-white outline-none focus:border-volt-400"
             >
               <option value="today">오늘</option>
+              <option value="yesterday">어제</option>
               <option value="week">최근 7일</option>
               <option value="month">이번 달</option>
               <option value="all">전체</option>
@@ -334,9 +359,9 @@ export function AdminAnalyticsScreen() {
         />
         <StatCard
           icon={<TrendingUp size={20} />}
-          label="주간 방문자"
-          value={stats.weekUniqueVisitors}
-          sub={`방문 ${stats.weekVisits}회`}
+          label="어제 방문자"
+          value={stats.yesterdayUniqueVisitors}
+          sub={`방문 ${stats.yesterdayVisits}회`}
           accent="sky"
         />
         <StatCard
