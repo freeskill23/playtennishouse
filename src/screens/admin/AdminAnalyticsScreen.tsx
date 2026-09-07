@@ -8,6 +8,7 @@ import {
   TrendingUp,
   RefreshCw,
   Calendar,
+  UserPlus,
   Globe,
   Smartphone,
   Monitor,
@@ -38,6 +39,8 @@ interface Stats {
   monthVisits: number;
   memberVisits: number;
   guestVisits: number;
+  todaySignups: number;
+  totalMembers: number;
 }
 
 interface DailyCount {
@@ -171,6 +174,8 @@ function BarRow({ label, value, max }: { label: string; value: number; max: numb
 export function AdminAnalyticsScreen() {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<RawLog[]>([]);
+  const [todaySignups, setTodaySignups] = useState(0);
+  const [totalMembers, setTotalMembers] = useState(0);
   const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
 
   const fetchLogs = useCallback(async () => {
@@ -205,6 +210,21 @@ export function AdminAnalyticsScreen() {
     if (data) {
       setLogs(data as RawLog[]);
     }
+
+    // Fetch today's signups and total members from profiles
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const { count: todayCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', startOfToday.toISOString());
+    if (todayCount !== null) setTodaySignups(todayCount);
+
+    const { count: totalCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+    if (totalCount !== null) setTotalMembers(totalCount);
+
     setLoading(false);
   }, [range]);
 
@@ -230,6 +250,8 @@ export function AdminAnalyticsScreen() {
     monthVisits: logs.filter((l) => isThisMonth(l.created_at)).length,
     memberVisits: logs.filter((l) => l.is_member).length,
     guestVisits: logs.filter((l) => !l.is_member).length,
+    todaySignups,
+    totalMembers,
   };
 
   // Daily trend (last 7 days)
@@ -372,8 +394,8 @@ export function AdminAnalyticsScreen() {
         />
       </div>
 
-      {/* Member vs Guest */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Member vs Guest & Signups */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-700">
             <Users size={18} />
@@ -390,6 +412,18 @@ export function AdminAnalyticsScreen() {
           <div>
             <p className="text-xs text-slate-500 font-semibold">비회원 방문</p>
             <p className="text-lg font-extrabold text-navy-900">{stats.guestVisits}</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-volt-100 flex items-center justify-center text-volt-700">
+            <UserPlus size={18} />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-semibold">오늘 가입</p>
+            <p className="text-lg font-extrabold text-navy-900">
+              {stats.todaySignups}
+              <span className="text-xs font-semibold text-slate-400 ml-1">/ 총 {stats.totalMembers}명</span>
+            </p>
           </div>
         </div>
       </div>
