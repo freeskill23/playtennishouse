@@ -15,11 +15,13 @@ import {
   LogOut,
   Loader2,
   Star,
+  BarChart3,
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
 import { useIdleLogout } from './lib/useIdleLogout';
 import { useClickSound } from './lib/useClickSound';
+import { logVisit } from './lib/visitorLog';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
@@ -42,6 +44,7 @@ import { AdminGalleryScreen } from './screens/admin/AdminGalleryScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { AdminReviewScreen } from './screens/admin/AdminReviewScreen';
+import { AdminAnalyticsScreen } from './screens/admin/AdminAnalyticsScreen';
 import type { AuthUser } from './lib/auth';
 
 const ADMIN_AUTH_USER: AuthUser = {
@@ -60,7 +63,7 @@ const ADMIN_AUTH_USER: AuthUser = {
 };
 
 type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'reviews' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'reviews' | 'memo';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'reviews' | 'analytics' | 'memo';
 
 const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
@@ -81,6 +84,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'notice', label: '공지관리', icon: Megaphone },
   { key: 'gallery', label: '갤러리관리', icon: Images },
   { key: 'reviews', label: '이용후기관리', icon: Star },
+  { key: 'analytics', label: '방문자분석', icon: BarChart3 },
   { key: 'memo', label: '관리자메모', icon: StickyNote },
 ];
 
@@ -257,6 +261,10 @@ function UserShell() {
   useTabSEO(tab);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    logVisit(tab, !isGuest);
+  }, [tab, isGuest]);
 
   const go = (k: string) => {
     if (isGuest && k === 'matching') {
@@ -489,6 +497,7 @@ function AdminShell() {
         {tab === 'notice' && <AdminNoticeScreen />}
         {tab === 'gallery' && <AdminGalleryScreen />}
         {tab === 'reviews' && <AdminReviewScreen />}
+        {tab === 'analytics' && <AdminAnalyticsScreen />}
         {tab === 'memo' && <AdminMemoScreen />}
       </main>
 
