@@ -1,17 +1,35 @@
 import { supabase, supabaseConfigured } from './supabase';
 
 const SESSION_KEY = 'pth_session_id';
-const LOG_DEBOUNCE_MS = 5000; // avoid duplicate logs within 5s
-
-let lastLogTime = 0;
+const PAGE_VISIT_KEY = 'pth_last_visit';
+const VISIT_COOLDOWN_MS = 30 * 60 * 1000; // 30 min — don't re-log same page within this window
 
 function getSessionId(): string {
-  let id = sessionStorage.getItem(SESSION_KEY);
+  let id = localStorage.getItem(SESSION_KEY);
   if (!id) {
     id = `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    sessionStorage.setItem(SESSION_KEY, id);
+    localStorage.setItem(SESSION_KEY, id);
   }
   return id;
+}
+
+function shouldLogPage(page: string): boolean {
+  const now = Date.now();
+  try {
+    const raw = localStorage.getItem(PAGE_VISIT_KEY);
+    if (raw) {
+      const map = JSON.parse(raw) as Record<string, number>;
+      const last = map[page] || 0;
+      if (now - last < VISIT_COOLDOWN_MS) return false;
+      map[page] = now;
+      localStorage.setItem(PAGE_VISIT_KEY, JSON.stringify(map));
+    } else {
+      localStorage.setItem(PAGE_VISIT_KEY, JSON.stringify({ [page]: now }));
+    }
+  } catch {
+    // localStorage full or corrupted — allow logging
+  }
+  return true;
 }
 
 function extractSearchKeyword(referrer: string): string | null {
@@ -21,23 +39,11 @@ function extractSearchKeyword(referrer: string): string | null {
     const host = url.hostname;
     const params = url.searchParams;
 
-    // Google, Naver, Daum, Bing, Yahoo
-    if (host.includes('google')) {
-      return params.get('q');
-    }
-    if (host.includes('naver')) {
-      return params.get('query') || params.get('q');
-    }
-    if (host.includes('daum')) {
-      return params.get('q');
-    }
-    if (host.includes('bing')) {
-      return params.get('q');
-    }
-    if (host.includes('yahoo')) {
-      return params.get('p') || params.get('q');
-    }
-    // Generic: try common query params
+    if (host.includes('google')) return params.get('q');
+    if (host.includes('naver')) return params.get('query') || params.get('q');
+    if (host.includes('daum')) return params.get('q');
+    if (host.includes('bing')) return params.get('q');
+    if (host.includes('yahoo')) return params.get('p') || params.get('q');
     return params.get('q') || params.get('query') || params.get('search') || null;
   } catch {
     return null;
@@ -46,10 +52,7 @@ function extractSearchKeyword(referrer: string): string | null {
 
 export function logVisit(page: string, isMember: boolean): void {
   if (!supabaseConfigured) return;
-
-  const now = Date.now();
-  if (now - lastLogTime < LOG_DEBOUNCE_MS) return;
-  lastLogTime = now;
+  if (!shouldLogPage(page)) return;
 
   const referrer = document.referrer || '';
   const searchKeyword = extractSearchKeyword(referrer);
