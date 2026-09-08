@@ -12,6 +12,7 @@ import {
   Download,
   BellRing,
   CalendarRange,
+  CalendarClock,
   BedDouble,
   Shuffle,
   LogIn,
@@ -304,6 +305,9 @@ export function AdminMembersScreen() {
                     <span>NTRP {m.ntrp || '2.0'}</span>
                     <span className="flex items-center gap-0.5 text-navy-700 font-semibold">
                       <LogIn size={11} /> 로그인 {m.login_count || 0}회
+                    </span>
+                    <span className="flex items-center gap-0.5 text-slate-500">
+                      <CalendarClock size={11} /> 가입 {new Date(m.created_at).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
