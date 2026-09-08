@@ -12,9 +12,11 @@ import {
   Globe,
   Smartphone,
   Monitor,
+  Clock,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
+import { Modal } from '../../components/Modal';
 
 interface RawLog {
   id: number;
@@ -25,6 +27,16 @@ interface RawLog {
   search_keyword: string | null;
   user_agent: string | null;
   is_member: boolean;
+  created_at: string;
+}
+
+interface ProfileRow {
+  id: string;
+  email: string;
+  name: string;
+  nickname: string | null;
+  phone: string | null;
+  login_count: number | null;
   created_at: string;
 }
 
@@ -177,6 +189,10 @@ export function AdminAnalyticsScreen() {
   const [todaySignups, setTodaySignups] = useState(0);
   const [totalMembers, setTotalMembers] = useState(0);
   const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
+  const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | null>(null);
+  const [memberVisitLogs, setMemberVisitLogs] = useState<RawLog[]>([]);
+  const [todaySignupList, setTodaySignupList] = useState<ProfileRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     if (!supabaseConfigured) return;
@@ -231,6 +247,33 @@ export function AdminAnalyticsScreen() {
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  const openMemberVisits = useCallback(async () => {
+    setDetailModal('memberVisits');
+    setDetailLoading(true);
+    const { data } = await supabase
+      .from('visitor_logs')
+      .select('*')
+      .eq('is_member', true)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setMemberVisitLogs((data as RawLog[]) || []);
+    setDetailLoading(false);
+  }, []);
+
+  const openTodaySignups = useCallback(async () => {
+    setDetailModal('todaySignups');
+    setDetailLoading(true);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, email, name, nickname, phone, login_count, created_at')
+      .gte('created_at', startOfToday.toISOString())
+      .order('created_at', { ascending: false });
+    setTodaySignupList((data as ProfileRow[]) || []);
+    setDetailLoading(false);
+  }, []);
 
   // Compute stats
   const stats: Stats = {
@@ -396,7 +439,10 @@ export function AdminAnalyticsScreen() {
 
       {/* Member vs Guest & Signups */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="card p-4 flex items-center gap-3">
+        <button
+          onClick={openMemberVisits}
+          className="card p-4 flex items-center gap-3 text-left hover:ring-2 hover:ring-green-200 transition cursor-pointer"
+        >
           <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-700">
             <Users size={18} />
           </div>
@@ -404,7 +450,7 @@ export function AdminAnalyticsScreen() {
             <p className="text-xs text-slate-500 font-semibold">회원 방문</p>
             <p className="text-lg font-extrabold text-navy-900">{stats.memberVisits}</p>
           </div>
-        </div>
+        </button>
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
             <Globe size={18} />
@@ -414,7 +460,10 @@ export function AdminAnalyticsScreen() {
             <p className="text-lg font-extrabold text-navy-900">{stats.guestVisits}</p>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-3">
+        <button
+          onClick={openTodaySignups}
+          className="card p-4 flex items-center gap-3 text-left hover:ring-2 hover:ring-volt-200 transition cursor-pointer"
+        >
           <div className="w-10 h-10 rounded-xl bg-volt-100 flex items-center justify-center text-volt-700">
             <UserPlus size={18} />
           </div>
@@ -425,7 +474,7 @@ export function AdminAnalyticsScreen() {
               <span className="text-xs font-semibold text-slate-400 ml-1">/ 총 {stats.totalMembers}명</span>
             </p>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Daily Trend */}
@@ -560,6 +609,106 @@ export function AdminAnalyticsScreen() {
           description="방문자가 접속하면 여기에 분석 데이터가 표시됩니다."
         />
       )}
+
+      {/* Member visits detail modal */}
+      <Modal
+        open={detailModal === 'memberVisits'}
+        onClose={() => setDetailModal(null)}
+        title="회원 방문 내역"
+        size="lg"
+      >
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw size={24} className="animate-spin text-slate-300" />
+          </div>
+        ) : memberVisitLogs.length === 0 ? (
+          <EmptyState
+            icon={<Users size={24} />}
+            title="회원 방문 내역이 없습니다"
+            description="로그인한 회원의 방문 기록이 여기에 표시됩니다."
+          />
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-400 mb-3">최근 {memberVisitLogs.length}건 (최대 200건)</p>
+            {memberVisitLogs.map((log) => (
+              <div
+                key={log.id}
+                className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 transition"
+              >
+                <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600 shrink-0">
+                  <Users size={14} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-navy-900">{log.page}</p>
+                  <p className="text-xs text-slate-400 truncate">{log.path || '-'}</p>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+                  <Clock size={12} />
+                  {new Date(log.created_at).toLocaleString('ko-KR', {
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* Today signups detail modal */}
+      <Modal
+        open={detailModal === 'todaySignups'}
+        onClose={() => setDetailModal(null)}
+        title="오늘 가입한 회원"
+        size="lg"
+      >
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw size={24} className="animate-spin text-slate-300" />
+          </div>
+        ) : todaySignupList.length === 0 ? (
+          <EmptyState
+            icon={<UserPlus size={24} />}
+            title="오늘 가입한 회원이 없습니다"
+            description="새로 가입한 회원이 여기에 표시됩니다."
+          />
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-400 mb-3">오늘 가입 {todaySignupList.length}명</p>
+            {todaySignupList.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 transition"
+              >
+                <div className="w-8 h-8 rounded-full bg-volt-50 flex items-center justify-center text-volt-700 shrink-0 text-xs font-bold">
+                  {(p.nickname || p.name || '?').charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-navy-900 truncate">
+                    {p.nickname || p.name}
+                    {p.nickname && p.nickname !== p.name && (
+                      <span className="text-slate-400 font-normal ml-1">({p.name})</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-400 truncate">{p.email}</p>
+                </div>
+                {p.phone && (
+                  <span className="text-xs text-slate-500 shrink-0 hidden sm:block">{p.phone}</span>
+                )}
+                <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+                  <Clock size={12} />
+                  {new Date(p.created_at).toLocaleString('ko-KR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
