@@ -366,7 +366,7 @@ function UserShell() {
         <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
           <Logo size={28} imageUrl={logoImageUrl} />
           <p className="text-xs text-slate-400">
-            © 2026 PLAY TENNIS HOUSE · 테니스 펜션 예약 & 매칭 서비스
+            제이피지(132-18-80228) PLAY TENNIS HOUSE 테니스 펜션 & 코트 예약
           </p>
         </div>
         <div className="max-w-6xl mx-auto px-4 pb-4">
