@@ -140,12 +140,14 @@ function StatCard({
   value,
   sub,
   accent = 'navy',
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
   sub?: string;
   accent?: 'navy' | 'green' | 'amber' | 'sky';
+  onClick?: () => void;
 }) {
   const colorMap = {
     navy: 'bg-navy-50 text-navy-700 border-navy-100',
@@ -153,8 +155,8 @@ function StatCard({
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
     sky: 'bg-sky-50 text-sky-700 border-sky-100',
   };
-  return (
-    <div className="card p-4 flex items-center gap-3">
+  const inner = (
+    <>
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center border ${colorMap[accent]}`}>
         {icon}
       </div>
@@ -163,8 +165,19 @@ function StatCard({
         <p className="text-xl font-extrabold text-navy-900">{value}</p>
         {sub && <p className="text-[11px] text-slate-400">{sub}</p>}
       </div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className="card p-4 flex items-center gap-3 text-left hover:ring-2 hover:ring-green-200 transition cursor-pointer"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className="card p-4 flex items-center gap-3">{inner}</div>;
 }
 
 function BarRow({ label, value, max }: { label: string; value: number; max: number }) {
@@ -189,9 +202,10 @@ export function AdminAnalyticsScreen() {
   const [todaySignups, setTodaySignups] = useState(0);
   const [totalMembers, setTotalMembers] = useState(0);
   const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
-  const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | null>(null);
+  const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | 'todayVisitors' | null>(null);
   const [memberVisitLogs, setMemberVisitLogs] = useState<RawLog[]>([]);
   const [todaySignupList, setTodaySignupList] = useState<ProfileRow[]>([]);
+  const [todayVisitorLogs, setTodayVisitorLogs] = useState<RawLog[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchLogs = useCallback(async () => {
@@ -258,6 +272,21 @@ export function AdminAnalyticsScreen() {
       .order('created_at', { ascending: false })
       .limit(200);
     setMemberVisitLogs((data as RawLog[]) || []);
+    setDetailLoading(false);
+  }, []);
+
+  const openTodayVisitors = useCallback(async () => {
+    setDetailModal('todayVisitors');
+    setDetailLoading(true);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from('visitor_logs')
+      .select('*')
+      .gte('created_at', startOfToday.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(200);
+    setTodayVisitorLogs((data as RawLog[]) || []);
     setDetailLoading(false);
   }, []);
 
@@ -421,6 +450,7 @@ export function AdminAnalyticsScreen() {
           value={stats.todayUniqueVisitors}
           sub={`방문 ${stats.todayVisits}회`}
           accent="green"
+          onClick={openTodayVisitors}
         />
         <StatCard
           icon={<TrendingUp size={20} />}
@@ -609,6 +639,58 @@ export function AdminAnalyticsScreen() {
           description="방문자가 접속하면 여기에 분석 데이터가 표시됩니다."
         />
       )}
+
+      {/* Today visitors detail modal */}
+      <Modal
+        open={detailModal === 'todayVisitors'}
+        onClose={() => setDetailModal(null)}
+        title="오늘 방문자 내역"
+        size="lg"
+      >
+        {detailLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw size={24} className="animate-spin text-slate-300" />
+          </div>
+        ) : todayVisitorLogs.length === 0 ? (
+          <EmptyState
+            icon={<Users size={24} />}
+            title="오늘 방문 내역이 없습니다"
+            description="방문 기록이 여기에 표시됩니다."
+          />
+        ) : (
+          <div className="space-y-1">
+            <p className="text-xs text-slate-400 mb-3">오늘 방문 {todayVisitorLogs.length}건 (최대 200건)</p>
+            {todayVisitorLogs.map((log) => (
+              <div
+                key={log.id}
+                className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 transition"
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${log.is_member ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                  {log.is_member ? <Users size={14} /> : <Globe size={14} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-navy-900">
+                    {log.page}
+                    <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${log.is_member ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {log.is_member ? '회원' : '비회원'}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-400 truncate">
+                    {formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+                  <Clock size={12} />
+                  {new Date(log.created_at).toLocaleString('ko-KR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       {/* Member visits detail modal */}
       <Modal
