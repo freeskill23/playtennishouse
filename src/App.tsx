@@ -79,13 +79,13 @@ const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
 const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'dashboard', label: '캘린더', icon: LayoutDashboard },
   { key: 'approval', label: '승인관리', icon: CheckSquare },
-  { key: 'members', label: '회원목록', icon: Users },
-  { key: 'matching', label: '매칭관리', icon: Users },
-  { key: 'notice', label: '공지관리', icon: Megaphone },
-  { key: 'gallery', label: '갤러리관리', icon: Images },
-  { key: 'reviews', label: '이용후기관리', icon: Star },
+  { key: 'members', label: '회원', icon: Users },
+  { key: 'matching', label: '매칭', icon: Users },
+  { key: 'notice', label: '공지', icon: Megaphone },
+  { key: 'gallery', label: '갤러리', icon: Images },
+  { key: 'reviews', label: '이용후기', icon: Star },
   { key: 'analytics', label: '방문자분석', icon: BarChart3 },
-  { key: 'memo', label: '관리자메모', icon: StickyNote },
+  { key: 'memo', label: '메모', icon: StickyNote },
 ];
 
 const ADMIN_PASSWORD = 'admin123';
@@ -431,7 +431,7 @@ function AdminShell() {
           <span className="hidden sm:inline text-xs font-bold text-volt-400 tracking-widest">
             ADMIN
           </span>
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center min-w-0">
             {ADMIN_NAV.map((n) => {
               const Icon = n.icon;
               const active = tab === n.key;
@@ -439,11 +439,11 @@ function AdminShell() {
                 <button
                   key={n.key}
                   onClick={() => go(n.key)}
-                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+                  className={`relative flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap ${
                     active ? 'bg-volt-500 text-navy-950' : 'text-white/80 hover:bg-white/10'
                   }`}
                 >
-                  <Icon size={16} />
+                  <Icon size={14} />
                   {n.label}
                 </button>
               );
