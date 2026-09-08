@@ -50,7 +50,7 @@ function extractSearchKeyword(referrer: string): string | null {
   }
 }
 
-export function logVisit(page: string, isMember: boolean): void {
+export function logVisit(page: string, isMember: boolean, userName?: string): void {
   if (!supabaseConfigured) return;
   if (!shouldLogPage(page)) return;
 
@@ -69,6 +69,7 @@ export function logVisit(page: string, isMember: boolean): void {
       search_keyword: searchKeyword,
       user_agent: userAgent,
       is_member: isMember,
+      user_name: isMember ? userName || null : null,
     })
     .then(({ error }) => {
       if (error) console.error('[logVisit]', error.message);

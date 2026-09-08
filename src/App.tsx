@@ -263,8 +263,8 @@ function UserShell() {
   const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    logVisit(tab, !isGuest);
-  }, [tab, isGuest]);
+    logVisit(tab, !isGuest, currentUser.name);
+  }, [tab, isGuest, currentUser.name]);
 
   const go = (k: string) => {
     if (isGuest && k === 'matching') {

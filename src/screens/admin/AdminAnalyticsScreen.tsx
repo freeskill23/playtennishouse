@@ -27,6 +27,7 @@ interface RawLog {
   search_keyword: string | null;
   user_agent: string | null;
   is_member: boolean;
+  user_name: string | null;
   created_at: string;
 }
 
@@ -670,13 +671,18 @@ export function AdminAnalyticsScreen() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-navy-900">
-                    {log.page}
+                    {log.is_member && log.user_name ? log.user_name : log.page}
+                    {log.is_member && log.user_name && (
+                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-600">
+                        {log.page}
+                      </span>
+                    )}
                     <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${log.is_member ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
                       {log.is_member ? '회원' : '비회원'}
                     </span>
                   </p>
                   <p className="text-xs text-slate-400 truncate">
-                    {formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}
+                    {log.is_member && log.user_name ? log.page : formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
@@ -710,32 +716,57 @@ export function AdminAnalyticsScreen() {
             description="로그인한 회원의 방문 기록이 여기에 표시됩니다."
           />
         ) : (
-          <div className="space-y-1">
-            <p className="text-xs text-slate-400 mb-3">최근 {memberVisitLogs.length}건 (최대 200건)</p>
-            {memberVisitLogs.map((log) => (
-              <div
-                key={log.id}
-                className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 transition"
-              >
-                <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600 shrink-0">
-                  <Users size={14} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-navy-900">{log.page}</p>
-                  <p className="text-xs text-slate-400 truncate">{log.path || '-'}</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
-                  <Clock size={12} />
-                  {new Date(log.created_at).toLocaleString('ko-KR', {
-                    month: 'numeric',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
+          (() => {
+            const byMember = new Map<string, { name: string; logs: RawLog[] }>();
+            for (const log of memberVisitLogs) {
+              const name = log.user_name || '이름 미상';
+              if (!byMember.has(name)) byMember.set(name, { name, logs: [] });
+              byMember.get(name)!.logs.push(log);
+            }
+            const members = Array.from(byMember.values()).sort((a, b) => b.logs.length - a.logs.length);
+            const pageLabelMap: Record<string, string> = {
+              home: '홈', pension: '펜션', court: '코트대관', matching: '매칭',
+              notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
+            };
+            return (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400">회원 {members.length}명 · 총 {memberVisitLogs.length}건 (최대 200건)</p>
+                {members.map((m) => {
+                  const pages = new Map<string, number>();
+                  for (const log of m.logs) {
+                    pages.set(log.page, (pages.get(log.page) || 0) + 1);
+                  }
+                  const pageList = Array.from(pages.entries()).sort((a, b) => b[1] - a[1]);
+                  const lastVisit = m.logs[0];
+                  return (
+                    <div key={m.name} className="rounded-xl border border-slate-100 overflow-hidden">
+                      <div className="flex items-center gap-3 px-4 py-3 bg-green-50/50">
+                        <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-700 shrink-0 text-sm font-bold">
+                          {m.name.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-navy-900">{m.name}</p>
+                          <p className="text-[11px] text-slate-400">방문 {m.logs.length}회</p>
+                        </div>
+                        <div className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0">
+                          <Clock size={11} />
+                          최근 {new Date(lastVisit.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div className="px-4 py-2.5 flex flex-wrap gap-1.5">
+                        {pageList.map(([page, count]) => (
+                          <span key={page} className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-slate-100 text-navy-700">
+                            {pageLabelMap[page] || page}
+                            <span className="text-[10px] text-slate-400">{count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            );
+          })()
         )}
       </Modal>
 
