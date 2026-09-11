@@ -18,6 +18,7 @@ export interface User {
   gamePreference: GamePreference;
   bio: string;
   isAdmin: boolean;
+  referralSource: string;
 }
 
 export type RoomName = 'A동' | 'B동';

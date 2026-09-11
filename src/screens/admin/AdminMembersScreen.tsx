@@ -21,7 +21,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { SectionTitle, EmptyState } from '../../components/ui';
+import { SectionTitle, EmptyState, ReferralBadge } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 
 interface MemberRow {
@@ -35,6 +35,7 @@ interface MemberRow {
   is_bad_member: boolean;
   bad_member_reason: string | null;
   marketing_consent: boolean | null;
+  referral_source: string | null;
   created_at: string;
   login_count: number;
   court_count: number;
@@ -285,6 +286,7 @@ export function AdminMembersScreen() {
                     {m.nickname && m.nickname !== m.name && (
                       <span className="text-xs text-slate-400">({m.nickname})</span>
                     )}
+                    <ReferralBadge source={m.referral_source || undefined} />
                     {m.is_bad_member && (
                       <span className="chip bg-rose-100 text-rose-700">
                         <ShieldAlert size={12} /> 불량회원

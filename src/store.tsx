@@ -311,6 +311,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       gamePreference: authUser.gamePreference,
       bio: authUser.bio,
       isAdmin: false,
+      referralSource: authUser.referralSource || '',
     };
     return [authAsUser, ...initialUsers.filter((u) => u.id !== authUser.id)];
   });
@@ -337,6 +338,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           gamePreference: (p.game_preference as GamePreference) || 'any',
           bio: (p.bio as string) || '',
           isAdmin: false,
+          referralSource: (p.referral_source as string) || '',
         }));
       // Also update existing entries with fresh profile data
       const updated = prev.map((u) => {
@@ -348,6 +350,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           nickname: (fresh.nickname as string) || u.nickname,
           phone: (fresh.phone as string) || u.phone,
           profileImg: (fresh.profile_img as string) || u.profileImg,
+          referralSource: (fresh.referral_source as string) || u.referralSource,
         };
       });
       return [...updated, ...loaded];

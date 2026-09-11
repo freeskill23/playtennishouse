@@ -24,6 +24,7 @@ export interface AuthUser {
   hand: Hand;
   gamePreference: GamePreference;
   bio: string;
+  referralSource: string;
 }
 
 interface AuthState {
@@ -66,6 +67,26 @@ export function useAuth() {
   return v;
 }
 
+function detectReferralSource(): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const utm = params.get('utm_source');
+    if (utm) return utm;
+    const referrer = document.referrer || '';
+    if (!referrer) return 'direct';
+    const host = new URL(referrer).hostname;
+    if (host.includes('naver')) return 'naver';
+    if (host.includes('google')) return 'google';
+    if (host.includes('daum')) return 'daum';
+    if (host.includes('instagram')) return 'instagram';
+    if (host.includes('facebook')) return 'facebook';
+    if (host.includes('blog')) return 'blog';
+    return host;
+  } catch {
+    return 'direct';
+  }
+}
+
 const DEFAULT_PROFILE_IMG = '/logo_png.png';
 
 function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
@@ -81,6 +102,7 @@ function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
     hand: (row.hand as Hand) || 'right',
     gamePreference: (row.game_preference as GamePreference) || 'any',
     bio: (row.bio as string) || '',
+    referralSource: (row.referral_source as string) || '',
   };
 }
 
@@ -170,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         game_preference: 'any',
         bio: '',
         marketing_consent: input.marketingConsent,
+        referral_source: detectReferralSource(),
       });
       if (profileError) {
         return { ok: false, error: '프로필 생성에 실패했습니다: ' + profileError.message };

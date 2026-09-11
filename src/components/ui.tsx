@@ -66,6 +66,15 @@ export function EmptyState({
   );
 }
 
+export function ReferralBadge({ source }: { source?: string }) {
+  if (!source) return null;
+  return (
+    <span className="chip bg-emerald-50 text-emerald-600 text-[10px]" title="초기 유입경로">
+      {source}
+    </span>
+  );
+}
+
 export function SectionTitle({
   title,
   subtitle,
