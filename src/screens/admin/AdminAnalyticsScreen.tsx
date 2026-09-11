@@ -207,6 +207,7 @@ export function AdminAnalyticsScreen() {
   const [memberVisitLogs, setMemberVisitLogs] = useState<RawLog[]>([]);
   const [todaySignupList, setTodaySignupList] = useState<ProfileRow[]>([]);
   const [todayVisitorLogs, setTodayVisitorLogs] = useState<RawLog[]>([]);
+  const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
   const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchLogs = useCallback(async () => {
@@ -288,6 +289,21 @@ export function AdminAnalyticsScreen() {
       .order('created_at', { ascending: false })
       .limit(200);
     setTodayVisitorLogs((data as RawLog[]) || []);
+
+    // Fetch last 7 days of logs to compute per-visitor visit counts
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const { data: weekData } = await supabase
+      .from('visitor_logs')
+      .select('session_id, is_member, user_name')
+      .gte('created_at', weekAgo.toISOString())
+      .limit(10000);
+    const counts = new Map<string, number>();
+    for (const wl of (weekData as Pick<RawLog, 'session_id' | 'is_member' | 'user_name'>[]) || []) {
+      const key = wl.is_member && wl.user_name ? `member:${wl.user_name}` : `session:${wl.session_id}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    setVisitorWeekCounts(counts);
     setDetailLoading(false);
   }, []);
 
@@ -679,6 +695,9 @@ export function AdminAnalyticsScreen() {
                     )}
                     <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${log.is_member ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
                       {log.is_member ? '회원' : '비회원'}
+                    </span>
+                    <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600" title="최근 7일 접속 횟수">
+                      7일 {visitorWeekCounts.get(log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`) || 0}회
                     </span>
                   </p>
                   <p className="text-xs text-slate-400 truncate">
