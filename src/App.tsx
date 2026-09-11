@@ -373,6 +373,9 @@ function UserShell() {
           <p className="text-[11px] text-slate-300 text-center leading-relaxed">
             제이피지(132-18-80228) 대표 : 김진수 권세미 · 경기도 포천시 금강로 2480-47
           </p>
+          <p className="text-[11px] text-slate-300 text-center leading-relaxed mt-1">
+            테니스펜션 · 테니스 · 테니스코트 · 테니스코트대관 · 테니스장 · 예쁜테니스장 · 예쁜테니스펜션 · 테니스매칭 · 테니스동호회 · 테니스예약 · 테니스펜션예약 · 테니스 숙박 · 테니스 여행
+          </p>
         </div>
       </footer>
 
