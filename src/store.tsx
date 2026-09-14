@@ -1467,7 +1467,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
       void sendTelegramNotification(
         '펜션 예약 안내',
-        `안녕하세요, PLAY TENNIS HOUSE 입니다.\n   ${userName}님   ${parseInt(mm, 10)}월  ${parseInt(dd, 10)}일  ${input.capacity}명 예약 되셨습니다.😊\n이용 금액은 예약일로부터 48시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                          - PLAY TENNIS HOUSE -`,
+        `안녕하세요, 플테하(플레이 테니스 하우스) 입니다.\n ${userName}님 ${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일 ${room.name} ${input.capacity}명 예약 되셨습니다.😊\n이용 금액은 예약일로부터 48시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                                 - 플테하 -`,
       );
       pushToast(
         reservation.waitingSequence
@@ -1531,7 +1531,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const slotLabel = mergeTimeSlots(input.timeSlots);
       void sendTelegramNotification(
         '코트 예약 안내',
-        `안녕하세요, PLAY TENNIS HOUSE 입니다.\n   ${userName}님   ${parseInt(mm, 10)}월  ${parseInt(dd, 10)}일  ${slotLabel} 예약 되셨습니다.😊\n이용 금액은 예약일로부터 24시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                          - PLAY TENNIS HOUSE -`,
+        `안녕하세요, 플테하(플레이 테니스 하우스) 입니다.\n ${userName}님 ${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일 ${input.court} ${slotLabel} 예약 되셨습니다.😊\n이용 금액은 예약일로부터 24시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                                 - 플테하 -`,
       );
       pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
       return { ok: true, reservations: newReservations };
@@ -1702,6 +1702,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       pushToast(`${getUser(target.userId)?.name}님 예약 승인 완료`);
 
+      // Customer-facing Telegram: reservation confirmed
+      const [aYY, aMM, aDD] = target.date.split('-');
+      const aUserName = target.depositorName || getUser(target.userId)?.name || '회원';
+      const capacityLabel = target.type === 'pension' ? ` ${target.capacity}명` : '';
+      const timeLabel = target.timeSlot || '';
+      void sendTelegramNotification(
+        '예약 완료 안내',
+        ` ${aUserName}님  ${parseInt(aMM, 10)}월  ${parseInt(aDD, 10)}일  ${target.targetLabel}${capacityLabel}${timeLabel ? ` ${timeLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
+      );
+
       // Activate matching post if this reservation belongs to one
       setMatchingPosts((mpPrev) => {
         const mp = mpPrev.find((p) => p.reservationIds.includes(id));
@@ -1715,7 +1725,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return mpPrev.map((p) => (p.id === mp.id ? activated : p));
       });
     },
-    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
+    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost, sendTelegramNotification],
   );
 
   // ===== Approve multiple reservations at once (admin) =====
@@ -1732,6 +1742,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         targetUserId: targets[0].userId,
       });
       pushToast(`${firstName}님 예약 ${targets.length}건 승인 완료`);
+      // Customer-facing Telegram: reservation confirmed (one per reservation)
+      for (const r of targets) {
+        const [bYY, bMM, bDD] = r.date.split('-');
+        const bUserName = r.depositorName || getUser(r.userId)?.name || '회원';
+        const capLabel = r.type === 'pension' ? ` ${r.capacity}명` : '';
+        const tLabel = r.timeSlot || '';
+        void sendTelegramNotification(
+          '예약 완료 안내',
+          ` ${bUserName}님  ${parseInt(bMM, 10)}월  ${parseInt(bDD, 10)}일  ${r.targetLabel}${capLabel}${tLabel ? ` ${tLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
+        );
+      }
       const approvedMap = new Map<string, Reservation>();
       for (const r of targets) {
         const approved = { ...r, status: '예약완료' as ReservationStatus };
@@ -1760,7 +1781,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return next;
       });
     },
-    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost],
+    [reservations, addNotification, getUser, pushToast, upsertReservationToSupabase, syncMatchingPost, sendTelegramNotification],
   );
 
   const rejectReservation = useCallback(
