@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
+import { GallerySlideshow } from '../components/GallerySlideshow';
 import { getCourtSlotPriceWithConfig, formatWon } from '../pricing';
 import { COURT_TIME_SLOTS } from '../types';
 import type { CourtName } from '../types';
@@ -25,8 +26,10 @@ export function CourtScreen() {
     tempHolidays,
     bankAccount,
     courtPricing,
+    galleryItems,
   } = useApp();
   const { isGuest } = useAuth();
+  const courtSlides = galleryItems.filter((g) => g.showOnCourt);
   const [date, setDate] = useState(todayYMD());
   const [court, setCourt] = useState<CourtName>('A코트');
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
@@ -121,15 +124,20 @@ export function CourtScreen() {
 
   return (
     <div className="space-y-5 pb-4">
-      <SectionTitle
-        title="코트 예약"
-        subtitle="1시간 단위 · 05:00 ~ 24:00 · 여러 시간대 선택 가능"
-        right={
-          <span className="chip bg-navy-50 text-navy-700">
-            <CalendarRange size={14} /> 기본요금 {formatWon(courtPricing.weekdayDay.pricePerHour)}/시간
+      {courtSlides.length > 0 && <GallerySlideshow slides={courtSlides} />}
+      <div className="mb-3">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <h2 className="text-xl font-bold text-navy-900">코트 예약</h2>
+          <span className="text-xs font-medium text-slate-500">05:00 ~ 24:00 · 1시간 단위로 예약 가능합니다</span>
+        </div>
+        <div className="mt-1.5 rounded-xl bg-volt-50 border border-volt-200 px-3.5 py-2 flex items-center gap-1.5">
+          <CalendarRange size={14} className="text-volt-700" />
+          <span className="text-xs font-semibold text-volt-800">
+            이용요금 {formatWon(courtPricing.weekdayDay.pricePerHour)}~{formatWon(courtPricing.weekdayNight.pricePerHour)}/시간
           </span>
-        }
-      />
+          <span className="text-[10px] font-semibold text-amber-600">(VAT 별도)</span>
+        </div>
+      </div>
 
       <Calendar
         value={date}

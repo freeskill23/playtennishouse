@@ -208,6 +208,8 @@ interface AppState {
   createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
   deleteGalleryItem: (id: string) => void;
   toggleGalleryFeatured: (id: string) => void;
+  toggleGalleryShowOnCourt: (id: string) => void;
+  toggleGalleryShowOnPension: (id: string) => void;
 
   // reviews
   reviews: Review[];
@@ -516,6 +518,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             summary: g.summary as string,
             createdAt: g.created_at as number,
             isFeatured: (g.is_featured as boolean) || false,
+            showOnCourt: (g.show_on_court as boolean) || false,
+            showOnPension: (g.show_on_pension as boolean) || false,
           })),
         );
       }
@@ -1458,6 +1462,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         body: `${getUser(currentUserId)?.name}님이 ${room.name} 펜션 예약을 신청했습니다.${reservation.waitingSequence ? ` (대기 ${reservation.waitingSequence}순위)` : ''}`,
         targetUserId: currentUserId,
       });
+      // Customer-facing Telegram confirmation
+      const [yy, mm, dd] = input.date.split('-');
+      const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
+      void sendTelegramNotification(
+        '펜션 예약 안내',
+        `안녕하세요, PLAY TENNIS HOUSE 입니다.\n   ${userName}님   ${parseInt(mm, 10)}월  ${parseInt(dd, 10)}일  ${input.capacity}명 예약 되셨습니다.😊\n이용 금액은 예약일로부터 48시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                          - PLAY TENNIS HOUSE -`,
+      );
       pushToast(
         reservation.waitingSequence
           ? `예약 대기 신청 완료! 대기 ${reservation.waitingSequence}순위`
@@ -1465,7 +1476,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       );
       return { ok: true, reservation };
     },
-    [rooms, reservations, currentUserId, isPensionBlockedByCourt, addNotification, getUser, pushToast, upsertReservationToSupabase],
+    [rooms, reservations, currentUserId, isPensionBlockedByCourt, addNotification, getUser, pushToast, upsertReservationToSupabase, sendTelegramNotification],
   );
 
   // ===== Create court reservation =====
@@ -1514,10 +1525,18 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         body: `${getUser(currentUserId)?.name}님이 ${input.court} ${input.timeSlots.join(', ')} 예약을 신청했습니다.`,
         targetUserId: currentUserId,
       });
+      // Customer-facing Telegram confirmation
+      const [yy, mm, dd] = input.date.split('-');
+      const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
+      const slotLabel = mergeTimeSlots(input.timeSlots);
+      void sendTelegramNotification(
+        '코트 예약 안내',
+        `안녕하세요, PLAY TENNIS HOUSE 입니다.\n   ${userName}님   ${parseInt(mm, 10)}월  ${parseInt(dd, 10)}일  ${slotLabel} 예약 되셨습니다.😊\n이용 금액은 예약일로부터 24시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                          - PLAY TENNIS HOUSE -`,
+      );
       pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
       return { ok: true, reservations: newReservations };
     },
-    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing, sendTelegramNotification],
   );
 
   // ===== Admin direct court reservation (bypass deposit/approval) =====
@@ -2380,6 +2399,42 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const toggleGalleryShowOnCourt = useCallback(
+    (id: string) => {
+      setGalleryItems((prev) =>
+        prev.map((g) => {
+          if (g.id !== id) return g;
+          const next = !g.showOnCourt;
+          if (supabaseConfigured) {
+            supabase.from('gallery_items').update({ show_on_court: next }).eq('id', id).then(({ error }) => {
+              if (error) pushToast('코트 화면 설정 실패: ' + error.message, 'error');
+            });
+          }
+          return { ...g, showOnCourt: next };
+        }),
+      );
+    },
+    [pushToast],
+  );
+
+  const toggleGalleryShowOnPension = useCallback(
+    (id: string) => {
+      setGalleryItems((prev) =>
+        prev.map((g) => {
+          if (g.id !== id) return g;
+          const next = !g.showOnPension;
+          if (supabaseConfigured) {
+            supabase.from('gallery_items').update({ show_on_pension: next }).eq('id', id).then(({ error }) => {
+              if (error) pushToast('펜션 화면 설정 실패: ' + error.message, 'error');
+            });
+          }
+          return { ...g, showOnPension: next };
+        }),
+      );
+    },
+    [pushToast],
+  );
+
   // ===== Reviews =====
   const createReview = useCallback(
     async (input: { authorName: string; content: string; rating: number; imageUrls: string[] }): Promise<{ ok: boolean; error?: string }> => {
@@ -2569,6 +2624,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     createGalleryItem,
     deleteGalleryItem,
     toggleGalleryFeatured,
+    toggleGalleryShowOnCourt,
+    toggleGalleryShowOnPension,
     reviews,
     createReview,
     deleteReview,

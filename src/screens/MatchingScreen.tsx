@@ -20,6 +20,7 @@ import {
 import { useApp } from '../store';
 import { SectionTitle, EmptyState, Pill } from '../components/ui';
 import { Modal } from '../components/Modal';
+import { GallerySlideshow } from '../components/GallerySlideshow';
 import { Calendar as CalendarPicker, todayYMD, addDaysYMD } from '../components/Calendar';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from '../types';
 import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
@@ -59,7 +60,9 @@ export function MatchingScreen() {
     bankAccount,
     focusMatchingPostId,
     setFocusMatchingPostId,
+    galleryItems,
   } = useApp();
+  const courtSlides = galleryItems.filter((g) => g.showOnCourt);
   const [filterNtrp, setFilterNtrp] = useState<NTRP | 'any'>('any');
   const [filterGender, setFilterGender] = useState<GenderRequirement | 'all'>('all');
   const [filterDate, setFilterDate] = useState<string>('');
@@ -128,6 +131,7 @@ export function MatchingScreen() {
 
   return (
     <div className="space-y-5 pb-4">
+      {courtSlides.length > 0 && <GallerySlideshow slides={courtSlides} />}
       <SectionTitle
         title="매칭 피드"
         subtitle="함께 테니스를 즐길 메이트를 찾아보세요"

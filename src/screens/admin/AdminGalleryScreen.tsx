@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -40,7 +40,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminGalleryScreen() {
-  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured } = useApp();
+  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension } = useApp();
   const [summary, setSummary] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -89,7 +89,7 @@ export function AdminGalleryScreen() {
     <div className="space-y-5 pb-4">
       <SectionTitle
         title="갤러리 관리"
-        subtitle="사진과 한줄 요약을 등록하세요 · 별표를 눌러 메인 슬라이드에 표시할 사진을 선택하세요"
+        subtitle="사진과 한줄 요약을 등록하세요 · 별표: 메인 슬라이드 · 코트/펜션 아이콘: 각 예약 화면 슬라이드"
       />
 
       <div className="card p-5 space-y-4 animate-slide-up">
@@ -189,6 +189,22 @@ export function AdminGalleryScreen() {
                   aria-label={item.isFeatured ? '추천 해제' : '추천 설정'}
                 >
                   <Star size={14} fill={item.isFeatured ? 'currentColor' : 'none'} />
+                </button>
+                <button
+                  onClick={() => toggleGalleryShowOnCourt(item.id)}
+                  className={`absolute top-9 left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow transition ${item.showOnCourt ? 'bg-navy-700 text-white opacity-100' : 'bg-white/90 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-navy-700'}`}
+                  aria-label={item.showOnCourt ? '코트 화면 해제' : '코트 화면 설정'}
+                  title="코트 예약 화면 슬라이드"
+                >
+                  <CalendarRange size={14} />
+                </button>
+                <button
+                  onClick={() => toggleGalleryShowOnPension(item.id)}
+                  className={`absolute top-[4rem] left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow transition ${item.showOnPension ? 'bg-volt-500 text-navy-900 opacity-100' : 'bg-white/90 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-volt-600'}`}
+                  aria-label={item.showOnPension ? '펜션 화면 해제' : '펜션 화면 설정'}
+                  title="펜션 예약 화면 슬라이드"
+                >
+                  <BedDouble size={14} />
                 </button>
                 <button
                   onClick={() => deleteGalleryItem(item.id)}

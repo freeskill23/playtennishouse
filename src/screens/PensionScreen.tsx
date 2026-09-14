@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, endOfMonthPlusN } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
+import { GallerySlideshow } from '../components/GallerySlideshow';
 import { formatWon } from '../pricing';
 import type { RoomName } from '../types';
 
@@ -20,8 +21,10 @@ export function PensionScreen() {
     pensionWeekdayPrice,
     pensionWeekendPrice,
     bankAccount,
+    galleryItems,
   } = useApp();
   const { isGuest } = useAuth();
+  const pensionSlides = galleryItems.filter((g) => g.showOnPension);
   const [date, setDate] = useState(todayYMD());
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
   const [capacity, setCapacity] = useState(4);
@@ -54,15 +57,20 @@ export function PensionScreen() {
 
   return (
     <div className="space-y-5 pb-4">
-      <SectionTitle
-        title="펜션 예약"
-        subtitle="A동 · B동 중 원하는 객실을 선택하세요"
-        right={
-          <span className="chip bg-volt-100 text-volt-800">
-            <BedDouble size={14} /> 평일 {formatWon(pensionWeekdayPrice)} / 주말·공휴일 {formatWon(pensionWeekendPrice)}
+      {pensionSlides.length > 0 && <GallerySlideshow slides={pensionSlides} />}
+      <div className="mb-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-xl font-bold text-navy-900">펜션 예약</h2>
+          <span className="text-xs font-medium text-slate-500">체크인 오후 3시 · 체크아웃 익일 오전 11시</span>
+        </div>
+        <div className="mt-1.5 rounded-xl bg-volt-50 border border-volt-200 px-3.5 py-2 flex items-center gap-1.5">
+          <BedDouble size={14} className="text-volt-700" />
+          <span className="text-xs font-semibold text-volt-800">
+            이용료 {formatWon(pensionWeekdayPrice)}~{formatWon(pensionWeekendPrice)}
           </span>
-        }
-      />
+          <span className="text-[10px] font-semibold text-amber-600">(VAT 별도)</span>
+        </div>
+      </div>
 
       {(roomBlocked('A동') || roomBlocked('B동')) && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">

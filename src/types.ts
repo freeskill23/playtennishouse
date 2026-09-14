@@ -105,6 +105,8 @@ export interface GalleryItem {
   summary: string;
   createdAt: number;
   isFeatured?: boolean;
+  showOnCourt?: boolean;
+  showOnPension?: boolean;
 }
 
 export type NoticeType = '일반공지' | '이벤트' | '우천' | '환불' | '이용수칙';
