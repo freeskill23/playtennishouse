@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, ChevronUp, ChevronDown, Pencil, ImageUp } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, Pencil, ImageUp, GripVertical } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -40,7 +40,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminGalleryScreen() {
-  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension, reorderGalleryItem, updateGalleryItem } = useApp();
+  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension, updateGalleryItem, setGalleryOrder } = useApp();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSummary, setEditSummary] = useState('');
   const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
@@ -52,6 +52,8 @@ export function AdminGalleryScreen() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const onEditPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -145,9 +147,9 @@ export function AdminGalleryScreen() {
 
   return (
     <div className="space-y-5 pb-4">
-      <SectionTitle
+        <SectionTitle
         title="갤러리 관리"
-        subtitle="사진과 한줄 요약을 등록하세요 · 별표: 메인 슬라이드 · 코트/펜션 아이콘: 각 예약 화면 슬라이드"
+        subtitle="사진을 드래그하여 순서를 변경할 수 있습니다 · 좌측 상단이 첫번째 · 별표: 메인 슬라이드 · 코트/펜션 아이콘: 각 예약 화면 슬라이드"
       />
 
       <div className="card p-5 space-y-4 animate-slide-up">
@@ -225,7 +227,24 @@ export function AdminGalleryScreen() {
               .map((item, idx, arr) => (
               <figure
                 key={item.id}
-                className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100"
+                draggable
+                onDragStart={() => setDraggedId(item.id)}
+                onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
+                onDragOver={(e) => { e.preventDefault(); if (item.id !== draggedId) setDragOverId(item.id); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (!draggedId || draggedId === item.id) return;
+                  const sorted = [...galleryItems].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+                  const ids = sorted.map((g) => g.id);
+                  const fromIdx = ids.indexOf(draggedId);
+                  const toIdx = ids.indexOf(item.id);
+                  if (fromIdx === -1 || toIdx === -1) return;
+                  ids.splice(toIdx, 0, ids.splice(fromIdx, 1)[0]);
+                  setGalleryOrder(ids);
+                  setDraggedId(null);
+                  setDragOverId(null);
+                }}
+                className={`group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition-opacity ${draggedId === item.id ? 'opacity-40' : ''} ${dragOverId === item.id ? 'ring-2 ring-volt-400 ring-offset-1' : ''}`}
               >
                 <div className="aspect-square overflow-hidden">
                   <img
@@ -341,23 +360,9 @@ export function AdminGalleryScreen() {
                 >
                   <Pencil size={14} />
                 </button>
-                <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                  <button
-                    onClick={() => reorderGalleryItem(item.id, 'up')}
-                    disabled={idx === 0}
-                    className="w-7 h-7 rounded-full bg-white/90 text-navy-700 flex items-center justify-center shadow hover:bg-navy-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="위로"
-                  >
-                    <ChevronUp size={14} />
-                  </button>
-                  <button
-                    onClick={() => reorderGalleryItem(item.id, 'down')}
-                    disabled={idx === arr.length - 1}
-                    className="w-7 h-7 rounded-full bg-white/90 text-navy-700 flex items-center justify-center shadow hover:bg-navy-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="아래로"
-                  >
-                    <ChevronDown size={14} />
-                  </button>
+                <div className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition bg-white/90 rounded-full px-1.5 py-1 shadow cursor-grab active:cursor-grabbing">
+                  <GripVertical size={14} className="text-slate-400" />
+                  <span className="text-[10px] font-semibold text-slate-500">{idx + 1}</span>
                 </div>
               </figure>
             ))}

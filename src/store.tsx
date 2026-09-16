@@ -211,6 +211,7 @@ interface AppState {
   toggleGalleryShowOnCourt: (id: string) => void;
   toggleGalleryShowOnPension: (id: string) => void;
   reorderGalleryItem: (id: string, direction: 'up' | 'down') => void;
+  setGalleryOrder: (orderedIds: string[]) => void;
   updateGalleryItem: (id: string, patch: { summary?: string; imageUrl?: string }) => void;
 
   // reviews
@@ -2488,6 +2489,27 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const setGalleryOrder = useCallback(
+    (orderedIds: string[]) => {
+      setGalleryItems((prev) => {
+        const map = new Map(prev.map((g) => [g.id, g]));
+        const reordered = orderedIds.map((id, i) => {
+          const g = map.get(id);
+          if (!g) return null;
+          const sortOrder = i;
+          if (supabaseConfigured) {
+            supabase.from('gallery_items').update({ sort_order: sortOrder }).eq('id', id).then(({ error }) => {
+              if (error) pushToast('순서 변경 실패: ' + error.message, 'error');
+            });
+          }
+          return { ...g, sortOrder };
+        }).filter(Boolean) as GalleryItem[];
+        return reordered;
+      });
+    },
+    [pushToast],
+  );
+
   const updateGalleryItem = useCallback(
     (id: string, patch: { summary?: string; imageUrl?: string }) => {
       const updates: Record<string, string> = {};
@@ -2496,7 +2518,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       setGalleryItems((prev) =>
         prev.map((g) => {
           if (g.id !== id) return g;
-          const next = { ...g, ...patch };
+          const next = { ...g };
+          if (patch.summary !== undefined) next.summary = patch.summary;
+          if (patch.imageUrl !== undefined) next.imageUrl = patch.imageUrl;
           if (supabaseConfigured && Object.keys(updates).length > 0) {
             supabase.from('gallery_items').update(updates).eq('id', id).then(({ error }) => {
               if (error) pushToast('수정 실패: ' + error.message, 'error');
@@ -2702,6 +2726,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     toggleGalleryShowOnCourt,
     toggleGalleryShowOnPension,
     reorderGalleryItem,
+    setGalleryOrder,
     updateGalleryItem,
     reviews,
     createReview,

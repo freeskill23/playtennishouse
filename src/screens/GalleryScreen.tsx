@@ -22,7 +22,7 @@ export function GalleryScreen() {
         <EmptyState icon={<ImageIcon size={28} />} title="아직 등록된 사진이 없어요" />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {galleryItems.map((item) => (
+          {[...galleryItems].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((item) => (
             <figure
               key={item.id}
               onClick={() =>
