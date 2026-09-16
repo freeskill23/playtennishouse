@@ -210,6 +210,8 @@ interface AppState {
   toggleGalleryFeatured: (id: string) => void;
   toggleGalleryShowOnCourt: (id: string) => void;
   toggleGalleryShowOnPension: (id: string) => void;
+  reorderGalleryItem: (id: string, direction: 'up' | 'down') => void;
+  updateGalleryItem: (id: string, patch: { summary?: string }) => void;
 
   // reviews
   reviews: Review[];
@@ -509,6 +511,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const { data } = await supabase
         .from('gallery_items')
         .select('*')
+        .order('sort_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
       if (data && data.length > 0) {
         setGalleryItems(
@@ -520,6 +523,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             isFeatured: (g.is_featured as boolean) || false,
             showOnCourt: (g.show_on_court as boolean) || false,
             showOnPension: (g.show_on_pension as boolean) || false,
+            sortOrder: (g.sort_order as number) || 0,
           })),
         );
       }
@@ -2456,6 +2460,53 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const reorderGalleryItem = useCallback(
+    (id: string, direction: 'up' | 'down') => {
+      setGalleryItems((prev) => {
+        const sorted = [...prev].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const idx = sorted.findIndex((g) => g.id === id);
+        if (idx === -1) return prev;
+        const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= sorted.length) return prev;
+        const a = sorted[idx];
+        const b = sorted[swapIdx];
+        const aOrder = a.sortOrder ?? 0;
+        const bOrder = b.sortOrder ?? 0;
+        sorted[idx] = { ...a, sortOrder: bOrder };
+        sorted[swapIdx] = { ...b, sortOrder: aOrder };
+        if (supabaseConfigured) {
+          supabase.from('gallery_items').update({ sort_order: bOrder }).eq('id', a.id).then(({ error }) => {
+            if (error) pushToast('순서 변경 실패: ' + error.message, 'error');
+          });
+          supabase.from('gallery_items').update({ sort_order: aOrder }).eq('id', b.id).then(({ error }) => {
+            if (error) pushToast('순서 변경 실패: ' + error.message, 'error');
+          });
+        }
+        return sorted;
+      });
+    },
+    [pushToast],
+  );
+
+  const updateGalleryItem = useCallback(
+    (id: string, patch: { summary?: string }) => {
+      setGalleryItems((prev) =>
+        prev.map((g) => {
+          if (g.id !== id) return g;
+          const next = { ...g, summary: patch.summary ?? g.summary };
+          if (supabaseConfigured) {
+            supabase.from('gallery_items').update({ summary: next.summary }).eq('id', id).then(({ error }) => {
+              if (error) pushToast('수정 실패: ' + error.message, 'error');
+            });
+          }
+          return next;
+        }),
+      );
+      pushToast('갤러리가 수정되었습니다.');
+    },
+    [pushToast],
+  );
+
   // ===== Reviews =====
   const createReview = useCallback(
     async (input: { authorName: string; content: string; rating: number; imageUrls: string[] }): Promise<{ ok: boolean; error?: string }> => {
@@ -2647,6 +2698,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     toggleGalleryFeatured,
     toggleGalleryShowOnCourt,
     toggleGalleryShowOnPension,
+    reorderGalleryItem,
+    updateGalleryItem,
     reviews,
     createReview,
     deleteReview,

@@ -107,6 +107,7 @@ export interface GalleryItem {
   isFeatured?: boolean;
   showOnCourt?: boolean;
   showOnPension?: boolean;
+  sortOrder?: number;
 }
 
 export type NoticeType = '일반공지' | '이벤트' | '우천' | '환불' | '이용수칙';

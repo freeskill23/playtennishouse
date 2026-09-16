@@ -7,8 +7,9 @@ interface Props {
 }
 
 export function GallerySlideshow({ slides, aspectClass = 'aspect-[16/10] sm:aspect-[16/8]' }: Props) {
-  const slideCount = slides.length;
-  const extendedSlides = slideCount > 1 ? [slides[slideCount - 1], ...slides, slides[0]] : slides;
+  const sortedSlides = [...slides].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const slideCount = sortedSlides.length;
+  const extendedSlides = slideCount > 1 ? [sortedSlides[slideCount - 1], ...sortedSlides, sortedSlides[0]] : sortedSlides;
   const [displayIndex, setDisplayIndex] = useState(1);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -116,7 +117,7 @@ export function GallerySlideshow({ slides, aspectClass = 'aspect-[16/10] sm:aspe
       </div>
       {slideCount > 1 && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {slides.map((_, i) => (
+          {sortedSlides.map((_, i) => (
             <button
               key={i}
               onClick={() => { setDragOffset(0); setDisplayIndex(i + 1); }}

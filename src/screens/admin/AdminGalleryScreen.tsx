@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, ChevronUp, ChevronDown, Pencil } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -40,7 +40,9 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminGalleryScreen() {
-  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension } = useApp();
+  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension, reorderGalleryItem, updateGalleryItem } = useApp();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSummary, setEditSummary] = useState('');
   const [summary, setSummary] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -162,7 +164,9 @@ export function AdminGalleryScreen() {
           <EmptyState icon={<ImagePlus size={28} />} title="등록된 사진이 없어요" />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {galleryItems.map((item) => (
+            {[...galleryItems]
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              .map((item, idx, arr) => (
               <figure
                 key={item.id}
                 className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100"
@@ -176,12 +180,42 @@ export function AdminGalleryScreen() {
                   />
                 </div>
                 <figcaption className="p-2.5">
-                  <p className="text-xs font-semibold text-navy-900 line-clamp-2 leading-snug">
-                    {item.summary}
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    {new Date(item.createdAt).toLocaleDateString('ko-KR')}
-                  </p>
+                  {editingId === item.id ? (
+                    <div className="flex flex-col gap-1.5">
+                      <input
+                        value={editSummary}
+                        onChange={(e) => setEditSummary(e.target.value)}
+                        maxLength={60}
+                        className="input py-1.5 text-xs"
+                        placeholder="한줄 요약"
+                        autoFocus
+                      />
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => { updateGalleryItem(item.id, { summary: editSummary.trim() }); setEditingId(null); }}
+                          disabled={!editSummary.trim()}
+                          className="flex-1 rounded-lg bg-volt-500 text-navy-900 text-xs font-bold py-1.5 disabled:opacity-50"
+                        >
+                          저장
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs font-semibold text-navy-900 line-clamp-2 leading-snug">
+                        {item.summary}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {new Date(item.createdAt).toLocaleDateString('ko-KR')}
+                      </p>
+                    </>
+                  )}
                 </figcaption>
                 <button
                   onClick={() => toggleGalleryFeatured(item.id)}
@@ -213,6 +247,31 @@ export function AdminGalleryScreen() {
                 >
                   <Trash2 size={14} />
                 </button>
+                <button
+                  onClick={() => { setEditingId(item.id); setEditSummary(item.summary); }}
+                  className="absolute top-9 right-1.5 w-7 h-7 rounded-full bg-white/90 text-navy-700 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition hover:bg-navy-100"
+                  aria-label="수정"
+                >
+                  <Pencil size={14} />
+                </button>
+                <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                  <button
+                    onClick={() => reorderGalleryItem(item.id, 'up')}
+                    disabled={idx === 0}
+                    className="w-7 h-7 rounded-full bg-white/90 text-navy-700 flex items-center justify-center shadow hover:bg-navy-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="위로"
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    onClick={() => reorderGalleryItem(item.id, 'down')}
+                    disabled={idx === arr.length - 1}
+                    className="w-7 h-7 rounded-full bg-white/90 text-navy-700 flex items-center justify-center shadow hover:bg-navy-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="아래로"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
               </figure>
             ))}
           </div>
