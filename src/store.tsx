@@ -211,7 +211,7 @@ interface AppState {
   toggleGalleryShowOnCourt: (id: string) => void;
   toggleGalleryShowOnPension: (id: string) => void;
   reorderGalleryItem: (id: string, direction: 'up' | 'down') => void;
-  updateGalleryItem: (id: string, patch: { summary?: string }) => void;
+  updateGalleryItem: (id: string, patch: { summary?: string; imageUrl?: string }) => void;
 
   // reviews
   reviews: Review[];
@@ -2489,13 +2489,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   const updateGalleryItem = useCallback(
-    (id: string, patch: { summary?: string }) => {
+    (id: string, patch: { summary?: string; imageUrl?: string }) => {
+      const updates: Record<string, string> = {};
+      if (patch.summary !== undefined) updates.summary = patch.summary;
+      if (patch.imageUrl !== undefined) updates.image_url = patch.imageUrl;
       setGalleryItems((prev) =>
         prev.map((g) => {
           if (g.id !== id) return g;
-          const next = { ...g, summary: patch.summary ?? g.summary };
-          if (supabaseConfigured) {
-            supabase.from('gallery_items').update({ summary: next.summary }).eq('id', id).then(({ error }) => {
+          const next = { ...g, ...patch };
+          if (supabaseConfigured && Object.keys(updates).length > 0) {
+            supabase.from('gallery_items').update(updates).eq('id', id).then(({ error }) => {
               if (error) pushToast('수정 실패: ' + error.message, 'error');
             });
           }

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, ChevronUp, ChevronDown, Pencil } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, ChevronUp, ChevronDown, Pencil, ImageUp } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -43,11 +43,67 @@ export function AdminGalleryScreen() {
   const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension, reorderGalleryItem, updateGalleryItem } = useApp();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSummary, setEditSummary] = useState('');
+  const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
+  const editFileRef = useRef<HTMLInputElement>(null);
   const [summary, setSummary] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const onEditPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setEditPendingFile(f);
+    setEditPreviewUrl(URL.createObjectURL(f));
+  };
+
+  const clearEditPick = () => {
+    setEditPendingFile(null);
+    if (editPreviewUrl) URL.revokeObjectURL(editPreviewUrl);
+    setEditPreviewUrl(null);
+    if (editFileRef.current) editFileRef.current.value = '';
+  };
+
+  const handleEditSave = async (itemId: string) => {
+    if (!editSummary.trim()) return;
+    let newImageUrl: string | undefined;
+    if (editPendingFile) {
+      setEditUploading(true);
+      try {
+        const blob = await resizeImage(editPendingFile);
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+        if (!supabaseConfigured) throw new Error('Supabase가 설정되지 않았습니다.');
+        const { error: upErr } = await supabase.storage
+          .from('gallery')
+          .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from('gallery').getPublicUrl(fileName);
+        newImageUrl = pub.publicUrl;
+      } catch (err) {
+        alert('사진 업로드 실패: ' + (err as Error).message);
+        setEditUploading(false);
+        return;
+      }
+      setEditUploading(false);
+    }
+    updateGalleryItem(itemId, { summary: editSummary.trim(), imageUrl: newImageUrl });
+    setEditingId(null);
+    clearEditPick();
+  };
+
+  const startEdit = (itemId: string, currentSummary: string) => {
+    setEditingId(itemId);
+    setEditSummary(currentSummary);
+    clearEditPick();
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    clearEditPick();
+  };
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -183,6 +239,37 @@ export function AdminGalleryScreen() {
                   {editingId === item.id ? (
                     <div className="flex flex-col gap-1.5">
                       <input
+                        ref={editFileRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={onEditPick}
+                        className="hidden"
+                      />
+                      {editPreviewUrl ? (
+                        <div className="relative inline-block">
+                          <img
+                            src={editPreviewUrl}
+                            alt="새 사진 미리보기"
+                            className="w-full h-24 object-cover rounded-lg border border-volt-300"
+                          />
+                          <button
+                            onClick={clearEditPick}
+                            className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center shadow"
+                            aria-label="사진 취소"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => editFileRef.current?.click()}
+                          className="flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-volt-400 hover:text-volt-500 transition py-2"
+                        >
+                          <ImageUp size={16} />
+                          <span className="text-xs font-semibold">사진 변경</span>
+                        </button>
+                      )}
+                      <input
                         value={editSummary}
                         onChange={(e) => setEditSummary(e.target.value)}
                         maxLength={60}
@@ -192,14 +279,14 @@ export function AdminGalleryScreen() {
                       />
                       <div className="flex gap-1.5">
                         <button
-                          onClick={() => { updateGalleryItem(item.id, { summary: editSummary.trim() }); setEditingId(null); }}
-                          disabled={!editSummary.trim()}
+                          onClick={() => handleEditSave(item.id)}
+                          disabled={!editSummary.trim() || editUploading}
                           className="flex-1 rounded-lg bg-volt-500 text-navy-900 text-xs font-bold py-1.5 disabled:opacity-50"
                         >
-                          저장
+                          {editUploading ? <Loader2 size={14} className="animate-spin mx-auto" /> : '저장'}
                         </button>
                         <button
-                          onClick={() => setEditingId(null)}
+                          onClick={cancelEdit}
                           className="rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-1.5 px-3"
                         >
                           취소
@@ -248,7 +335,7 @@ export function AdminGalleryScreen() {
                   <Trash2 size={14} />
                 </button>
                 <button
-                  onClick={() => { setEditingId(item.id); setEditSummary(item.summary); }}
+                  onClick={() => startEdit(item.id, item.summary)}
                   className="absolute top-9 right-1.5 w-7 h-7 rounded-full bg-white/90 text-navy-700 flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition hover:bg-navy-100"
                   aria-label="수정"
                 >

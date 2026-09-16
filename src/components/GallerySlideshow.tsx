@@ -20,13 +20,17 @@ export function GallerySlideshow({ slides, aspectClass = 'aspect-[16/10] sm:aspe
     if (slideCount <= 1) return;
     const timer = setInterval(() => {
       setDragOffset(0);
-      setDisplayIndex((prev) => prev + 1);
+      setDisplayIndex((prev) => {
+        if (prev >= slideCount + 1) return prev;
+        return prev + 1;
+      });
     }, 4000);
     return () => clearInterval(timer);
   }, [slideCount]);
 
-  const onTransitionEnd = () => {
+  const onTransitionEnd = (e: React.TransitionEvent) => {
     if (slideCount <= 1) return;
+    if (e.propertyName !== 'transform') return;
     if (displayIndex === 0) {
       setNoTransition(true);
       setDisplayIndex(slideCount);
@@ -41,6 +45,16 @@ export function GallerySlideshow({ slides, aspectClass = 'aspect-[16/10] sm:aspe
       requestAnimationFrame(() => setNoTransition(false));
     }
   }, [noTransition]);
+
+  useEffect(() => {
+    if (slideCount <= 1) return;
+    if (displayIndex !== 0 && displayIndex !== slideCount + 1) return;
+    const t = setTimeout(() => {
+      setNoTransition(true);
+      setDisplayIndex(displayIndex === 0 ? slideCount : 1);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [displayIndex, slideCount]);
 
   useEffect(() => {
     setDisplayIndex(slideCount > 0 ? 1 : 0);
@@ -73,9 +87,9 @@ export function GallerySlideshow({ slides, aspectClass = 'aspect-[16/10] sm:aspe
     setIsDragging(false);
     dragStartRef.current = null;
     if (delta < -threshold) {
-      setDisplayIndex((prev) => prev + 1);
+      setDisplayIndex((prev) => (prev >= slideCount + 1 ? prev : prev + 1));
     } else if (delta > threshold) {
-      setDisplayIndex((prev) => prev - 1);
+      setDisplayIndex((prev) => (prev <= 0 ? prev : prev - 1));
     }
   };
 
