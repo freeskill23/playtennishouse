@@ -109,6 +109,17 @@ export function PensionScreen() {
         }}
       />
 
+      <div className="rounded-2xl bg-navy-50 border border-navy-200 px-4 py-3 flex items-center gap-3 animate-slide-up">
+        <BedDouble size={20} className="text-navy-700 shrink-0" />
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-sm font-semibold text-navy-700">선택하신 예약일은</span>
+          <span className="text-lg font-extrabold text-navy-900">
+            {new Date(date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}
+          </span>
+          <span className="text-sm font-semibold text-navy-700">입니다</span>
+        </div>
+      </div>
+
       {/* Room selection */}
       <div className="grid sm:grid-cols-2 gap-3">
         {rooms.map((room) => {

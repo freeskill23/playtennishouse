@@ -228,9 +228,17 @@ export function AdminGalleryScreen() {
               <figure
                 key={item.id}
                 draggable
-                onDragStart={() => setDraggedId(item.id)}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', item.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedId(item.id);
+                }}
                 onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
-                onDragOver={(e) => { e.preventDefault(); if (item.id !== draggedId) setDragOverId(item.id); }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (item.id !== draggedId) setDragOverId(item.id);
+                }}
                 onDrop={(e) => {
                   e.preventDefault();
                   if (!draggedId || draggedId === item.id) return;
@@ -244,14 +252,15 @@ export function AdminGalleryScreen() {
                   setDraggedId(null);
                   setDragOverId(null);
                 }}
-                className={`group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition-opacity ${draggedId === item.id ? 'opacity-40' : ''} ${dragOverId === item.id ? 'ring-2 ring-volt-400 ring-offset-1' : ''}`}
+                className={`group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition-all ${draggedId === item.id ? 'opacity-40 scale-95' : ''} ${dragOverId === item.id ? 'ring-2 ring-volt-400 ring-offset-1 scale-[1.02]' : ''}`}
               >
-                <div className="aspect-square overflow-hidden">
+                <div className="aspect-square overflow-hidden pointer-events-none">
                   <img
                     src={item.imageUrl}
                     alt={item.summary}
                     loading="lazy"
                     className="w-full h-full object-cover"
+                    draggable={false}
                   />
                 </div>
                 <figcaption className="p-2.5">
@@ -360,7 +369,7 @@ export function AdminGalleryScreen() {
                 >
                   <Pencil size={14} />
                 </button>
-                <div className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition bg-white/90 rounded-full px-1.5 py-1 shadow cursor-grab active:cursor-grabbing">
+                <div className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 bg-white/90 rounded-full px-1.5 py-1 shadow cursor-grab active:cursor-grabbing">
                   <GripVertical size={14} className="text-slate-400" />
                   <span className="text-[10px] font-semibold text-slate-500">{idx + 1}</span>
                 </div>
