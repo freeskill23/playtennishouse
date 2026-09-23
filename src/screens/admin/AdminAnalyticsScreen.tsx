@@ -205,6 +205,7 @@ export function AdminAnalyticsScreen() {
   const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
   const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | 'todayVisitors' | null>(null);
   const [memberVisitLogs, setMemberVisitLogs] = useState<RawLog[]>([]);
+  const [memberResCounts, setMemberResCounts] = useState<Map<string, { pension: number; court: number }>>(new Map());
   const [todaySignupList, setTodaySignupList] = useState<ProfileRow[]>([]);
   const [todayVisitorLogs, setTodayVisitorLogs] = useState<RawLog[]>([]);
   const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
@@ -274,6 +275,30 @@ export function AdminAnalyticsScreen() {
       .order('created_at', { ascending: false })
       .limit(200);
     setMemberVisitLogs((data as RawLog[]) || []);
+
+    // Fetch all reservations and count pension/court per member by depositor_name
+    const { data: resData } = await supabase
+      .from('reservations')
+      .select('type, depositor_name, user_id, status')
+      .neq('status', '취소');
+    const counts = new Map<string, { pension: number; court: number }>();
+    const profilesMap = new Map<string, string>();
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, name, nickname');
+    for (const p of (profilesData as { id: string; name: string; nickname: string | null }[]) || []) {
+      profilesMap.set(p.id, p.nickname || p.name);
+    }
+    for (const r of (resData as { type: string; depositor_name: string | null; user_id: string; status: string }[]) || []) {
+      const name = r.depositor_name || profilesMap.get(r.user_id) || '';
+      if (!name) continue;
+      if (!counts.has(name)) counts.set(name, { pension: 0, court: 0 });
+      const entry = counts.get(name)!;
+      if (r.type === 'pension') entry.pension++;
+      else if (r.type === 'court') entry.court++;
+    }
+    setMemberResCounts(counts);
+
     setDetailLoading(false);
   }, []);
 
@@ -742,7 +767,11 @@ export function AdminAnalyticsScreen() {
               if (!byMember.has(name)) byMember.set(name, { name, logs: [] });
               byMember.get(name)!.logs.push(log);
             }
-            const members = Array.from(byMember.values()).sort((a, b) => b.logs.length - a.logs.length);
+            const members = Array.from(byMember.values()).sort((a, b) => {
+              const aTime = new Date(a.logs[0].created_at).getTime();
+              const bTime = new Date(b.logs[0].created_at).getTime();
+              return bTime - aTime;
+            });
             const pageLabelMap: Record<string, string> = {
               home: '홈', pension: '펜션', court: '코트대관', matching: '매칭',
               notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
@@ -764,7 +793,27 @@ export function AdminAnalyticsScreen() {
                           {m.name.charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-navy-900">{m.name}</p>
+                          <p className="text-sm font-bold text-navy-900">
+                            {m.name}
+                            {(() => {
+                              const rc = memberResCounts.get(m.name);
+                              if (!rc) return null;
+                              return (
+                                <>
+                                  {rc.pension > 0 && (
+                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-volt-50 text-volt-700">
+                                      펜션 {rc.pension}
+                                    </span>
+                                  )}
+                                  {rc.court > 0 && (
+                                    <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-navy-50 text-navy-700">
+                                      코트 {rc.court}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </p>
                           <p className="text-[11px] text-slate-400">방문 {m.logs.length}회</p>
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0">
