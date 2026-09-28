@@ -27,6 +27,7 @@ export function CourtScreen() {
     bankAccount,
     courtPricing,
     galleryItems,
+    courtOpenDays,
   } = useApp();
   const { isGuest } = useAuth();
   const courtSlides = galleryItems.filter((g) => g.showOnCourt);
@@ -143,7 +144,7 @@ export function CourtScreen() {
         value={date}
         onChange={(d) => { setDate(d); setSelectedSlots([]); setErrorReason(null); }}
         minDate={todayYMD()}
-        maxDate={addDaysYMD(10)}
+        maxDate={addDaysYMD(courtOpenDays)}
         dayRender={(d) => {
           const aBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'booked');
           const bBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'booked');

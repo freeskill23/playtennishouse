@@ -256,6 +256,11 @@ interface AppState {
   bankAccount: { bank: string; number: string; holder: string };
   updateBankAccount: (acct: { bank: string; number: string; holder: string }) => void;
 
+  // reservation open window limits
+  courtOpenDays: number;
+  pensionOpenMonths: number;
+  updateReservationLimits: (courtDays: number, pensionMonths: number) => void;
+
   // telegram notifications
   telegramConfig: { botToken: string; chatId: string };
   updateTelegramConfig: (cfg: { botToken: string; chatId: string }) => void;
@@ -800,6 +805,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [bannerGradientColors, setBannerGradientColors] = useState<{ from: string; via: string; to: string } | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
+  const [courtOpenDays, setCourtOpenDays] = useState(10);
+  const [pensionOpenMonths, setPensionOpenMonths] = useState(3);
   const [telegramConfig, setTelegramConfig] = useState({ botToken: '', chatId: '' });
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
   const [dateMemos, setDateMemos] = useState<Record<string, string>>({});
@@ -810,7 +817,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months')
       .eq('id', 1)
       .maybeSingle();
     if (data) {
@@ -833,6 +840,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         botToken: (data.telegram_bot_token as string) || '',
         chatId: (data.telegram_chat_id as string) || '',
       });
+      if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
+      if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
     }
   }, [supabaseConfigured]);
 
@@ -1114,7 +1123,29 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             if (error) pushToast('텔레그램 설정 저장 실패', 'error');
           });
       }
-      pushToast('텔레그램 알림 설정이 저장되었습니다.');
+      pushToast('텔레그램 설정이 변경되었습니다.');
+    },
+    [pushToast],
+  );
+
+  const updateReservationLimits = useCallback(
+    (courtDays: number, pensionMonths: number) => {
+      setCourtOpenDays(courtDays);
+      setPensionOpenMonths(pensionMonths);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            court_open_days: courtDays,
+            pension_open_months: pensionMonths,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('예약 오픈 설정 저장 실패', 'error');
+          });
+      }
+      pushToast('예약 오픈 기간이 변경되었습니다.');
     },
     [pushToast],
   );
@@ -2754,6 +2785,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateLogoImage,
     bankAccount,
     updateBankAccount,
+    courtOpenDays,
+    pensionOpenMonths,
+    updateReservationLimits,
     telegramConfig,
     updateTelegramConfig,
     sendTelegramTest,

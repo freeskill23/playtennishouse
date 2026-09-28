@@ -22,6 +22,7 @@ export function PensionScreen() {
     pensionWeekendPrice,
     bankAccount,
     galleryItems,
+    pensionOpenMonths,
   } = useApp();
   const { isGuest } = useAuth();
   const pensionSlides = galleryItems.filter((g) => g.showOnPension);
@@ -93,7 +94,7 @@ export function PensionScreen() {
         value={date}
         onChange={setDate}
         minDate={todayYMD()}
-        maxDate={endOfMonthPlusN(2)}
+        maxDate={endOfMonthPlusN(pensionOpenMonths - 1)}
         dayRender={(d) => {
           const a = getPensionStatusForDate(d, 'A동');
           const b = getPensionStatusForDate(d, 'B동');

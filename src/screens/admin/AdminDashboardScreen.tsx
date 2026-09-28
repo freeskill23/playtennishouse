@@ -18,6 +18,7 @@ import {
   StickyNote,
   Pencil,
   Send,
+  CalendarClock,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -65,12 +66,16 @@ export function AdminDashboardScreen() {
     saveDateMemo,
     courtPricing,
     updateCourtPricing,
+    courtOpenDays,
+    pensionOpenMonths,
+    updateReservationLimits,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [adminReserveTarget, setAdminReserveTarget] = useState<{ court: CourtName; slot: string } | null>(null);
   const [adminReserveLabel, setAdminReserveLabel] = useState('');
   const [date, setDate] = useState(todayYMD());
   const [courtPricingEdit, setCourtPricingEdit] = useState<CourtPricing>(courtPricing);
+  const [limitsEdit, setLimitsEdit] = useState({ court: courtOpenDays, pension: pensionOpenMonths });
   const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
   const [bannerUrlInput, setBannerUrlInput] = useState('');
@@ -105,6 +110,11 @@ export function AdminDashboardScreen() {
   useEffect(() => {
     setCourtPricingEdit(courtPricing);
   }, [courtPricing]);
+
+  // Sync limitsEdit when reservation limits load/update from Supabase
+  useEffect(() => {
+    setLimitsEdit({ court: courtOpenDays, pension: pensionOpenMonths });
+  }, [courtOpenDays, pensionOpenMonths]);
 
   const dayReservations = reservations.filter((r) => r.date === date);
   const dayMatchings = getMatchingsByDate(date);
@@ -489,6 +499,64 @@ export function AdminDashboardScreen() {
         saved={courtPricing}
         onSave={() => updateCourtPricing(courtPricingEdit)}
       />
+
+      {/* Reservation open window control */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center">
+            <CalendarClock size={16} className="text-navy-700" />
+          </div>
+          <div>
+            <h3 className="font-bold text-navy-900 text-sm">예약 오픈 기간 설정</h3>
+            <p className="text-xs text-slate-400">오늘 기준으로 코트/펜션 예약이 오픈되는 기간을 설정합니다</p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">코트 예약 오픈 (며칠)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={limitsEdit.court}
+                onChange={(e) => setLimitsEdit((s) => ({ ...s, court: Math.max(1, Number(e.target.value)) }))}
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+              />
+              <span className="text-xs text-slate-400 shrink-0">일</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">오늘부터 {limitsEdit.court}일 후까지 예약 가능</p>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 block">펜션 예약 오픈 (몇개월)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={24}
+                value={limitsEdit.pension}
+                onChange={(e) => setLimitsEdit((s) => ({ ...s, pension: Math.max(1, Number(e.target.value)) }))}
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+              />
+              <span className="text-xs text-slate-400 shrink-0">개월</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">오늘 기준 {limitsEdit.pension}개월 후의 말일까지 예약 가능</p>
+          </label>
+        </div>
+        <div className="flex justify-end mt-3">
+          <button
+            onClick={() => updateReservationLimits(limitsEdit.court, limitsEdit.pension)}
+            disabled={limitsEdit.court === courtOpenDays && limitsEdit.pension === pensionOpenMonths}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              limitsEdit.court === courtOpenDays && limitsEdit.pension === pensionOpenMonths
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                : 'bg-volt-500 text-navy-950 hover:bg-volt-400 shadow-volt'
+            }`}
+          >
+            <Save size={14} /> 오픈 기간 저장
+          </button>
+        </div>
+      </div>
 
       {/* Temporary holiday control */}
       <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">

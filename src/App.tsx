@@ -434,7 +434,7 @@ function AdminShell() {
           <span className="hidden sm:inline text-xs font-bold text-volt-400 tracking-widest">
             ADMIN
           </span>
-          <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center min-w-0">
+          <nav className="hidden lg:flex items-center gap-0.5 flex-1 justify-center min-w-0 overflow-x-auto scrollbar-none">
             {ADMIN_NAV.map((n) => {
               const Icon = n.icon;
               const active = tab === n.key;
@@ -442,7 +442,7 @@ function AdminShell() {
                 <button
                   key={n.key}
                   onClick={() => go(n.key)}
-                  className={`relative flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap ${
+                  className={`relative flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                     active ? 'bg-volt-500 text-navy-950' : 'text-white/80 hover:bg-white/10'
                   }`}
                 >
@@ -461,7 +461,7 @@ function AdminShell() {
             </button>
             <button
               onClick={() => setMobileMenu((s) => !s)}
-              className="md:hidden rounded-lg p-2 text-white hover:bg-white/10"
+              className="lg:hidden rounded-lg p-2 text-white hover:bg-white/10"
               aria-label="메뉴"
             >
               {mobileMenu ? <X size={20} /> : <Menu size={20} />}
@@ -469,8 +469,8 @@ function AdminShell() {
           </div>
         </div>
         {mobileMenu && (
-          <nav className="md:hidden border-t border-white/10 bg-green-800 animate-slide-up">
-            <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-2 gap-1">
+          <nav className="lg:hidden border-t border-white/10 bg-green-800 animate-slide-up">
+            <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-3 gap-1">
               {ADMIN_NAV.map((n) => {
                 const Icon = n.icon;
                 const active = tab === n.key;
