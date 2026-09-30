@@ -239,6 +239,12 @@ interface AppState {
   setPensionPriceForDate: (dateStr: string, price: number) => void;
   removePensionPriceOverride: (dateStr: string) => void;
 
+  // pension base capacity (기준인원)
+  pensionWeekdayBaseCapacity: number;
+  pensionWeekendBaseCapacity: number;
+  getBaseCapacityForDate: (dateStr: string) => number;
+  updatePensionBaseCapacity: (weekday: number, weekend: number) => void;
+
   // court pricing
   courtPricing: CourtPricing;
   updateCourtPricing: (pricing: CourtPricing) => void;
@@ -800,6 +806,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const [pensionWeekdayPrice, setPensionWeekdayPrice] = useState(PENSION_WEEKDAY_PRICE);
   const [pensionWeekendPrice, setPensionWeekendPrice] = useState(PENSION_WEEKEND_PRICE);
+  const [pensionWeekdayBaseCapacity, setPensionWeekdayBaseCapacity] = useState(4);
+  const [pensionWeekendBaseCapacity, setPensionWeekendBaseCapacity] = useState(4);
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
   const [courtPricing, setCourtPricing] = useState<CourtPricing>(DEFAULT_COURT_PRICING);
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
@@ -818,7 +826,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity')
       .eq('id', 1)
       .maybeSingle();
     if (data) {
@@ -834,6 +842,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
       if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
+      if (data.pension_weekday_base_capacity != null) setPensionWeekdayBaseCapacity(data.pension_weekday_base_capacity);
+      if (data.pension_weekend_base_capacity != null) setPensionWeekendBaseCapacity(data.pension_weekend_base_capacity);
       if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
       if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
       if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
@@ -956,6 +966,36 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           });
       }
       pushToast('펜션 기본 요금이 변경되었습니다.');
+    },
+    [pushToast],
+  );
+
+  const getBaseCapacityForDate = useCallback(
+    (dateStr: string) => {
+      const isHolidayDate = isPensionWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr);
+      return isHolidayDate ? pensionWeekendBaseCapacity : pensionWeekdayBaseCapacity;
+    },
+    [pensionWeekdayBaseCapacity, pensionWeekendBaseCapacity, tempHolidays],
+  );
+
+  const updatePensionBaseCapacity = useCallback(
+    (weekday: number, weekend: number) => {
+      setPensionWeekdayBaseCapacity(weekday);
+      setPensionWeekendBaseCapacity(weekend);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            pension_weekday_base_capacity: weekday,
+            pension_weekend_base_capacity: weekend,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('기준인원 저장 실패', 'error');
+          });
+      }
+      pushToast('펜션 기준인원이 변경되었습니다.');
     },
     [pushToast],
   );
@@ -1485,7 +1525,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         capacity: input.capacity,
         status: hasCompleted ? '신청' : '신청', // 신청 first; admin moves to 입금대기/승인대기/예약완료
         waitingSequence: hasCompleted || hasPending ? (reservations.filter((r) => r.type === 'pension' && r.date === input.date && r.targetId === input.roomId && r.waitingSequence !== null).length + 1) : null,
-        amount: getPensionPrice(input.date) + Math.max(0, input.capacity - (room.baseCapacity || 4)) * EXTRA_PERSON_FEE,
+        amount: getPensionPrice(input.date) + Math.max(0, input.capacity - getBaseCapacityForDate(input.date)) * EXTRA_PERSON_FEE,
         createdAt: Date.now(),
         batchId,
         depositorName: input.depositorName,
@@ -2777,6 +2817,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updatePensionPrice,
     setPensionPriceForDate,
     removePensionPriceOverride,
+    pensionWeekdayBaseCapacity,
+    pensionWeekendBaseCapacity,
+    getBaseCapacityForDate,
+    updatePensionBaseCapacity,
     courtPricing,
     updateCourtPricing,
     bannerImageUrl,

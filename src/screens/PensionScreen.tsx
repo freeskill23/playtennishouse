@@ -25,6 +25,7 @@ export function PensionScreen() {
     galleryItems,
     pensionOpenMonths,
     pushToast,
+    getBaseCapacityForDate,
   } = useApp();
   const { isGuest } = useAuth();
   const pensionSlides = galleryItems.filter((g) => g.showOnPension);
@@ -32,7 +33,7 @@ export function PensionScreen() {
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
   const [capacity, setCapacity] = useState(4);
   const selectedRoomData = rooms.find((r) => r.name === selectedRoom);
-  const baseCapacity = selectedRoomData?.baseCapacity ?? 4;
+  const baseCapacity = getBaseCapacityForDate(date);
   const extraPersons = Math.max(0, capacity - baseCapacity);
   const extraFee = extraPersons * EXTRA_PERSON_FEE;
   const totalPrice = getPensionPrice(date) + extraFee;
@@ -154,7 +155,7 @@ export function PensionScreen() {
                     </div>
                     <div>
                       <p className="font-bold text-navy-900 text-lg">{room.name}</p>
-                      <p className="text-xs text-slate-500">기준 {room.baseCapacity || 4}명 (최대 {room.maxCapacity}명)</p>
+                      <p className="text-xs text-slate-500">기준 {baseCapacity}명 (최대 {room.maxCapacity}명)</p>
                     </div>
                   </div>
                 </div>

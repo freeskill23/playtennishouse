@@ -69,6 +69,9 @@ export function AdminDashboardScreen() {
     courtOpenDays,
     pensionOpenMonths,
     updateReservationLimits,
+    pensionWeekdayBaseCapacity,
+    pensionWeekendBaseCapacity,
+    updatePensionBaseCapacity,
   } = useApp();
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [adminReserveTarget, setAdminReserveTarget] = useState<{ court: CourtName; slot: string } | null>(null);
@@ -77,6 +80,7 @@ export function AdminDashboardScreen() {
   const [courtPricingEdit, setCourtPricingEdit] = useState<CourtPricing>(courtPricing);
   const [limitsEdit, setLimitsEdit] = useState({ court: courtOpenDays, pension: pensionOpenMonths });
   const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
+  const [baseCapacityEdit, setBaseCapacityEdit] = useState({ weekday: pensionWeekdayBaseCapacity, weekend: pensionWeekendBaseCapacity });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
   const [bannerUrlInput, setBannerUrlInput] = useState('');
   const [logoUrlInput, setLogoUrlInput] = useState('');
@@ -91,6 +95,10 @@ export function AdminDashboardScreen() {
   useEffect(() => {
     setPriceEdit({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
   }, [pensionWeekdayPrice, pensionWeekendPrice]);
+
+  useEffect(() => {
+    setBaseCapacityEdit({ weekday: pensionWeekdayBaseCapacity, weekend: pensionWeekendBaseCapacity });
+  }, [pensionWeekdayBaseCapacity, pensionWeekendBaseCapacity]);
 
   // Sync bankEdit when bankAccount loads/updates from Supabase
   useEffect(() => {
@@ -123,6 +131,7 @@ export function AdminDashboardScreen() {
   const courtReservations = dayReservations.filter((r) => r.type === 'court');
 
   const priceDirty = priceEdit.weekday !== pensionWeekdayPrice || priceEdit.weekend !== pensionWeekendPrice;
+  const baseCapacityDirty = baseCapacityEdit.weekday !== pensionWeekdayBaseCapacity || baseCapacityEdit.weekend !== pensionWeekendBaseCapacity;
   const bankDirty =
     bankEdit.bank !== bankAccount.bank ||
     bankEdit.number !== bankAccount.number ||
@@ -133,6 +142,10 @@ export function AdminDashboardScreen() {
 
   const handleSavePrice = () => {
     updatePensionPrice(priceEdit.weekday, priceEdit.weekend);
+  };
+
+  const handleSaveBaseCapacity = () => {
+    updatePensionBaseCapacity(baseCapacityEdit.weekday, baseCapacityEdit.weekend);
   };
 
   const currentDatePrice = getPensionPrice(date);
@@ -393,6 +406,57 @@ export function AdminDashboardScreen() {
               }`}
             >
               <Save size={14} /> 기본 요금 저장
+            </button>
+          </div>
+        </div>
+
+        {/* Base capacity (기준인원) */}
+        <div className="mb-4 border-t border-slate-100 pt-4">
+          <p className="text-xs font-bold text-navy-500 mb-2">기준인원 설정</p>
+          <p className="text-[11px] text-slate-400 mb-3">기준인원 초과 시 1인당 100,000원이 추가됩니다. 평일과 주말·공휴일의 기준인원을 각각 설정할 수 있습니다.</p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs font-semibold text-navy-600 mb-1 block">평일 기준인원</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step={1}
+                  min={1}
+                  max={20}
+                  value={baseCapacityEdit.weekday}
+                  onChange={(e) => setBaseCapacityEdit((s) => ({ ...s, weekday: Math.max(1, Number(e.target.value)) }))}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-400 shrink-0">명</span>
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-navy-600 mb-1 block">주말·공휴일 기준인원</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step={1}
+                  min={1}
+                  max={20}
+                  value={baseCapacityEdit.weekend}
+                  onChange={(e) => setBaseCapacityEdit((s) => ({ ...s, weekend: Math.max(1, Number(e.target.value)) }))}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-400 shrink-0">명</span>
+              </div>
+            </label>
+          </div>
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={handleSaveBaseCapacity}
+              disabled={!baseCapacityDirty}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+                baseCapacityDirty
+                  ? 'bg-volt-500 text-navy-950 hover:bg-volt-400 shadow-volt'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <Save size={14} /> 기준인원 저장
             </button>
           </div>
         </div>
