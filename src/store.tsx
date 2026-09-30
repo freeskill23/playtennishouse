@@ -48,6 +48,7 @@ import type { CourtPricing } from './pricing';
 
 // Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
 const PENSION_BLOCK_START_HOUR = 15;
+export const EXTRA_PERSON_FEE = 100000;
 const PENSION_BLOCK_END_HOUR = 11;
 
 type ReservationRow = {
@@ -878,6 +879,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           id: r.id as string,
           name: r.name as RoomName,
           maxCapacity: r.max_capacity as number,
+          baseCapacity: (r.base_capacity as number) || 4,
           description: r.description as string,
           pricePerNight: r.price_per_night as number,
         })),
@@ -1483,7 +1485,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         capacity: input.capacity,
         status: hasCompleted ? '신청' : '신청', // 신청 first; admin moves to 입금대기/승인대기/예약완료
         waitingSequence: hasCompleted || hasPending ? (reservations.filter((r) => r.type === 'pension' && r.date === input.date && r.targetId === input.roomId && r.waitingSequence !== null).length + 1) : null,
-        amount: getPensionPrice(input.date),
+        amount: getPensionPrice(input.date) + Math.max(0, input.capacity - (room.baseCapacity || 4)) * EXTRA_PERSON_FEE,
         createdAt: Date.now(),
         batchId,
         depositorName: input.depositorName,

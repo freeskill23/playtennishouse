@@ -28,6 +28,7 @@ export interface Room {
   id: string;
   name: RoomName;
   maxCapacity: number;
+  baseCapacity: number;
   description: string;
   pricePerNight: number;
 }

@@ -8,6 +8,7 @@ import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { formatWon } from '../pricing';
+import { EXTRA_PERSON_FEE } from '../store';
 import type { RoomName } from '../types';
 
 export function PensionScreen() {
@@ -23,12 +24,18 @@ export function PensionScreen() {
     bankAccount,
     galleryItems,
     pensionOpenMonths,
+    pushToast,
   } = useApp();
   const { isGuest } = useAuth();
   const pensionSlides = galleryItems.filter((g) => g.showOnPension);
   const [date, setDate] = useState(todayYMD());
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
   const [capacity, setCapacity] = useState(4);
+  const selectedRoomData = rooms.find((r) => r.name === selectedRoom);
+  const baseCapacity = selectedRoomData?.baseCapacity ?? 4;
+  const extraPersons = Math.max(0, capacity - baseCapacity);
+  const extraFee = extraPersons * EXTRA_PERSON_FEE;
+  const totalPrice = getPensionPrice(date) + extraFee;
   const [modalOpen, setModalOpen] = useState(false);
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
@@ -147,7 +154,7 @@ export function PensionScreen() {
                     </div>
                     <div>
                       <p className="font-bold text-navy-900 text-lg">{room.name}</p>
-                      <p className="text-xs text-slate-500">최대 {room.maxCapacity}명</p>
+                      <p className="text-xs text-slate-500">기준 {room.baseCapacity || 4}명 (최대 {room.maxCapacity}명)</p>
                     </div>
                   </div>
                 </div>
@@ -187,7 +194,7 @@ export function PensionScreen() {
       {selectedRoom && !selectedBlocked && roomStatus?.status !== 'booked' && (
         <div className="card p-5 space-y-4 animate-slide-up">
           <div>
-            <label className="label">이용 인원</label>
+            <label className="label">이용 인원 <span className="text-xs font-normal text-slate-400">(기준 {baseCapacity}명)</span></label>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setCapacity((c) => Math.max(1, c - 1))}
@@ -201,12 +208,17 @@ export function PensionScreen() {
                 <span className="text-sm text-slate-400">명</span>
               </div>
               <button
-                onClick={() => setCapacity((c) => Math.min(8, c + 1))}
+                onClick={() => setCapacity((c) => Math.min(selectedRoomData?.maxCapacity ?? 8, c + 1))}
                 className="w-10 h-10 rounded-xl bg-slate-100 text-navy-800 font-bold hover:bg-slate-200 transition"
               >
                 +
               </button>
             </div>
+            {extraPersons > 0 && (
+              <p className="text-xs text-amber-600 font-semibold mt-2">
+                기준인원 초과 {extraPersons}명 · 추가 요금 {formatWon(extraFee)}
+              </p>
+            )}
           </div>
 
           {roomStatus?.status === 'booked' || roomStatus?.status === 'pending' ? (
@@ -220,6 +232,31 @@ export function PensionScreen() {
             </div>
           ) : (
             <div className="space-y-3">
+              {extraPersons > 0 && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
+                  <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 font-semibold leading-relaxed">
+                    기준인원({baseCapacity}명)을 초과하여 인원 추가 시 1명당 {formatWon(EXTRA_PERSON_FEE)}의 추가 요금이 발생합니다.
+                    현재 추가 인원 {extraPersons}명 · 추가 요금 {formatWon(extraFee)}
+                  </p>
+                </div>
+              )}
+              <div className="rounded-xl bg-navy-50 border border-navy-200 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-navy-600">기본 요금</span>
+                  <span className="text-sm font-bold text-navy-900">{formatWon(getPensionPrice(date))}</span>
+                </div>
+                {extraFee > 0 && (
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs font-semibold text-amber-600">인원 추가 ({extraPersons}명)</span>
+                    <span className="text-sm font-bold text-amber-600">+{formatWon(extraFee)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-navy-200">
+                  <span className="text-sm font-bold text-navy-800">총 금액</span>
+                  <span className="text-lg font-extrabold text-navy-900">{formatWon(totalPrice)}</span>
+                </div>
+              </div>
               <div className="space-y-2">
                 <input
                   type="text"
@@ -287,7 +324,10 @@ export function PensionScreen() {
             </p>
             <p>
               <span className="font-bold text-navy-800">금액:</span>{' '}
-              {formatWon(getPensionPrice(date))}
+              {formatWon(totalPrice)}
+              {extraFee > 0 && (
+                <span className="text-xs text-amber-600 ml-1">(기본 {formatWon(getPensionPrice(date))} + 인원추가 {formatWon(extraFee)})</span>
+              )}
             </p>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
