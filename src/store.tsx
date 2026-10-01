@@ -1785,10 +1785,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const aUserName = target.depositorName || getUser(target.userId)?.name || '회원';
       const capacityLabel = target.type === 'pension' ? ` ${target.capacity}명` : '';
       const timeLabel = target.timeSlot || '';
-      void sendTelegramNotification(
-        '예약 완료 안내',
-        ` ${aUserName}님  ${parseInt(aMM, 10)}월  ${parseInt(aDD, 10)}일  ${target.targetLabel}${capacityLabel}${timeLabel ? ` ${timeLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
-      );
+      if (target.type === 'pension') {
+        void sendTelegramNotification(
+          '예약완료 안내',
+          `예약완료 안내\n ${aUserName}님 ${parseInt(aMM, 10)}월 ${parseInt(aDD, 10)}일 ${target.targetLabel}${capacityLabel} 예약완료 되셨습니다.\n-입실시간: 예약일 PM3:00\n-퇴실시간: 다음 날 AM 11:00\n-코트이용시간: PM3:00-AM12:00/ 퇴실 시간전까지\n바베큐장은 실내 바베큐장으로 숯불 이용 불가 한 점 양해 부탁드립니다.\n(고기불판, 그릇, 가스 등의 기본 시설은 제공됩니다.)\n추가 인원이 있을 시 반드시 미리 공지해 주시기 바랍니다.\n즐거운 하루 보내시고 예약날에 뵙겠습니다.^ㅡ^\n            - 플테하(PLAY TENNIS HOUSE) -`,
+        );
+      } else {
+        void sendTelegramNotification(
+          '예약 완료 안내',
+          ` ${aUserName}님  ${parseInt(aMM, 10)}월  ${parseInt(aDD, 10)}일  ${target.targetLabel}${capacityLabel}${timeLabel ? ` ${timeLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
+        );
+      }
 
       // Activate matching post if this reservation belongs to one
       setMatchingPosts((mpPrev) => {
@@ -1826,10 +1833,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         const bUserName = r.depositorName || getUser(r.userId)?.name || '회원';
         const capLabel = r.type === 'pension' ? ` ${r.capacity}명` : '';
         const tLabel = r.timeSlot || '';
-        void sendTelegramNotification(
-          '예약 완료 안내',
-          ` ${bUserName}님  ${parseInt(bMM, 10)}월  ${parseInt(bDD, 10)}일  ${r.targetLabel}${capLabel}${tLabel ? ` ${tLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
-        );
+        if (r.type === 'pension') {
+          void sendTelegramNotification(
+            '예약완료 안내',
+            `예약완료 안내\n ${bUserName}님 ${parseInt(bMM, 10)}월 ${parseInt(bDD, 10)}일 ${r.targetLabel}${capLabel} 예약완료 되셨습니다.\n-입실시간: 예약일 PM3:00\n-퇴실시간: 다음 날 AM 11:00\n-코트이용시간: PM3:00-AM12:00/ 퇴실 시간전까지\n바베큐장은 실내 바베큐장으로 숯불 이용 불가 한 점 양해 부탁드립니다.\n(고기불판, 그릇, 가스 등의 기본 시설은 제공됩니다.)\n추가 인원이 있을 시 반드시 미리 공지해 주시기 바랍니다.\n즐거운 하루 보내시고 예약날에 뵙겠습니다.^ㅡ^\n            - 플테하(PLAY TENNIS HOUSE) -`,
+          );
+        } else {
+          void sendTelegramNotification(
+            '예약 완료 안내',
+            ` ${bUserName}님  ${parseInt(bMM, 10)}월  ${parseInt(bDD, 10)}일  ${r.targetLabel}${capLabel}${tLabel ? ` ${tLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
+          );
+        }
       }
       const approvedMap = new Map<string, Reservation>();
       for (const r of targets) {
