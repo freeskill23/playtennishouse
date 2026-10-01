@@ -259,6 +259,9 @@ export function PensionScreen() {
                 </div>
               </div>
               <div className="space-y-2">
+                <p className="text-xs font-bold text-navy-700 bg-navy-50 rounded-lg px-3 py-2">
+                  아래 입금자명을 입력해주시고 예약을 진행해주세요
+                </p>
                 <input
                   type="text"
                   value={depositorName}
@@ -283,7 +286,7 @@ export function PensionScreen() {
                 )}
               </div>
               <button onClick={handleReserve} disabled={!depositorName.trim()} className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed">
-                <Wallet size={18} /> 입금 신청하기
+                <Wallet size={18} /> 예약하기
               </button>
             </div>
           )}
