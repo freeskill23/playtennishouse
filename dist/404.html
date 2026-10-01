@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>코코스퍼니쳐 | COCOS FURNITURE</title>
+    <script>
+      // GitHub Pages 404 fallback: redirect to index.html preserving the route as hash
+      (function () {
+        var l = window.location;
+        var path = l.pathname;
+
+        // /cocos/custom → dir=/cocos/, route=/custom
+        // /cocos/      → dir=/cocos/, route=/
+        var dir = path.substring(0, path.lastIndexOf('/') + 1);
+        var route = path.substring(dir.length);
+        if (route && !route.startsWith('/')) route = '/' + route;
+        if (!route) route = '/';
+
+        l.replace(dir + '#' + route + l.search);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
