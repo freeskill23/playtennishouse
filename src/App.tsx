@@ -1,568 +1,130 @@
-import { useState, useEffect } from 'react';
-import {
-  Home as HomeIcon,
-  BedDouble,
-  CalendarRange,
-  Users,
-  Megaphone,
-  Ticket,
-  LayoutDashboard,
-  CheckSquare,
-  StickyNote,
-  Menu,
-  X,
-  Lock,
-  LogOut,
-  Loader2,
-  Star,
-  BarChart3,
-} from 'lucide-react';
-import { AppProvider, useApp } from './store';
-import { AuthProvider, useAuth } from './lib/auth';
-import { useIdleLogout } from './lib/useIdleLogout';
-import { useClickSound } from './lib/useClickSound';
-import { logVisit } from './lib/visitorLog';
-import type { LucideIcon } from 'lucide-react';
-import { Logo } from './components/Logo';
-import { ToastStack } from './components/Toast';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { AlertTriangle, Images } from 'lucide-react';
-import { HomeScreen } from './screens/HomeScreen';
-import { PensionScreen } from './screens/PensionScreen';
-import { CourtScreen } from './screens/CourtScreen';
-import { MatchingScreen } from './screens/MatchingScreen';
-import { MyPageScreen } from './screens/MyPageScreen';
-import { NoticesScreen } from './screens/NoticesScreen';
-import { GalleryScreen } from './screens/GalleryScreen';
-import { AdminDashboardScreen } from './screens/admin/AdminDashboardScreen';
-import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
-import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
-import { AdminMemoScreen } from './screens/admin/AdminMemoScreen';
-import { AdminMembersScreen } from './screens/admin/AdminMembersScreen';
-import { AdminMatchingScreen } from './screens/admin/AdminMatchingScreen';
-import { AdminGalleryScreen } from './screens/admin/AdminGalleryScreen';
-import { AuthScreen } from './screens/AuthScreen';
-import { ReviewScreen } from './screens/ReviewScreen';
-import { AdminReviewScreen } from './screens/admin/AdminReviewScreen';
-import { AdminAnalyticsScreen } from './screens/admin/AdminAnalyticsScreen';
-import type { AuthUser } from './lib/auth';
+import { useRouter } from "@/lib/router";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { CartProvider } from "@/hooks/useCart";
+import { useSEO } from "@/hooks/useSEO";
+import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
+import { ShopPage } from "@/pages/ShopPage";
+import { CustomPage } from "@/pages/CustomPage";
+import { ProductDetailPage } from "@/pages/ProductDetailPage";
+import { PaymentPage } from "@/pages/PaymentPage";
+import { CardPaymentResult } from "@/pages/CardPaymentResult";
+import { AuthPage } from "@/pages/AuthPage";
+import { AccountPage } from "@/pages/AccountPage";
+import { CartPage } from "@/pages/CartPage";
+import { CheckoutPage } from "@/pages/CheckoutPage";
+import { GuestOrderPage } from "@/pages/GuestOrderPage";
+import { AdminLogin } from "@/pages/AdminLogin";
+import { AdminDashboard } from "@/pages/AdminDashboard";
+import { BusinessInfoPage, PrivacyPage, RefundPolicyPage } from "@/pages/LegalPages";
+import { Loader2 } from "lucide-react";
 
-const ADMIN_AUTH_USER: AuthUser = {
-  id: 'admin',
-  email: 'admin@playtennishouse.kr',
-  name: '관리자',
-  nickname: '관리자',
-  phone: '010-0000-0000',
-  profileImg:
-    'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
-  career: '10년',
-  ntrp: '4.5',
-  hand: 'right',
-  gamePreference: 'any',
-  bio: '플테하 운영진',
-};
+function AppRoutes() {
+  const { path, navigate } = useRouter();
+  const { session, loading } = useAuth();
+  useSEO(path);
 
-type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'reviews' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'reviews' | 'analytics' | 'memo';
+  const isAdmin = path.startsWith("/admin");
+  const isAdminLogin = path === "/admin/login";
 
-const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
-  { key: 'home', label: '홈', icon: HomeIcon },
-  { key: 'pension', label: '펜션예약', icon: BedDouble },
-  { key: 'court', label: '코트예약', icon: CalendarRange },
-  { key: 'matching', label: '매칭', icon: Users },
-  { key: 'notices', label: '공지', icon: Megaphone },
-  { key: 'gallery', label: '갤러리', icon: Images },
-  { key: 'reviews', label: '이용후기', icon: Star },
-  { key: 'mypage', label: '내예약', icon: Ticket },
-];
-
-const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
-  { key: 'dashboard', label: '캘린더', icon: LayoutDashboard },
-  { key: 'approval', label: '승인관리', icon: CheckSquare },
-  { key: 'members', label: '회원', icon: Users },
-  { key: 'matching', label: '매칭', icon: Users },
-  { key: 'notice', label: '공지', icon: Megaphone },
-  { key: 'gallery', label: '갤러리', icon: Images },
-  { key: 'reviews', label: '이용후기', icon: Star },
-  { key: 'analytics', label: '방문자분석', icon: BarChart3 },
-  { key: 'memo', label: '메모', icon: StickyNote },
-];
-
-const ADMIN_PASSWORD = 'admin123';
-const AUTH_KEY = 'pth-admin-authed';
-
-function useAdminRoute(): boolean {
-  const [isAdmin, setIsAdmin] = useState(() => window.location.hash.replace('#', '') === 'admin');
-  useEffect(() => {
-    const onHash = () => setIsAdmin(window.location.hash.replace('#', '') === 'admin');
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  return isAdmin;
-}
-
-function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
-  const { logoImageUrl } = useApp();
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState(false);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pw === ADMIN_PASSWORD) {
-      sessionStorage.setItem(AUTH_KEY, '1');
-      onSuccess();
-    } else {
-      setErr(true);
-      setPw('');
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center mb-8">
-          <Logo size={56} imageUrl={logoImageUrl} />
-        </div>
-        <form onSubmit={submit} className="rounded-2xl bg-white p-6 shadow-2xl">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-navy-900 flex items-center justify-center">
-              <Lock size={18} className="text-volt-400" />
-            </div>
-            <div>
-              <h1 className="font-bold text-navy-900">관리자 로그인</h1>
-              <p className="text-xs text-slate-400">비밀번호를 입력하세요</p>
-            </div>
-          </div>
-          <input
-            type="password"
-            value={pw}
-            onChange={(e) => {
-              setPw(e.target.value);
-              setErr(false);
-            }}
-            placeholder="관리자 비밀번호"
-            autoFocus
-            className={`w-full rounded-xl border px-4 py-3 text-navy-900 outline-none transition ${
-              err ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200 focus:border-volt-400 focus:ring-2 focus:ring-volt-100'
-            }`}
-          />
-          {err && <p className="text-rose-500 text-xs mt-2">비밀번호가 올바르지 않습니다.</p>}
-          <button
-            type="submit"
-            className="w-full mt-4 py-3 rounded-xl bg-navy-900 text-white font-bold hover:bg-navy-800 transition"
-          >
-            로그인
-          </button>
-          <a
-            href={`${import.meta.env.BASE_URL}`}
-            className="block text-center mt-3 text-xs text-slate-400 hover:text-navy-600"
-          >
-            ← 일반 화면으로
-          </a>
-        </form>
+  if (isAdmin && !isAdminLogin && loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-birch-50">
+        <Loader2 size={28} className="animate-spin text-birch-400" />
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function useTabHistory<T extends string>(initial: T, storageKey: string) {
-  const [tab, setTab] = useState<T>(() => {
-    const saved = sessionStorage.getItem(storageKey);
-    return (saved as T) || initial;
-  });
+  if (isAdmin && !isAdminLogin && !session) {
+    return <AdminLogin onNavigate={navigate} />;
+  }
 
-  useEffect(() => {
-    window.history.replaceState({ tab, idx: 0 }, '');
-    const onPop = (e: PopStateEvent) => {
-      const st = e.state as { tab?: T } | null;
-      if (st?.tab) {
-        setTab(st.tab);
-        sessionStorage.setItem(storageKey, st.tab);
-      }
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, [tab, storageKey]);
+  if (isAdmin && session) {
+    return <AdminDashboard onNavigate={navigate} path={path} />;
+  }
 
-  const go = (k: T) => {
-    setTab(k);
-    sessionStorage.setItem(storageKey, k);
-    window.history.pushState({ tab: k }, '');
-  };
+  if (isAdminLogin && session) {
+    return <AdminDashboard onNavigate={navigate} path={path} />;
+  }
 
-  return { tab, go };
-}
+  // /pay/card/:merchantId → card payment result page
+  const cardPaymentMatch = path.match(/^\/pay\/card\/(.+)$/);
 
-const TAB_SEO: Record<string, { title: string; description: string }> = {
-  home: {
-    title: '플테하 PLAY TENNIS HOUSE | 테니스펜션 · 테니스코트대관 · 테니스 매칭',
-    description: '플테하(PLAY TENNIS HOUSE) - 예쁜 테니스펜션과 테니스코트 대관, 테니스 매칭 서비스를 한곳에서! 테니스펜션, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션',
-  },
-  pension: {
-    title: '테니스펜션 예약 | 플테하 PLAY TENNIS HOUSE - 예쁜 테니스펜션 숙박',
-    description: '예쁜 테니스펜션 A동·B동 숙박 예약. 테니스코트와 함께하는 테니스펜션 여행을 플테하에서 편리하게 예약하세요. 테니스펜션, 예쁜테니스펜션, 테니스 숙박 예약',
-  },
-  court: {
-    title: '테니스코트 대관 예약 | 플테하 PLAY TENNIS HOUSE - 테니스장 대관',
-    description: '테니스코트 1시간 단위 대관 예약. 테니스코트대관, 테니스장, 테니스 예약을 온라인으로 간편하게. 플테하에서 테니스코트 대관하세요',
-  },
-  matching: {
-    title: '테니스 매칭 | 플테하 PLAY TENNIS HOUSE - 테니스 메이트 모집',
-    description: '테니스 매칭 서비스 - 단식·복식·혼복 테니스 메이트를 모집하고 참여하세요. 테니스매칭, 테니스동호회, 테니스 메이트 찾기',
-  },
-  notices: {
-    title: '공지사항 | 플테하 PLAY TENNIS HOUSE - 테니스 이벤트·안내',
-    description: '플테하 테니스펜션·테니스코트 이벤트 및 공지사항을 확인하세요. 테니스 이벤트, 테니스 대회 안내',
-  },
-  gallery: {
-    title: '갤러리 | 플테하 PLAY TENNIS HOUSE - 예쁜 테니스장 사진',
-    description: '플테하 예쁜 테니스장, 테니스펜션 현장 사진 갤러리. 테니스장, 예쁜테니스장, 테니스펜션 사진',
-  },
-  mypage: {
-    title: '내 예약 | 플테하 PLAY TENNIS HOUSE - 테니스 예약 내역',
-    description: '나의 테니스코트 대관, 테니스펜션 예약, 테니스 매칭 참여 내역을 확인하세요',
-  },
-};
+  // /pay/:token → bank transfer payment page (legacy token-based)
+  const paymentMatch = path.match(/^\/pay\/(?!card\/)(.+)$/);
 
-function useTabSEO(tab: string) {
-  useEffect(() => {
-    const seo = TAB_SEO[tab];
-    if (seo) {
-      document.title = seo.title;
-      const descMeta = document.querySelector('meta[name="description"]');
-      if (descMeta) descMeta.setAttribute('content', seo.description);
-      const ogTitle = document.querySelector('meta[property="og:title"]');
-      if (ogTitle) ogTitle.setAttribute('content', seo.title);
-      const ogDesc = document.querySelector('meta[property="og:description"]');
-      if (ogDesc) ogDesc.setAttribute('content', seo.description);
-    }
-  }, [tab]);
-}
+  // /product/:id → product detail page
+  const productMatch = path.match(/^\/product\/(.+)$/);
 
-const GUEST_AUTH_USER: AuthUser = {
-  id: 'guest',
-  email: '',
-  name: '비회원',
-  nickname: '비회원',
-  phone: '',
-  profileImg:
-    'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
-  career: '',
-  ntrp: '',
-  hand: 'right',
-  gamePreference: 'any',
-  bio: '',
-};
+  // /category/:id → shop page filtered by category
+  const categoryMatch = path.match(/^\/category\/(.+)$/);
 
-function UserShell() {
-  const { currentUser, logoImageUrl } = useApp();
-  const { signOut, isGuest } = useAuth();
-  const { tab, go: goRaw } = useTabHistory<UserTab>('home', 'user_tab');
-  useTabSEO(tab);
-  const [mobileMenu, setMobileMenu] = useState(false);
-  const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
+  // /custom/product/:id → legacy product detail (redirect to /product/:id)
+  const legacyProductMatch = path.match(/^\/custom\/product\/(.+)$/);
 
-  useEffect(() => {
-    logVisit(tab, !isGuest, currentUser.name);
-  }, [tab, isGuest, currentUser.name]);
+  if (cardPaymentMatch) {
+    return (
+      <div className="min-h-screen bg-ivory">
+        <Navbar onNavigate={navigate} currentPath={path} />
+        <CardPaymentResult merchantId={cardPaymentMatch[1]} onNavigate={navigate} />
+        <Footer onNavigate={navigate} />
+      </div>
+    );
+  }
 
-  const go = (k: string) => {
-    if (isGuest && k === 'matching') {
-      setGuestBlockMsg('회원 전용 메뉴입니다. 회원가입 후 이용해주시기 바랍니다.');
-      setMobileMenu(false);
-      return;
-    }
-    goRaw(k as UserTab);
-    setMobileMenu(false);
-  };
+  if (paymentMatch) {
+    return (
+      <div className="min-h-screen bg-ivory">
+        <Navbar onNavigate={navigate} currentPath={path} />
+        <PaymentPage token={paymentMatch[1]} onNavigate={navigate} />
+        <Footer onNavigate={navigate} />
+      </div>
+    );
+  }
+
+  const productId = productMatch?.[1] ?? legacyProductMatch?.[1];
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <button onClick={() => go('home')} className="shrink-0 flex items-center gap-2">
-            <Logo size={36} imageUrl={logoImageUrl} />
-            <span className="text-lg font-extrabold tracking-tight text-black">PLAY TENNIS HOUSE</span>
-          </button>
-          <nav className="hidden md:flex items-center gap-1">
-            {USER_NAV.map((n) => {
-              const Icon = n.icon;
-              const active = tab === n.key;
-              const disabled = isGuest && n.key === 'matching';
-              return (
-                <button
-                  key={n.key}
-                  onClick={() => go(n.key)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition ${
-                    active ? 'bg-navy-900 text-white' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <Icon size={16} />
-                  {n.label}
-                </button>
-              );
-            })}
-          </nav>
-          <div className="flex items-center gap-2">
-            <img
-              src={currentUser.profileImg}
-              alt={currentUser.name}
-              className="w-9 h-9 rounded-full object-cover border-2 border-volt-300 hidden sm:block"
-            />
-            <button
-              onClick={() => signOut()}
-              className="rounded-lg p-2 text-navy-800 hover:bg-slate-100 transition"
-              aria-label="로그아웃"
-              title="로그아웃"
-            >
-              <LogOut size={18} />
-            </button>
-            <button
-              onClick={() => setMobileMenu((s) => !s)}
-              className="md:hidden rounded-lg p-2 text-navy-800 hover:bg-slate-100"
-              aria-label="메뉴"
-            >
-              {mobileMenu ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        </div>
-        {mobileMenu && (
-          <nav className="md:hidden border-t border-slate-100 bg-white animate-slide-up">
-            <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-3 gap-1">
-              {USER_NAV.map((n) => {
-                const Icon = n.icon;
-                const active = tab === n.key;
-                const disabled = isGuest && n.key === 'matching';
-                return (
-                  <button
-                    key={n.key}
-                    onClick={() => go(n.key)}
-                    className={`flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-semibold transition ${
-                      active ? 'bg-navy-900 text-white' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Icon size={18} />
-                    {n.label}
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        )}
-      </header>
-
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
-        {tab === 'home' && <HomeScreen go={go} />}
-        {tab === 'pension' && <PensionScreen />}
-        {tab === 'court' && <CourtScreen />}
-        {tab === 'matching' && (isGuest ? null : <MatchingScreen />)}
-        {tab === 'notices' && <NoticesScreen />}
-        {tab === 'gallery' && <GalleryScreen />}
-        {tab === 'reviews' && <ReviewScreen />}
-        {tab === 'mypage' && <MyPageScreen go={go} />}
-      </main>
-
-      <footer className="border-t border-slate-100 bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <Logo size={28} imageUrl={logoImageUrl} />
-          <p className="text-xs text-slate-400">
-            PLAY TENNIS HOUSE 테니스 펜션 예약 & 코트 대관 & 매칭만들기
-          </p>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 pb-4">
-          <p className="text-[11px] text-slate-300 text-center leading-relaxed">
-            제이피지(132-18-80228) 대표 : 김진수 권세미 · 경기도 포천시 금강로 2480-47
-          </p>
-          <p className="text-[11px] text-slate-300 text-center leading-relaxed mt-1">
-            테니스펜션 · 테니스 · 테니스코트 · 테니스코트대관 · 테니스장 · 예쁜테니스장 · 예쁜테니스펜션 · 테니스매칭 · 테니스동호회 · 테니스예약 · 테니스펜션예약 · 테니스 숙박 · 테니스 여행
-          </p>
-        </div>
-      </footer>
-
-      <ToastStack />
-      {guestBlockMsg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setGuestBlockMsg(null)} />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center animate-slide-up">
-            <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-              <Lock size={28} className="text-amber-500" />
-            </div>
-            <p className="text-sm font-bold text-navy-900 leading-relaxed">{guestBlockMsg}</p>
-            <button
-              onClick={() => setGuestBlockMsg(null)}
-              className="mt-5 w-full py-2.5 rounded-xl bg-navy-900 text-white font-bold hover:bg-navy-800 transition"
-            >
-              확인
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-ivory">
+      <Navbar onNavigate={navigate} currentPath={path} />
+      {path === "/auth" ? (
+        <AuthPage onNavigate={navigate} />
+      ) : path === "/account" ? (
+        <AccountPage onNavigate={navigate} />
+      ) : path === "/cart" ? (
+        <CartPage onNavigate={navigate} />
+      ) : path === "/checkout" ? (
+        <CheckoutPage onNavigate={navigate} />
+      ) : path === "/guest-order" ? (
+        <GuestOrderPage onNavigate={navigate} />
+      ) : productId ? (
+        <ProductDetailPage productId={productId} onNavigate={navigate} />
+      ) : path.startsWith("/custom") ? (
+        <CustomPage onNavigate={navigate} />
+      ) : path === "/business" ? (
+        <BusinessInfoPage onNavigate={navigate} />
+      ) : path === "/privacy" ? (
+        <PrivacyPage onNavigate={navigate} />
+      ) : path === "/refund" ? (
+        <RefundPolicyPage onNavigate={navigate} />
+      ) : categoryMatch ? (
+        <ShopPage onNavigate={navigate} categoryId={categoryMatch[1]} />
+      ) : (
+        <ShopPage onNavigate={navigate} />
       )}
+      <Footer onNavigate={navigate} />
     </div>
   );
 }
 
-function AdminShell() {
-  const { logoImageUrl } = useApp();
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === '1');
-  const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard', 'admin_tab');
-  const [mobileMenu, setMobileMenu] = useState(false);
-
-  useIdleLogout(() => {
-    sessionStorage.removeItem(AUTH_KEY);
-    setAuthed(false);
-  }, authed);
-
-  if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;
-
-  const go = (k: string) => {
-    goRaw(k as AdminTab);
-    setMobileMenu(false);
-  };
-
-  const logout = () => {
-    sessionStorage.removeItem(AUTH_KEY);
-    setAuthed(false);
-  };
-
+function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
-      <header className="sticky top-0 z-40 bg-green-800/95 backdrop-blur-md text-white shadow-lg shadow-green-900/20">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
-          <button onClick={() => go('dashboard')} className="shrink-0">
-            <Logo size={36} imageUrl={logoImageUrl} />
-          </button>
-          <span className="hidden sm:inline text-xs font-bold text-volt-400 tracking-widest">
-            ADMIN
-          </span>
-          <nav className="hidden lg:flex items-center gap-0.5 flex-1 justify-center min-w-0 overflow-x-auto scrollbar-none">
-            {ADMIN_NAV.map((n) => {
-              const Icon = n.icon;
-              const active = tab === n.key;
-              return (
-                <button
-                  key={n.key}
-                  onClick={() => go(n.key)}
-                  className={`relative flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap shrink-0 ${
-                    active ? 'bg-volt-500 text-navy-950' : 'text-white/80 hover:bg-white/10'
-                  }`}
-                >
-                  <Icon size={14} />
-                  {n.label}
-                </button>
-              );
-            })}
-          </nav>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={logout}
-              className="text-xs font-bold text-white/60 hover:text-white transition px-3 py-1.5"
-            >
-              로그아웃
-            </button>
-            <button
-              onClick={() => setMobileMenu((s) => !s)}
-              className="lg:hidden rounded-lg p-2 text-white hover:bg-white/10"
-              aria-label="메뉴"
-            >
-              {mobileMenu ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
-        </div>
-        {mobileMenu && (
-          <nav className="lg:hidden border-t border-white/10 bg-green-800 animate-slide-up">
-            <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-3 gap-1">
-              {ADMIN_NAV.map((n) => {
-                const Icon = n.icon;
-                const active = tab === n.key;
-                return (
-                  <button
-                    key={n.key}
-                    onClick={() => go(n.key)}
-                    className={`flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-semibold transition ${
-                      active ? 'bg-volt-500 text-navy-950' : 'text-white/80 hover:bg-white/10'
-                    }`}
-                  >
-                    <Icon size={18} />
-                    {n.label}
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        )}
-      </header>
-
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
-        {tab === 'dashboard' && <AdminDashboardScreen />}
-        {tab === 'approval' && <AdminApprovalScreen />}
-        {tab === 'members' && <AdminMembersScreen />}
-        {tab === 'matching' && <AdminMatchingScreen />}
-        {tab === 'notice' && <AdminNoticeScreen />}
-        {tab === 'gallery' && <AdminGalleryScreen />}
-        {tab === 'reviews' && <AdminReviewScreen />}
-        {tab === 'analytics' && <AdminAnalyticsScreen />}
-        {tab === 'memo' && <AdminMemoScreen />}
-      </main>
-
-      <ToastStack />
-    </div>
+    <AuthProvider>
+      <CartProvider>
+        <AppRoutes />
+      </CartProvider>
+    </AuthProvider>
   );
 }
 
-function Shell() {
-  const isAdmin = useAdminRoute();
-  const { user, loading, configError, isGuest, guestId } = useAuth();
-  useClickSound();
-
-  if (isAdmin) {
-    return (
-      <AppProvider authUser={ADMIN_AUTH_USER}>
-        <AdminShell />
-      </AppProvider>
-    );
-  }
-
-  if (configError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 px-4">
-        <div className="max-w-sm w-full rounded-2xl bg-white p-6 shadow-2xl text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
-            <AlertTriangle size={28} className="text-amber-500" />
-          </div>
-          <h1 className="text-lg font-extrabold text-navy-900 mb-2">설정 오류</h1>
-          <p className="text-sm text-slate-500">{configError}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading && !isGuest) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
-        <Loader2 size={32} className="animate-spin text-volt-400" />
-      </div>
-    );
-  }
-
-  if (!user && !isGuest) return <AuthScreen />;
-
-  const authUser = user || {
-    ...GUEST_AUTH_USER,
-    id: guestId || GUEST_AUTH_USER.id,
-  };
-  return (
-    <AppProvider authUser={authUser}>
-      <UserShell />
-    </AppProvider>
-  );
-}
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <Shell />
-      </AuthProvider>
-    </ErrorBoundary>
-  );
-}
+export default App;
