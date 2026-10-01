@@ -45,6 +45,7 @@ import { AuthScreen } from './screens/AuthScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { AdminReviewScreen } from './screens/admin/AdminReviewScreen';
 import { AdminAnalyticsScreen } from './screens/admin/AdminAnalyticsScreen';
+import { SharedReservationScreen } from './screens/SharedReservationScreen';
 import type { AuthUser } from './lib/auth';
 
 const ADMIN_AUTH_USER: AuthUser = {
@@ -91,14 +92,22 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
 const ADMIN_PASSWORD = 'admin123';
 const AUTH_KEY = 'pth-admin-authed';
 
-function useAdminRoute(): boolean {
-  const [isAdmin, setIsAdmin] = useState(() => window.location.hash.replace('#', '') === 'admin');
+function useRoute(): 'admin' | 'share' | null {
+  const [route, setRoute] = useState<'admin' | 'share' | null>(() => {
+    const h = window.location.hash.replace('#', '');
+    if (h === 'admin') return 'admin';
+    if (h === 'share') return 'share';
+    return null;
+  });
   useEffect(() => {
-    const onHash = () => setIsAdmin(window.location.hash.replace('#', '') === 'admin');
+    const onHash = () => {
+      const h = window.location.hash.replace('#', '');
+      setRoute(h === 'admin' ? 'admin' : h === 'share' ? 'share' : null);
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  return isAdmin;
+  return route;
 }
 
 function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
@@ -510,16 +519,20 @@ function AdminShell() {
 }
 
 function Shell() {
-  const isAdmin = useAdminRoute();
+  const route = useRoute();
   const { user, loading, configError, isGuest, guestId } = useAuth();
   useClickSound();
 
-  if (isAdmin) {
+  if (route === 'admin') {
     return (
       <AppProvider authUser={ADMIN_AUTH_USER}>
         <AdminShell />
       </AppProvider>
     );
+  }
+
+  if (route === 'share') {
+    return <SharedReservationScreen />;
   }
 
   if (configError) {

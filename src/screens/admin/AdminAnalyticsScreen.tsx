@@ -349,17 +349,25 @@ export function AdminAnalyticsScreen() {
     setTodayVisitorLogs((data as RawLog[]) || []);
 
     // Fetch last 7 days of logs to compute per-visitor visit counts
+    // Order by created_at desc so newest sessions are prioritized if limit is hit
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const { data: weekData } = await supabase
+    const { data: weekData, error: weekErr } = await supabase
       .from('visitor_logs')
       .select('session_id, is_member, user_name')
       .gte('created_at', weekAgo.toISOString())
-      .limit(10000);
+      .order('created_at', { ascending: false })
+      .limit(50000);
+    if (weekErr) console.error('[weekCounts]', weekErr.message);
     const counts = new Map<string, number>();
     for (const wl of (weekData as Pick<RawLog, 'session_id' | 'is_member' | 'user_name'>[]) || []) {
       const key = wl.is_member && wl.user_name ? `member:${wl.user_name}` : `session:${wl.session_id}`;
       counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    // Safety net: every visitor in today's list must have at least 1
+    for (const log of (data as RawLog[]) || []) {
+      const key = log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`;
+      if (!counts.has(key)) counts.set(key, 1);
     }
     setVisitorWeekCounts(counts);
     setDetailLoading(false);
