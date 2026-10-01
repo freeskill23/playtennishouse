@@ -1,0 +1,3 @@
+ALTER TABLE settings
+  ADD COLUMN IF NOT EXISTS court_open_days int NOT NULL DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS pension_open_months int NOT NULL DEFAULT 3;
