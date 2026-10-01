@@ -1,43 +1,22 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const FALLBACK_URL = 'https://rmjqdogzumxqrhhiiley.supabase.co';
+const FALLBACK_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtanFkb2d6dW14cXJoaGlpbGV5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNjI4NDAsImV4cCI6MjA5OTczODg0MH0.VWzTy5j7CJs9ZHIKwuXFFJLdu_rsQNJ7tnVCUUcjiAQ';
 
-export const supabase = createClient(url, anonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || FALLBACK_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || FALLBACK_KEY;
 
-export type OrderStatus = "payment_pending" | "paid" | "in_production" | "shipped" | "completed" | "cancelled";
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
 
-export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  payment_pending: "결제 대기",
-  paid: "결제 완료",
-  in_production: "제작 중",
-  shipped: "배송 중",
-  completed: "완료",
-  cancelled: "취소",
-};
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  payment_pending: "bg-amber-100 text-amber-700",
-  paid: "bg-teal-100 text-teal-700",
-  in_production: "bg-blue-100 text-blue-700",
-  shipped: "bg-indigo-100 text-indigo-700",
-  completed: "bg-green-100 text-green-700",
-  cancelled: "bg-red-100 text-red-700",
-};
-
-export const SHIPPING_COMPANIES = [
-  "CJ대한통운",
-  "한진택배",
-  "로젠택배",
-  "롯데택배",
-  "우체국택배",
-  "대신택배",
-  "경동택배",
-  "CVSnet",
-  "합통택배",
-] as const;
+export const supabase = supabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : (undefined as unknown as ReturnType<typeof createClient>);
