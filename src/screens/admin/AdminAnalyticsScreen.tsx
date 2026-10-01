@@ -13,6 +13,9 @@ import {
   Smartphone,
   Monitor,
   Clock,
+  Megaphone,
+  Target,
+  KeyRound,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -29,6 +32,13 @@ interface RawLog {
   is_member: boolean;
   user_name: string | null;
   created_at: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  ad_platform: string | null;
+  landing_url: string | null;
 }
 
 interface ProfileRow {
@@ -80,6 +90,29 @@ interface KeywordCount {
 interface DeviceCount {
   device: string;
   visits: number;
+}
+
+interface CampaignCount {
+  campaign: string;
+  visits: number;
+}
+
+interface AdPlatformCount {
+  platform: string;
+  visits: number;
+}
+
+function formatAdPlatform(platform: string | null): string {
+  if (!platform) return '자연 유입';
+  const map: Record<string, string> = {
+    naver_powerlink: '네이버 파워링크',
+    naver: '네이버',
+    google_ads: '구글 광고',
+    google: '구글',
+    kakao: '카카오',
+    meta_ads: '메타 광고',
+  };
+  return map[platform] || platform;
 }
 
 function isToday(dateStr: string): boolean {
@@ -437,6 +470,47 @@ export function AdminAnalyticsScreen() {
     .sort((a, b) => b.visits - a.visits);
   const maxDev = Math.max(...devCounts.map((d) => d.visits), 1);
 
+  // Ad platform breakdown
+  const adMap = new Map<string, number>();
+  for (const log of logs) {
+    const plat = formatAdPlatform(log.ad_platform);
+    adMap.set(plat, (adMap.get(plat) || 0) + 1);
+  }
+  const adCounts: AdPlatformCount[] = Array.from(adMap.entries())
+    .map(([platform, visits]) => ({ platform, visits }))
+    .sort((a, b) => b.visits - a.visits);
+  const maxAd = Math.max(...adCounts.map((a) => a.visits), 1);
+
+  // Campaign breakdown
+  const campMap = new Map<string, number>();
+  for (const log of logs) {
+    if (log.utm_campaign || log.utm_source) {
+      const camp = log.utm_campaign || log.utm_source || '';
+      campMap.set(camp, (campMap.get(camp) || 0) + 1);
+    }
+  }
+  const campCounts: CampaignCount[] = Array.from(campMap.entries())
+    .map(([campaign, visits]) => ({ campaign, visits }))
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, 15);
+  const maxCamp = Math.max(...campCounts.map((c) => c.visits), 1);
+
+  // Ad keyword breakdown (utm_term)
+  const adKwMap = new Map<string, number>();
+  for (const log of logs) {
+    if (log.utm_term) {
+      adKwMap.set(log.utm_term, (adKwMap.get(log.utm_term) || 0) + 1);
+    }
+  }
+  const adKwCounts: KeywordCount[] = Array.from(adKwMap.entries())
+    .map(([keyword, visits]) => ({ keyword, visits }))
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, 15);
+  const maxAdKw = Math.max(...adKwCounts.map((k) => k.visits), 1);
+
+  const adVisits = logs.filter((l) => l.ad_platform).length;
+  const organicVisits = logs.length - adVisits;
+
   const rangeLabels: Record<typeof range, string> = {
     today: '오늘',
     yesterday: '어제',
@@ -549,6 +623,38 @@ export function AdminAnalyticsScreen() {
         </button>
       </div>
 
+      {/* Ad vs Organic & Campaign Summary */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          icon={<Megaphone size={20} />}
+          label="광고 유입"
+          value={adVisits}
+          sub={stats.totalVisits > 0 ? `${Math.round((adVisits / stats.totalVisits) * 100)}%` : '0%'}
+          accent="amber"
+        />
+        <StatCard
+          icon={<Globe size={20} />}
+          label="자연 유입"
+          value={organicVisits}
+          sub={stats.totalVisits > 0 ? `${Math.round((organicVisits / stats.totalVisits) * 100)}%` : '0%'}
+          accent="green"
+        />
+        <StatCard
+          icon={<Target size={20} />}
+          label="캠페인 수"
+          value={campCounts.length}
+          sub="활성 캠페인"
+          accent="navy"
+        />
+        <StatCard
+          icon={<KeyRound size={20} />}
+          label="광고 키워드 수"
+          value={adKwCounts.length}
+          sub="추적된 키워드"
+          accent="sky"
+        />
+      </div>
+
       {/* Daily Trend */}
       <div className="card p-5">
         <h3 className="font-bold text-navy-900 mb-3 flex items-center gap-2">
@@ -623,7 +729,7 @@ export function AdminAnalyticsScreen() {
           )}
         </div>
 
-        {/* Search Keywords */}
+        {/* Search Keywords (organic + ad) */}
         <div className="card p-5">
           <h3 className="font-bold text-navy-900 mb-3 flex items-center gap-2">
             <Search size={18} className="text-navy-600" />
@@ -635,6 +741,23 @@ export function AdminAnalyticsScreen() {
             <div className="space-y-0.5">
               {kwCounts.map((k) => (
                 <BarRow key={k.keyword} label={k.keyword} value={k.visits} max={maxKw} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ad Keywords (utm_term) */}
+        <div className="card p-5">
+          <h3 className="font-bold text-navy-900 mb-3 flex items-center gap-2">
+            <KeyRound size={18} className="text-volt-600" />
+            광고 키워드
+          </h3>
+          {adKwCounts.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">광고를 통한 키워드 유입이 아직 없습니다.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {adKwCounts.map((k) => (
+                <BarRow key={k.keyword} label={k.keyword} value={k.visits} max={maxAdKw} />
               ))}
             </div>
           )}
@@ -668,6 +791,43 @@ export function AdminAnalyticsScreen() {
                   </div>
                   <span className="text-sm font-bold text-navy-900 w-10 text-right">{d.visits}</span>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ad Platform & Campaign Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Ad Platform Breakdown */}
+        <div className="card p-5">
+          <h3 className="font-bold text-navy-900 mb-3 flex items-center gap-2">
+            <Megaphone size={18} className="text-volt-600" />
+            광고 플랫폼별 유입
+          </h3>
+          {adCounts.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">광고 유입 데이터가 아직 없습니다.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {adCounts.map((a) => (
+                <BarRow key={a.platform} label={a.platform} value={a.visits} max={maxAd} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Campaign Breakdown */}
+        <div className="card p-5">
+          <h3 className="font-bold text-navy-900 mb-3 flex items-center gap-2">
+            <Target size={18} className="text-navy-600" />
+            캠페인별 유입
+          </h3>
+          {campCounts.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center">캠페인 유입 데이터가 아직 없습니다.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {campCounts.map((c) => (
+                <BarRow key={c.campaign} label={c.campaign} value={c.visits} max={maxCamp} />
               ))}
             </div>
           )}
@@ -726,7 +886,7 @@ export function AdminAnalyticsScreen() {
                     </span>
                   </p>
                   <p className="text-xs text-slate-400 truncate">
-                    {log.is_member && log.user_name ? log.page : formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}
+                    {log.is_member && log.user_name ? log.page : formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}{log.ad_platform ? ` \u00b7 ${formatAdPlatform(log.ad_platform)}` : ''}{log.utm_campaign ? ` \u00b7 ${log.utm_campaign}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
