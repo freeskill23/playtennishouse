@@ -333,6 +333,17 @@ export function AdminDashboardScreen() {
         </div>
         {(['A코트', 'B코트'] as CourtName[]).map((court) => {
           const courtRes = courtReservations.filter((r) => r.targetId === court);
+          const venueForCourt = court === 'A코트' ? 'A동' : 'B동';
+          const courtBbqRes = bbqReservations.filter(
+            (r) => r.targetId === venueForCourt && r.waitingSequence === null && r.status !== '취소',
+          );
+          const bbqHoursForCourt = new Set<number>();
+          for (const r of courtBbqRes) {
+            if (!r.timeSlot) continue;
+            const start = parseInt(r.timeSlot.slice(0, 2), 10);
+            const end = parseInt(r.timeSlot.slice(6, 8), 10);
+            for (let h = start; h < end; h++) bbqHoursForCourt.add(h);
+          }
           return (
             <div key={court} className="card p-5">
               <div className="flex items-center justify-between mb-3">
@@ -345,7 +356,14 @@ export function AdminDashboardScreen() {
                     <p className="text-xs text-slate-500">코트 타임라인</p>
                   </div>
                 </div>
-                <span className="text-xs text-slate-400">{courtRes.length}건</span>
+                <div className="flex items-center gap-2">
+                  {courtBbqRes.length > 0 && (
+                    <span className="chip bg-amber-100 text-amber-700 text-xs">
+                      <Flame size={12} /> BBQ {courtBbqRes.length}건
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-400">{courtRes.length}건</span>
+                </div>
               </div>
               <div className="space-y-1">
                 {COURT_TIME_SLOTS.map((slot) => {
@@ -356,6 +374,14 @@ export function AdminDashboardScreen() {
                   const u = res ? getUser(res.userId) : null;
                   const resName = res ? `${u?.nickname || u?.name || '비회원'}${res.depositorName ? `(${res.depositorName})` : ''}` : '비회원';
                   const isCancelled = res?.status === '취소';
+                  const slotHour = parseInt(slot.slice(0, 2), 10);
+                  const bbqCovered = bbqHoursForCourt.has(slotHour);
+                  const bbqRes = courtBbqRes.find((r) => {
+                    if (!r.timeSlot) return false;
+                    const bs = parseInt(r.timeSlot.slice(0, 2), 10);
+                    const be = parseInt(r.timeSlot.slice(6, 8), 10);
+                    return slotHour >= bs && slotHour < be;
+                  });
                   return (
                     <div
                       key={slot}
@@ -368,7 +394,9 @@ export function AdminDashboardScreen() {
                               ? 'bg-slate-100 text-slate-400'
                               : isCancelled
                                 ? 'bg-rose-50 text-rose-400'
-                                : 'bg-slate-50 text-slate-500'
+                                : bbqCovered
+                                  ? 'bg-amber-50/70 text-navy-900'
+                                  : 'bg-slate-50 text-slate-500'
                       }`}
                     >
                       <Clock size={13} className="shrink-0" />
@@ -400,10 +428,52 @@ export function AdminDashboardScreen() {
                           <XCircle size={16} />
                         </button>
                       )}
+                      {bbqRes && !res && (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 ml-auto">
+                          <Flame size={12} />
+                          {bbqRes.targetLabel} {bbqRes.timeSlot} · {bbqRes.capacity}명
+                          {bbqRes.depositorName && ` · ${bbqRes.depositorName}`}
+                        </span>
+                      )}
+                      {bbqRes && !res && <StatusBadge status={bbqRes.status} />}
                     </div>
                   );
                 })}
               </div>
+              {courtBbqRes.length > 0 && (
+                <div className="mt-3 border-t border-slate-100 pt-3 space-y-1.5">
+                  <p className="text-xs font-bold text-amber-700 flex items-center gap-1 mb-1">
+                    <Flame size={13} /> {venueForCourt} 바베큐패키지 예약
+                  </p>
+                  {courtBbqRes.map((r) => {
+                    const bu = getUser(r.userId);
+                    const bbqName = `${bu?.nickname || bu?.name || '비회원'}${r.depositorName ? `(${r.depositorName})` : ''}`;
+                    return (
+                      <div key={r.id} className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm">
+                        <Flame size={14} className="shrink-0 text-amber-500" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-navy-900 truncate">
+                            {r.targetLabel} · {r.timeSlot} · {r.capacity}명
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {bbqName}{r.depositorPhone ? ` · ${r.depositorPhone}` : ''}
+                          </p>
+                        </div>
+                        <StatusBadge status={r.status} />
+                        {r.status === '예약완료' && (
+                          <button
+                            onClick={() => setCancelTarget({ id: r.id, label: `${bbqName} ${r.targetLabel} ${r.timeSlot}` })}
+                            className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition"
+                            aria-label="관리자 취소"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
