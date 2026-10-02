@@ -512,17 +512,21 @@ export function BBQPackageScreen() {
 
           {/* Depositor info */}
           <div className="border-t border-slate-100 pt-4 space-y-3">
-            <label className="block">
-              <span className="text-xs font-semibold text-navy-600 mb-1 block">입금자명</span>
-              <input
-                type="text"
-                value={depositorName}
-                onChange={(e) => setDepositorName(e.target.value)}
-                placeholder="입금자명을 입력하세요"
-                maxLength={20}
-                className="input py-2.5"
-              />
-            </label>
+            <p className="text-xs font-bold text-navy-700 bg-navy-50 rounded-lg px-3 py-2">
+              아래 입금자명을 입력해주시고 예약을 진행해주세요
+            </p>
+            <input
+              type="text"
+              value={depositorName}
+              onChange={(e) => setDepositorName(e.target.value)}
+              placeholder="입금자명"
+              className={`input py-2.5 transition-all ${
+                depositorName.trim()
+                  ? 'border-2 border-volt-500 ring-2 ring-volt-200 font-bold'
+                  : 'input-blink'
+              }`}
+              maxLength={20}
+            />
             {isGuest && (
               <label className="block">
                 <span className="text-xs font-semibold text-navy-600 mb-1 block">연락처</span>
