@@ -534,31 +534,45 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   }, []);
 
   // Load gallery items from Supabase
+  const loadGalleryItems = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data } = await supabase
+      .from('gallery_items')
+      .select('*')
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+    if (data && data.length > 0) {
+      setGalleryItems(
+        data.map((g) => ({
+          id: g.id as string,
+          imageUrl: g.image_url as string,
+          summary: g.summary as string,
+          createdAt: g.created_at as number,
+          isFeatured: (g.is_featured as boolean) || false,
+          showOnCourt: (g.show_on_court as boolean) || false,
+          showOnPension: (g.show_on_pension as boolean) || false,
+          showOnBbq: (g.show_on_bbq as boolean) || false,
+          sortOrder: (g.sort_order as number) || 0,
+        })),
+      );
+    }
+  }, []);
+
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase
-        .from('gallery_items')
-        .select('*')
-        .order('sort_order', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        setGalleryItems(
-          data.map((g) => ({
-            id: g.id as string,
-            imageUrl: g.image_url as string,
-            summary: g.summary as string,
-            createdAt: g.created_at as number,
-            isFeatured: (g.is_featured as boolean) || false,
-            showOnCourt: (g.show_on_court as boolean) || false,
-            showOnPension: (g.show_on_pension as boolean) || false,
-            showOnBbq: (g.show_on_bbq as boolean) || false,
-            sortOrder: (g.sort_order as number) || 0,
-          })),
-        );
-      }
-    })();
-  }, []);
+    loadGalleryItems();
+    const channel = supabase
+      .channel('gallery_items_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gallery_items' },
+        () => loadGalleryItems(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadGalleryItems]);
 
   // Load reviews from Supabase
   useEffect(() => {
@@ -1753,12 +1767,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return { ok: false, reason: `${input.venue} 펜션 예약이 있어 바베큐패키지 예약이 불가합니다.` };
       }
 
-      // Check if this venue has court reservations blocking it
-      const courtConflict = reservations.some(
-        (r) => r.type === 'court' && r.date === input.date && r.waitingSequence === null && r.status !== '취소',
-      );
+      // Check court reservations that overlap in time with the BBQ time range
+      // A동 maps to A코트, B동 maps to B코트
+      const courtForVenue = input.venue === 'A동' ? 'A코트' : 'B코트';
+      const bbqHours = new Set<number>();
+      for (let h = input.startHour; h < input.endHour; h++) bbqHours.add(h);
+      const courtConflict = reservations.some((r) => {
+        if (r.type !== 'court' || r.date !== input.date || r.waitingSequence !== null || r.status === '취소') return false;
+        if (r.targetId !== courtForVenue) return false;
+        if (!r.timeSlot) return false;
+        const slotStart = parseInt(r.timeSlot.slice(0, 2), 10);
+        const slotEnd = parseInt(r.timeSlot.slice(6, 8), 10);
+        for (let h = slotStart; h < slotEnd; h++) {
+          if (bbqHours.has(h)) return true;
+        }
+        return false;
+      });
       if (courtConflict) {
-        return { ok: false, reason: '해당 날짜에 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다.' };
+        return { ok: false, reason: '선택하신 시간에 코트 대관이 있어 해당 시간은 예약이 불가합니다.' };
       }
 
       const { total } = computeBBQPrice(input.startHour, input.endHour, input.capacity, bbqPricing);

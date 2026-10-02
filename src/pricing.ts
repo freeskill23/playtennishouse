@@ -165,25 +165,95 @@ export function computeBBQPrice(
   endHour: number,
   capacity: number,
   pricing: BBQPricing,
-): { baseAmount: number; extraPersonAmount: number; extraHourAmount: number; total: number; breakdown: string[] } {
+): {
+  baseAmount: number;
+  extraPersonAmount: number;
+  extraHourAmount: number;
+  total: number;
+  breakdown: string[];
+  baseHoursDay: number;
+  baseHoursNight: number;
+  extraHoursDay: number;
+  extraHoursNight: number;
+  dayBaseAmount: number;
+  nightBaseAmount: number;
+} {
   const totalHours = endHour - startHour;
   const extraHours = Math.max(0, totalHours - pricing.baseHours);
   const extraPersons = Math.max(0, capacity - pricing.baseCapacity);
 
-  const startTier = getBBQSlotTier(startHour, pricing);
-  const baseAmount = startTier === 'night' ? pricing.nightPrice : pricing.dayPrice;
+  const nightStart = pricing.nightStartHour;
 
-  const extraHourAmount = extraHours * pricing.extraHourFee * capacity;
+  // Walk through each hour in chronological order, classifying as base/extra and day/night
+  let baseHoursDay = 0;
+  let baseHoursNight = 0;
+  let extraHoursDay = 0;
+  let extraHoursNight = 0;
+  let hoursUsed = 0;
+  for (let h = startHour; h < endHour; h++) {
+    const isNight = h >= nightStart;
+    if (hoursUsed < pricing.baseHours) {
+      if (isNight) baseHoursNight++;
+      else baseHoursDay++;
+    } else {
+      if (isNight) extraHoursNight++;
+      else extraHoursDay++;
+    }
+    hoursUsed++;
+  }
+
+  // Base price: if base hours span both tiers, split proportionally by hours.
+  // If entirely in one tier, use that tier's flat price.
+  const totalBaseHours = baseHoursDay + baseHoursNight;
+  let dayBaseAmount = 0;
+  let nightBaseAmount = 0;
+  if (totalBaseHours > 0) {
+    if (baseHoursDay > 0 && baseHoursNight > 0) {
+      dayBaseAmount = Math.round((baseHoursDay / totalBaseHours) * pricing.dayPrice);
+      nightBaseAmount = Math.round((baseHoursNight / totalBaseHours) * pricing.nightPrice);
+    } else if (baseHoursDay > 0) {
+      dayBaseAmount = pricing.dayPrice;
+    } else {
+      nightBaseAmount = pricing.nightPrice;
+    }
+  }
+  const baseAmount = dayBaseAmount + nightBaseAmount;
+
+  const extraHourAmountDay = extraHoursDay * pricing.extraHourFee * capacity;
+  const extraHourAmountNight = extraHoursNight * pricing.extraHourFee * capacity;
+  const extraHourAmount = extraHourAmountDay + extraHourAmountNight;
   const extraPersonAmount = extraPersons * pricing.extraPersonFee;
   const total = baseAmount + extraHourAmount + extraPersonAmount;
 
   const breakdown: string[] = [];
+  if (baseHoursDay > 0 && baseHoursNight > 0) {
+    breakdown.push(`기본 ${baseHoursDay}시간(데이) + ${baseHoursNight}시간(나이트) = ${formatWon(baseAmount)}`);
+  } else if (baseHoursNight > 0) {
+    breakdown.push(`기본 ${baseHoursNight}시간(나이트) = ${formatWon(nightBaseAmount)}`);
+  } else {
+    breakdown.push(`기본 ${baseHoursDay}시간(데이) = ${formatWon(dayBaseAmount)}`);
+  }
   if (extraHours > 0) {
-    breakdown.push(`시간 초과 ${extraHours}시간 × ${formatWon(pricing.extraHourFee)} × ${capacity}명 = ${formatWon(extraHourAmount)}`);
+    const parts: string[] = [];
+    if (extraHoursDay > 0) parts.push(`데이 ${extraHoursDay}시간`);
+    if (extraHoursNight > 0) parts.push(`나이트 ${extraHoursNight}시간`);
+    breakdown.push(`시간 초과 ${parts.join(' + ')} × ${formatWon(pricing.extraHourFee)} × ${capacity}명 = ${formatWon(extraHourAmount)}`);
   }
   if (extraPersons > 0) {
     breakdown.push(`추가 인원 ${extraPersons}명 × ${formatWon(pricing.extraPersonFee)} = ${formatWon(extraPersonAmount)}`);
   }
 
-  return { baseAmount, extraPersonAmount, extraHourAmount, total, breakdown };
+  return {
+    baseAmount,
+    extraPersonAmount,
+    extraHourAmount,
+    total,
+    breakdown,
+    baseHoursDay,
+    baseHoursNight,
+    extraHoursDay,
+    extraHoursNight,
+    dayBaseAmount,
+    nightBaseAmount,
+  };
 }

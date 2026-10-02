@@ -1,19 +1,41 @@
 import { useState, useMemo } from 'react';
-import { Flame, Clock, Users, Wallet, AlertTriangle, CheckCircle2, Calendar as CalendarIcon, Plus, Minus, BedDouble } from 'lucide-react';
+import { Flame, Clock, Users, Wallet, AlertTriangle, CheckCircle2, Calendar as CalendarIcon, Plus, Minus } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { computeBBQPrice, getBBQSlotTier, formatWon } from '../pricing';
-import type { BBQVenue } from '../types';
+import type { BBQVenue, CourtName } from '../types';
 
-const VENUES: { name: BBQVenue; desc: string; color: string }[] = [
-  { name: 'A동', desc: '테니스코트 + 라운지 + 바베큐장', color: 'bg-amber-500' },
-  { name: 'B동', desc: '테니스코트 + 라운지 + 바베큐장', color: 'bg-navy-700' },
+const VENUES: { name: BBQVenue; court: CourtName; desc: string; color: string }[] = [
+  { name: 'A동', court: 'A코트', desc: '테니스코트 + 라운지 + 바베큐장', color: 'bg-amber-500' },
+  { name: 'B동', court: 'B코트', desc: '테니스코트 + 라운지 + 바베큐장', color: 'bg-navy-700' },
 ];
 
 const HOURS = Array.from({ length: 20 }, (_, i) => i + 5); // 5~24
+
+function venueToCourt(venue: BBQVenue): CourtName {
+  return venue === 'A동' ? 'A코트' : 'B코트';
+}
+
+/** Returns set of hours blocked by court reservations for the given court+date */
+function getCourtBlockedHours(
+  reservations: { type: string; date: string; targetId: string; timeSlot?: string; waitingSequence: number | null; status: string }[],
+  date: string,
+  court: CourtName,
+): Set<number> {
+  const blocked = new Set<number>();
+  for (const r of reservations) {
+    if (r.type !== 'court' || r.date !== date || r.waitingSequence !== null || r.status === '취소') continue;
+    if (r.targetId !== court) continue;
+    if (!r.timeSlot) continue;
+    const slotStart = parseInt(r.timeSlot.slice(0, 2), 10);
+    const slotEnd = parseInt(r.timeSlot.slice(6, 8), 10);
+    for (let h = slotStart; h < slotEnd; h++) blocked.add(h);
+  }
+  return blocked;
+}
 
 export function BBQPackageScreen() {
   const {
@@ -40,6 +62,8 @@ export function BBQPackageScreen() {
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
 
+  const courtForVenue = venueToCourt(venue);
+
   // Per-venue checks: BBQ conflict on same venue+date
   const existingBBQSameVenue = reservations.find(
     (r) => r.type === 'bbq' && r.date === date && r.targetId === venue && r.waitingSequence === null && r.status !== '취소',
@@ -48,21 +72,35 @@ export function BBQPackageScreen() {
     (r) => r.type === 'bbq' && r.date === date && r.targetId !== venue && r.waitingSequence === null && r.status !== '취소',
   );
 
-  // Pension on same venue blocks BBQ (same building)
+  // Pension on same venue blocks BBQ entirely (same building)
   const hasPensionSameVenue = reservations.some(
     (r) => r.type === 'pension' && r.date === date && r.targetLabel === venue && r.waitingSequence === null && r.status !== '취소',
   );
-  // Pension on other venue does NOT block
   const hasPensionOtherVenue = reservations.some(
     (r) => r.type === 'pension' && r.date === date && r.targetLabel !== venue && r.waitingSequence === null && r.status !== '취소',
   );
 
-  // Court reservations block BBQ (court is shared)
-  const hasCourtOnDate = reservations.some(
-    (r) => r.type === 'court' && r.date === date && r.waitingSequence === null && r.status !== '취소',
+  // Court reservations: only block specific hours, only for the matching court
+  const courtBlockedHours = useMemo(
+    () => getCourtBlockedHours(reservations, date, courtForVenue),
+    [reservations, date, courtForVenue],
   );
+  const hasAnyCourtOnDate = courtBlockedHours.size > 0;
 
-  const isBlocked = !!existingBBQSameVenue || hasPensionSameVenue || hasCourtOnDate;
+  // The venue is fully blocked only by BBQ conflict or pension on same building
+  const isVenueFullyBlocked = !!existingBBQSameVenue || hasPensionSameVenue;
+
+  // Check if a time range [start, end) overlaps any court-blocked hour
+  const rangeHasCourtConflict = (start: number, end: number): boolean => {
+    for (let h = start; h < end; h++) {
+      if (courtBlockedHours.has(h)) return true;
+    }
+    return false;
+  };
+
+  // Check if the currently selected time range conflicts with court
+  const selectedHasCourtConflict =
+    startHour !== null && endHour !== null && rangeHasCourtConflict(startHour, endHour);
 
   const handleSelectStart = (hour: number) => {
     if (date === todayYMD() && hour <= new Date().getHours()) return;
@@ -128,6 +166,27 @@ export function BBQPackageScreen() {
     if (date !== todayYMD()) return false;
     return hour <= new Date().getHours();
   };
+
+  // Format court-blocked hours for display
+  const courtBlockedRanges = useMemo(() => {
+    const sorted = [...courtBlockedHours].sort((a, b) => a - b);
+    const ranges: string[] = [];
+    let rangeStart = -1;
+    let prev = -1;
+    for (const h of sorted) {
+      if (rangeStart === -1) {
+        rangeStart = h;
+      } else if (h !== prev + 1) {
+        ranges.push(`${String(rangeStart).padStart(2, '0')}:00~${String(prev + 1).padStart(2, '0')}:00`);
+        rangeStart = h;
+      }
+      prev = h;
+    }
+    if (rangeStart !== -1) {
+      ranges.push(`${String(rangeStart).padStart(2, '0')}:00~${String(prev + 1).padStart(2, '0')}:00`);
+    }
+    return ranges;
+  }, [courtBlockedHours]);
 
   return (
     <div className="space-y-5 pb-4">
@@ -197,10 +256,7 @@ export function BBQPackageScreen() {
           const pensionTaken = reservations.some(
             (r) => r.type === 'pension' && r.date === date && r.targetLabel === v.name && r.waitingSequence === null && r.status !== '취소',
           );
-          const courtTaken = reservations.some(
-            (r) => r.type === 'court' && r.date === date && r.waitingSequence === null && r.status !== '취소',
-          );
-          const unavailable = bbqTaken || pensionTaken || courtTaken;
+          const unavailable = bbqTaken || pensionTaken;
           return (
             <button
               key={v.name}
@@ -253,18 +309,18 @@ export function BBQPackageScreen() {
           </div>
         </div>
       )}
-      {!existingBBQSameVenue && !hasPensionSameVenue && hasCourtOnDate && (
-        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3">
-          <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+      {!existingBBQSameVenue && !hasPensionSameVenue && hasAnyCourtOnDate && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-rose-800">코트 대관으로 인해 예약 불가</p>
-            <p className="text-sm text-rose-700 mt-0.5">
-              이 날짜에는 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다. 다른 날짜를 선택해주세요.
+            <p className="font-bold text-amber-800">{courtForVenue} 대관 시간이 있습니다</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              {courtForVenue} 대관 시간({courtBlockedRanges.join(', ')})은 피해서 예약해주세요. 해당 시간이 포함되지 않으면 예약 가능합니다.
             </p>
           </div>
         </div>
       )}
-      {existingBBQOtherVenue && !isBlocked && (
+      {existingBBQOtherVenue && !isVenueFullyBlocked && (
         <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 flex items-start gap-3">
           <CheckCircle2 size={20} className="text-sky-600 shrink-0 mt-0.5" />
           <div>
@@ -275,7 +331,7 @@ export function BBQPackageScreen() {
           </div>
         </div>
       )}
-      {hasPensionOtherVenue && !isBlocked && !hasCourtOnDate && (
+      {hasPensionOtherVenue && !isVenueFullyBlocked && !hasAnyCourtOnDate && (
         <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 flex items-start gap-3">
           <CheckCircle2 size={20} className="text-sky-600 shrink-0 mt-0.5" />
           <div>
@@ -300,15 +356,17 @@ export function BBQPackageScreen() {
             const isSel = startHour === hour;
             const tier = getBBQSlotTier(hour, bbqPricing);
             const passed = isHourPassed(hour);
+            const courtBlocked = courtBlockedHours.has(hour);
+            const disabled = passed || isVenueFullyBlocked || courtBlocked;
             return (
               <button
                 key={hour}
-                disabled={passed || isBlocked}
+                disabled={disabled}
                 onClick={() => handleSelectStart(hour)}
                 className={`relative rounded-xl p-2 text-sm font-bold transition-all border ${
                   isSel
                     ? 'bg-navy-900 text-white border-navy-900 shadow-navy'
-                    : passed || isBlocked
+                    : disabled
                       ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
                       : tier === 'night'
                         ? 'bg-white text-navy-800 border-navy-200 hover:border-navy-400'
@@ -317,7 +375,7 @@ export function BBQPackageScreen() {
               >
                 <span>{String(hour).padStart(2, '0')}:00</span>
                 <p className="text-[9px] font-medium mt-0.5 opacity-70">
-                  {isSel ? '선택됨' : passed ? '지남' : tier === 'night' ? '나이트' : '데이'}
+                  {isSel ? '선택됨' : courtBlocked ? '코트' : passed ? '지남' : tier === 'night' ? '나이트' : '데이'}
                 </p>
               </button>
             );
@@ -359,6 +417,16 @@ export function BBQPackageScreen() {
             </p>
           </div>
 
+          {/* Court conflict warning for selected range */}
+          {selectedHasCourtConflict && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 p-3.5 flex items-start gap-2">
+              <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-rose-800">
+                선택하신 시간에 {courtForVenue} 대관이 포함되어 있습니다. 코트 대관 시간({courtBlockedRanges.join(', ')})을 피해서 다시 선택해주세요.
+              </p>
+            </div>
+          )}
+
           {/* Capacity */}
           <div className="border-t border-slate-100 pt-4">
             <div className="flex items-center justify-between mb-2">
@@ -387,21 +455,45 @@ export function BBQPackageScreen() {
           </div>
 
           {/* Price breakdown */}
-          {priceCalc && (
+          {priceCalc && !selectedHasCourtConflict && (
             <div className="border-t border-slate-100 pt-4">
               <div className="rounded-xl bg-amber-50 border border-amber-100 p-3.5 space-y-2">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Wallet size={14} className="text-amber-700" />
                   <p className="text-xs font-bold text-amber-800">{venue} 요금 안내</p>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">기본 이용료 ({getBBQSlotTier(startHour, bbqPricing) === 'night' ? '나이트' : '데이'})</span>
-                  <span className="font-bold text-navy-900">{formatWon(priceCalc.baseAmount)}</span>
-                </div>
-                {priceCalc.extraHourAmount > 0 && (
+                {priceCalc.baseHoursDay > 0 && priceCalc.baseHoursNight > 0 ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">기본 데이 {priceCalc.baseHoursDay}시간</span>
+                      <span className="font-bold text-navy-900">{formatWon(priceCalc.dayBaseAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">기본 나이트 {priceCalc.baseHoursNight}시간</span>
+                      <span className="font-bold text-navy-900">{formatWon(priceCalc.nightBaseAmount)}</span>
+                    </div>
+                  </>
+                ) : priceCalc.baseHoursNight > 0 ? (
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">시간 초과 추가</span>
-                    <span className="font-bold text-navy-900">{formatWon(priceCalc.extraHourAmount)}</span>
+                    <span className="text-slate-600">기본 이용료 (나이트 {priceCalc.baseHoursNight}시간)</span>
+                    <span className="font-bold text-navy-900">{formatWon(priceCalc.nightBaseAmount)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">기본 이용료 (데이 {priceCalc.baseHoursDay}시간)</span>
+                    <span className="font-bold text-navy-900">{formatWon(priceCalc.dayBaseAmount)}</span>
+                  </div>
+                )}
+                {priceCalc.extraHoursDay > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">데이 시간 초과 {priceCalc.extraHoursDay}시간 × {capacity}명</span>
+                    <span className="font-bold text-navy-900">{formatWon(priceCalc.extraHoursDay * bbqPricing.extraHourFee * capacity)}</span>
+                  </div>
+                )}
+                {priceCalc.extraHoursNight > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">나이트 시간 초과 {priceCalc.extraHoursNight}시간 × {capacity}명</span>
+                    <span className="font-bold text-navy-900">{formatWon(priceCalc.extraHoursNight * bbqPricing.extraHourFee * capacity)}</span>
                   </div>
                 )}
                 {priceCalc.extraPersonAmount > 0 && (
@@ -454,7 +546,7 @@ export function BBQPackageScreen() {
 
           <button
             onClick={handleReserve}
-            disabled={isBlocked}
+            disabled={isVenueFullyBlocked || selectedHasCourtConflict}
             className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-lg hover:bg-amber-400 transition shadow-amber disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Flame size={20} /> {venue} 바베큐패키지 예약 신청
@@ -486,7 +578,7 @@ export function BBQPackageScreen() {
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 size={15} className="text-amber-500 shrink-0 mt-0.5" />
-            코트 대관 예약이 있는 날짜는 바베큐패키지 예약이 불가합니다.
+            코트 대관 시간은 해당 코트와 같은 동의 바베큐패키지만 제한됩니다. 대관 시간을 피해 예약하면 가능합니다.
           </li>
         </ul>
       </div>
