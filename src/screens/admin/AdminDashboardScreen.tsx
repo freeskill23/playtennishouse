@@ -19,6 +19,7 @@ import {
   Pencil,
   Send,
   CalendarClock,
+  Flame,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -129,6 +130,7 @@ export function AdminDashboardScreen() {
 
   const pensionReservations = dayReservations.filter((r) => r.type === 'pension');
   const courtReservations = dayReservations.filter((r) => r.type === 'court');
+  const bbqReservations = dayReservations.filter((r) => r.type === 'bbq');
 
   const priceDirty = priceEdit.weekday !== pensionWeekdayPrice || priceEdit.weekend !== pensionWeekendPrice;
   const baseCapacityDirty = baseCapacityEdit.weekday !== pensionWeekdayBaseCapacity || baseCapacityEdit.weekend !== pensionWeekendBaseCapacity;
@@ -178,6 +180,7 @@ export function AdminDashboardScreen() {
           const res = getReservationsByDate(d);
           if (res.length === 0) return null;
           const pensionRes = res.filter((r) => r.type === 'pension');
+          const bbqRes = res.filter((r) => r.type === 'bbq' && r.status !== '취소' && r.waitingSequence === null);
           if (pensionRes.length > 0) {
             const hasA = pensionRes.some((r) => r.targetId === 'roomA');
             const hasB = pensionRes.some((r) => r.targetId === 'roomB');
@@ -188,6 +191,19 @@ export function AdminDashboardScreen() {
             return (
               <span className="text-[8px] font-bold leading-none text-volt-700 bg-volt-100 rounded px-1 py-0.5">
                 {label}예약
+              </span>
+            );
+          }
+          if (bbqRes.length > 0) {
+            const hasA = bbqRes.some((r) => r.targetId === 'A동');
+            const hasB = bbqRes.some((r) => r.targetId === 'B동');
+            let label = '';
+            if (hasA && hasB) label = 'AB';
+            else if (hasA) label = 'A';
+            else if (hasB) label = 'B';
+            return (
+              <span className="text-[8px] font-bold leading-none text-amber-700 bg-amber-100 rounded px-1 py-0.5">
+                {label}BBQ
               </span>
             );
           }
@@ -266,6 +282,50 @@ export function AdminDashboardScreen() {
             </div>
           );
         })}
+
+        {/* BBQ package status */}
+        <div className="card p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                <Flame size={18} />
+              </div>
+              <div>
+                <p className="font-bold text-navy-900">바베큐패키지</p>
+                <p className="text-xs text-slate-500">{bbqReservations.filter((r) => r.waitingSequence === null && r.status !== '취소').length}건</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {bbqReservations.filter((r) => r.waitingSequence === null).length === 0 ? (
+              <p className="text-sm text-slate-400 py-2">예약 내역 없음</p>
+            ) : (
+              bbqReservations.filter((r) => r.waitingSequence === null).map((r) => {
+                const u = getUser(r.userId);
+                const resName = `${u?.nickname || u?.name || '비회원'}${r.depositorName ? `(${r.depositorName})` : ''}`;
+                return (
+                  <div key={r.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${r.status === '취소' ? 'bg-rose-50' : r.status === '예약완료' ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    <Flame size={14} className="shrink-0 text-amber-500" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-navy-900 truncate">{r.targetLabel} · {r.timeSlot} · {r.capacity}명</p>
+                      <p className="text-xs text-slate-500 truncate">{resName}{r.depositorPhone ? ` · ${r.depositorPhone}` : ''}</p>
+                    </div>
+                    <StatusBadge status={r.status} />
+                    {r.status === '예약완료' && (
+                      <button
+                        onClick={() => setCancelTarget({ id: r.id, label: `${resName} ${r.targetLabel} ${r.timeSlot}` })}
+                        className="text-rose-500 hover:bg-rose-50 rounded-lg p-1 transition"
+                        aria-label="관리자 취소"
+                      >
+                        <XCircle size={16} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
 
         {/* Court timelines */}
         <div className="lg:col-span-2">

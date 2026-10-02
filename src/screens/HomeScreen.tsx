@@ -4,6 +4,7 @@ import {
   CalendarRange,
   Users,
   Megaphone,
+  Flame,
   Ticket,
   Images,
   ChevronRight,
@@ -30,7 +31,7 @@ import { mergeTimeSlots } from '../types';
 const QUICK_MENUS = [
   { key: 'pension', label: '펜션예약', icon: BedDouble, color: 'bg-volt-500', desc: 'A·B동 숙박' },
   { key: 'court', label: '코트예약', icon: CalendarRange, color: 'bg-navy-700', desc: '1시간 단위' },
-  { key: 'matching', label: '매칭', icon: Users, color: 'bg-sky-500', desc: '메이트 모집' },
+  { key: 'bbq', label: '바베큐패키지', icon: Flame, color: 'bg-amber-500', desc: '코트+BBQ' },
   { key: 'notices', label: '공지', icon: Megaphone, color: 'bg-clay-400', desc: '이벤트·안내' },
   { key: 'gallery', label: '갤러리', icon: Images, color: 'bg-amber-500', desc: '플테하 순간' },
   { key: 'mypage', label: '내예약', icon: Ticket, color: 'bg-rose-500', desc: '예약·매칭 내역' },
