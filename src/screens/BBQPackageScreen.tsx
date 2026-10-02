@@ -37,6 +37,20 @@ export function BBQPackageScreen() {
     (r) => r.type === 'bbq' && r.date === date && r.waitingSequence === null && r.status !== '취소',
   );
 
+  const hasPensionOrCourt = reservations.some(
+    (r) =>
+      r.date === date &&
+      r.waitingSequence === null &&
+      r.status !== '취소' &&
+      (r.type === 'pension' || r.type === 'court'),
+  );
+  const hasPensionOnDate = reservations.some(
+    (r) => r.type === 'pension' && r.date === date && r.waitingSequence === null && r.status !== '취소',
+  );
+  const hasCourtOnDate = reservations.some(
+    (r) => r.type === 'court' && r.date === date && r.waitingSequence === null && r.status !== '취소',
+  );
+
   const handleSelectStart = (hour: number) => {
     if (date === todayYMD() && hour <= new Date().getHours()) return;
     setStartHour(hour);
@@ -67,6 +81,10 @@ export function BBQPackageScreen() {
     }
     if (existingBBQ) {
       setErrorReason('해당 날짜에 이미 바베큐패키지 예약이 있습니다.');
+      return;
+    }
+    if (hasPensionOrCourt) {
+      setErrorReason('해당 날짜에 펜션 또는 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다.');
       return;
     }
     if (!depositorName.trim()) {
@@ -139,6 +157,14 @@ export function BBQPackageScreen() {
             (r) => r.type === 'bbq' && r.date === d && r.waitingSequence === null && r.status !== '취소',
           );
           if (hasBBQ) return <span className="w-2 h-2 rounded-full bg-amber-500" />;
+          const hasPensionOrCourt = reservations.some(
+            (r) =>
+              r.date === d &&
+              r.waitingSequence === null &&
+              r.status !== '취소' &&
+              (r.type === 'pension' || r.type === 'court'),
+          );
+          if (hasPensionOrCourt) return <span className="w-2 h-2 rounded-full bg-rose-400" />;
           return null;
         }}
       />
@@ -161,6 +187,28 @@ export function BBQPackageScreen() {
             <p className="font-bold text-rose-800">이 날짜는 예약 불가</p>
             <p className="text-sm text-rose-700 mt-0.5">
               이미 바베큐패키지 예약이 있습니다. 다른 날짜를 선택해주세요.
+            </p>
+          </div>
+        </div>
+      )}
+      {!existingBBQ && hasPensionOnDate && (
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-rose-800">펜션 예약으로 인해 예약 불가</p>
+            <p className="text-sm text-rose-700 mt-0.5">
+              이 날짜에는 펜션 예약이 있어 바베큐패키지 예약이 불가합니다. 다른 날짜를 선택해주세요.
+            </p>
+          </div>
+        </div>
+      )}
+      {!existingBBQ && !hasPensionOnDate && hasCourtOnDate && (
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-rose-800">코트 대관으로 인해 예약 불가</p>
+            <p className="text-sm text-rose-700 mt-0.5">
+              이 날짜에는 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다. 다른 날짜를 선택해주세요.
             </p>
           </div>
         </div>
@@ -333,7 +381,7 @@ export function BBQPackageScreen() {
 
           <button
             onClick={handleReserve}
-            disabled={!!existingBBQ}
+            disabled={!!existingBBQ || hasPensionOrCourt}
             className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-lg hover:bg-amber-400 transition shadow-amber disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Flame size={20} /> 바베큐패키지 예약 신청
