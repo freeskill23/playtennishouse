@@ -127,3 +127,90 @@ export function getPensionPrice(dateStr: string): number {
 export function formatWon(n: number): string {
   return n.toLocaleString('ko-KR') + '원';
 }
+
+// ===== BBQ Package Pricing =====
+export interface BBQPricing {
+  dayStartHour: number;
+  nightStartHour: number;
+  baseHours: number;
+  baseCapacity: number;
+  dayPrice: number;
+  nightPrice: number;
+  extraPersonFee: number;
+  extraHourFee: number;
+  openDays: number;
+}
+
+export const DEFAULT_BBQ_PRICING: BBQPricing = {
+  dayStartHour: 5,
+  nightStartHour: 17,
+  baseHours: 5,
+  baseCapacity: 4,
+  dayPrice: 160000,
+  nightPrice: 200000,
+  extraPersonFee: 30000,
+  extraHourFee: 10000,
+  openDays: 30,
+};
+
+export function getBBQSlotTier(
+  slotStartHour: number,
+  pricing: BBQPricing,
+): 'day' | 'night' {
+  return slotStartHour >= pricing.nightStartHour ? 'night' : 'day';
+}
+
+export function computeBBQPrice(
+  startHour: number,
+  endHour: number,
+  capacity: number,
+  pricing: BBQPricing,
+): { baseAmount: number; extraPersonAmount: number; extraHourAmount: number; total: number; breakdown: string[] } {
+  const totalHours = endHour - startHour;
+  const extraHours = Math.max(0, totalHours - pricing.baseHours);
+  const extraPersons = Math.max(0, capacity - pricing.baseCapacity);
+
+  let baseAmount = 0;
+  const breakdown: string[] = [];
+
+  for (let h = startHour; h < endHour; h++) {
+    const tier = getBBQSlotTier(h, pricing);
+    if (tier === 'night') {
+      baseAmount += pricing.nightPrice;
+    } else {
+      baseAmount += pricing.dayPrice;
+    }
+  }
+
+  // baseAmount is the sum of per-hour tier prices for the entire duration
+  // But the user wants: 기본 5시간에 데이타임 16만원, 나이트타임 20만원
+  // So the base price covers the base hours, and extra hours are charged per-person-per-hour
+  // Re-compute: base price is for the baseHours window, extra hours charged extra
+
+  // Reset and compute properly:
+  baseAmount = 0;
+  breakdown.length = 0;
+
+  // For the base hours window, compute the mixed price
+  for (let h = startHour; h < startHour + pricing.baseHours && h < endHour; h++) {
+    const tier = getBBQSlotTier(h, pricing);
+    if (tier === 'night') {
+      baseAmount += pricing.nightPrice;
+    } else {
+      baseAmount += pricing.dayPrice;
+    }
+  }
+
+  const extraHourAmount = extraHours * pricing.extraHourFee * Math.max(capacity, pricing.baseCapacity);
+  const extraPersonAmount = extraPersons * pricing.extraPersonFee;
+  const total = baseAmount + extraHourAmount + extraPersonAmount;
+
+  if (extraHours > 0) {
+    breakdown.push(`시간 초과 ${extraHours}시간 × ${formatWon(pricing.extraHourFee)} × ${Math.max(capacity, pricing.baseCapacity)}명 = ${formatWon(extraHourAmount)}`);
+  }
+  if (extraPersons > 0) {
+    breakdown.push(`추가 인원 ${extraPersons}명 × ${formatWon(pricing.extraPersonFee)} = ${formatWon(extraPersonAmount)}`);
+  }
+
+  return { baseAmount, extraPersonAmount, extraHourAmount, total, breakdown };
+}

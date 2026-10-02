@@ -16,6 +16,7 @@ import {
   Loader2,
   Star,
   BarChart3,
+  Flame,
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -45,6 +46,8 @@ import { AuthScreen } from './screens/AuthScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { AdminReviewScreen } from './screens/admin/AdminReviewScreen';
 import { AdminAnalyticsScreen } from './screens/admin/AdminAnalyticsScreen';
+import { AdminBBQScreen } from './screens/admin/AdminBBQScreen';
+import { BBQPackageScreen } from './screens/BBQPackageScreen';
 import { SharedReservationScreen } from './screens/SharedReservationScreen';
 import type { AuthUser } from './lib/auth';
 
@@ -63,13 +66,14 @@ const ADMIN_AUTH_USER: AuthUser = {
   bio: '플테하 운영진',
 };
 
-type UserTab = 'home' | 'pension' | 'court' | 'matching' | 'notices' | 'gallery' | 'reviews' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'reviews' | 'analytics' | 'memo';
+type UserTab = 'home' | 'pension' | 'court' | 'bbq' | 'matching' | 'notices' | 'gallery' | 'reviews' | 'mypage';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'notice' | 'gallery' | 'reviews' | 'analytics' | 'memo' | 'bbq';
 
 const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
   { key: 'pension', label: '펜션예약', icon: BedDouble },
   { key: 'court', label: '코트예약', icon: CalendarRange },
+  { key: 'bbq', label: '바베큐패키지', icon: Flame },
   { key: 'matching', label: '매칭', icon: Users },
   { key: 'notices', label: '공지', icon: Megaphone },
   { key: 'gallery', label: '갤러리', icon: Images },
@@ -84,6 +88,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'matching', label: '매칭', icon: Users },
   { key: 'notice', label: '공지', icon: Megaphone },
   { key: 'gallery', label: '갤러리', icon: Images },
+  { key: 'bbq', label: 'BBQ설정', icon: Flame },
   { key: 'reviews', label: '이용후기', icon: Star },
   { key: 'analytics', label: '방문자분석', icon: BarChart3 },
   { key: 'memo', label: '메모', icon: StickyNote },
@@ -214,6 +219,10 @@ const TAB_SEO: Record<string, { title: string; description: string }> = {
   court: {
     title: '테니스코트 대관 예약 | 플테하 PLAY TENNIS HOUSE - 테니스장 대관',
     description: '테니스코트 1시간 단위 대관 예약. 테니스코트대관, 테니스장, 테니스 예약을 온라인으로 간편하게. 플테하에서 테니스코트 대관하세요',
+  },
+  bbq: {
+    title: '바베큐패키지 예약 | 플테하 PLAY TENNIS HOUSE - 테니스코트+바베큐장 패키지',
+    description: '테니스코트, 라운지, 바베큐장을 모두 이용하는 바베큐패키지 예약. 데이타임/나이트타임 선택, 추가 인원·시간 자동 계산.',
   },
   matching: {
     title: '테니스 매칭 | 플테하 PLAY TENNIS HOUSE - 테니스 메이트 모집',
@@ -364,6 +373,7 @@ function UserShell() {
         {tab === 'home' && <HomeScreen go={go} />}
         {tab === 'pension' && <PensionScreen />}
         {tab === 'court' && <CourtScreen />}
+        {tab === 'bbq' && <BBQPackageScreen />}
         {tab === 'matching' && (isGuest ? null : <MatchingScreen />)}
         {tab === 'notices' && <NoticesScreen />}
         {tab === 'gallery' && <GalleryScreen />}
@@ -511,6 +521,7 @@ function AdminShell() {
         {tab === 'reviews' && <AdminReviewScreen />}
         {tab === 'analytics' && <AdminAnalyticsScreen />}
         {tab === 'memo' && <AdminMemoScreen />}
+        {tab === 'bbq' && <AdminBBQScreen />}
       </main>
 
       <ToastStack />

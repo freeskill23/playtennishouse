@@ -10,6 +10,7 @@ import {
   X,
   Clock,
   Layers,
+  Flame,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -104,6 +105,7 @@ export function AdminApprovalScreen() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-navy-900">{u?.nickname || u?.name}{g.items[0]?.depositorName ? `(${g.items[0].depositorName})` : ''}</p>
                       {g.type === 'pension' && <span className="chip bg-volt-100 text-volt-800"><BedDouble size={12} /> 펜션예약</span>}
+                      {g.type === 'bbq' && <span className="chip bg-amber-100 text-amber-700"><Flame size={12} /> 바베큐패키지</span>}
                       {g.items.some((r) => r.waitingSequence) && <span className="chip bg-amber-100 text-amber-700">대기 {g.items.find((r) => r.waitingSequence)?.waitingSequence}순위</span>}
                       {g.items.some((r) => r.matchingPostId) && <span className="chip bg-sky-100 text-sky-700"><Users size={12} /> 매칭</span>}
                       {isGroup && (
@@ -114,13 +116,19 @@ export function AdminApprovalScreen() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-500">
                       <span className="flex items-center gap-1">
-                        {g.type === 'pension' ? <BedDouble size={12} /> : <CalendarRange size={12} />}
+                        {g.type === 'pension' ? <BedDouble size={12} /> : g.type === 'bbq' ? <Flame size={12} /> : <CalendarRange size={12} />}
                         {g.targetLabel}
                       </span>
                       <span>·</span>
                       <span>{g.date}</span>
                       {g.type === 'court' && (
                         <span>· {g.items.map((r) => r.timeSlot).filter(Boolean).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</span>
+                      )}
+                      {g.type === 'bbq' && g.items[0].timeSlot && (
+                        <span>· {g.items[0].timeSlot}</span>
+                      )}
+                      {g.type === 'bbq' && g.items[0].capacity && (
+                        <span>· {g.items[0].capacity}명</span>
                       )}
                       {g.type === 'pension' && g.items[0].capacity && (
                         <span>· {g.items[0].capacity}명</span>
@@ -223,6 +231,12 @@ export function AdminApprovalScreen() {
                 <p>시간: {depositModal.items[0].timeSlot}</p>
               )}
               {depositModal.type === 'pension' && depositModal.items[0].capacity && (
+                <p>인원: {depositModal.items[0].capacity}명</p>
+              )}
+              {depositModal.type === 'bbq' && depositModal.items[0].timeSlot && (
+                <p>시간: {depositModal.items[0].timeSlot}</p>
+              )}
+              {depositModal.type === 'bbq' && depositModal.items[0].capacity && (
                 <p>인원: {depositModal.items[0].capacity}명</p>
               )}
               <p>예약 건수: {depositModal.items.length}건</p>

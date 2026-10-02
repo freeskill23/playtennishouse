@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Calendar as CalendarIcon,
   AlertCircle,
+  Flame,
 } from 'lucide-react';
 import { Calendar, todayYMD } from '../components/Calendar';
 import { StatusBadge } from '../components/ui';
@@ -49,7 +50,7 @@ interface ProfileRow {
 function rowToReservation(r: RawReservationRow): Reservation {
   return {
     id: r.id,
-    type: r.type as 'pension' | 'court',
+    type: r.type as 'pension' | 'court' | 'bbq',
     userId: r.user_id,
     targetId: r.target_id,
     targetLabel: r.target_label,
@@ -169,6 +170,7 @@ export function SharedReservationScreen() {
   const dayReservations = reservations.filter((r) => r.date === date);
   const pensionReservations = dayReservations.filter((r) => r.type === 'pension');
   const courtReservations = dayReservations.filter((r) => r.type === 'court');
+  const bbqReservations = dayReservations.filter((r) => r.type === 'bbq');
 
   const getCourtSlotStatus = (
     d: string,
@@ -292,6 +294,10 @@ export function SharedReservationScreen() {
                 const courtRes = res.filter((r) => r.type === 'court');
                 if (courtRes.length > 0) {
                   return <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />;
+                }
+                const bbqRes = res.filter((r) => r.type === 'bbq');
+                if (bbqRes.length > 0) {
+                  return <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />;
                 }
                 return null;
               }}
@@ -452,6 +458,44 @@ export function SharedReservationScreen() {
                 );
               })}
             </div>
+
+            {/* BBQ Package Status */}
+            {bbqReservations.length > 0 && (
+              <div className="mt-5 card p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                      <Flame size={18} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-navy-900">바베큐패키지</p>
+                      <p className="text-xs text-slate-500">테니스코트 + 라운지 + 바베큐장</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-400">{bbqReservations.length}건</span>
+                </div>
+                <div className="space-y-1.5">
+                  {bbqReservations.filter((r) => r.waitingSequence === null).map((r) => {
+                    const name = r.depositorName || getUserName(r.userId);
+                    return (
+                      <div key={r.id} className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-navy-900 truncate">
+                            {name}
+                            {r.timeSlot ? ` · ${r.timeSlot}` : ''}
+                            {r.capacity ? ` · ${r.capacity}명` : ''}
+                          </p>
+                          {r.depositorPhone && (
+                            <p className="text-xs text-slate-400 truncate">{r.depositorPhone}</p>
+                          )}
+                        </div>
+                        <StatusBadge status={r.status} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Legend */}
             <div className="mt-5 card p-4">

@@ -17,6 +17,7 @@ import {
   Wallet,
   AlertTriangle,
   Trash2,
+  Flame,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -108,6 +109,10 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
   );
   const pensionBatchGroups = buildBatchGroups(
     myReservations.filter((r) => r.type === 'pension'),
+  );
+
+  const bbqBatchGroups = buildBatchGroups(
+    myReservations.filter((r) => r.type === 'bbq'),
   );
 
   // Group eligible reservations by date + court
@@ -226,6 +231,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
               { label: '코트 예약', groups: courtBatchGroups, icon: <CalendarRange size={14} /> },
               { label: '매칭', groups: matchingBatchGroups, icon: <Users size={14} /> },
               { label: '펜션 예약', groups: pensionBatchGroups, icon: <BedDouble size={14} /> },
+              { label: '바베큐패키지', groups: bbqBatchGroups, icon: <Flame size={14} /> },
             ] as const).map((sec) => {
               if (sec.groups.length === 0) return null;
               return (

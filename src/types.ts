@@ -33,7 +33,7 @@ export interface Room {
   pricePerNight: number;
 }
 
-export type ReservationType = 'pension' | 'court';
+export type ReservationType = 'pension' | 'court' | 'bbq';
 export type ReservationStatus =
   | '신청'
   | '입금대기'
@@ -108,6 +108,7 @@ export interface GalleryItem {
   isFeatured?: boolean;
   showOnCourt?: boolean;
   showOnPension?: boolean;
+  showOnBbq?: boolean;
   sortOrder?: number;
 }
 

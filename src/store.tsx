@@ -43,8 +43,8 @@ import {
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
-import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE } from './pricing';
-import type { CourtPricing } from './pricing';
+import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE, DEFAULT_BBQ_PRICING, computeBBQPrice } from './pricing';
+import type { CourtPricing, BBQPricing } from './pricing';
 
 // Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
 const PENSION_BLOCK_START_HOUR = 15;
@@ -211,6 +211,7 @@ interface AppState {
   toggleGalleryFeatured: (id: string) => void;
   toggleGalleryShowOnCourt: (id: string) => void;
   toggleGalleryShowOnPension: (id: string) => void;
+  toggleGalleryShowOnBbq: (id: string) => void;
   reorderGalleryItem: (id: string, direction: 'up' | 'down') => void;
   setGalleryOrder: (orderedIds: string[]) => void;
   updateGalleryItem: (id: string, patch: { summary?: string; imageUrl?: string }) => void;
@@ -249,6 +250,18 @@ interface AppState {
   courtPricing: CourtPricing;
   updateCourtPricing: (pricing: CourtPricing) => void;
 
+  // bbq package pricing
+  bbqPricing: BBQPricing;
+  updateBBQPricing: (pricing: BBQPricing) => void;
+  createBBQReservation: (input: {
+    date: string;
+    startHour: number;
+    endHour: number;
+    capacity: number;
+    depositorName?: string;
+    depositorPhone?: string;
+  }) => { ok: boolean; reason?: string; reservation?: Reservation };
+
   // banner
   bannerImageUrl: string | null;
   updateBannerImage: (url: string | null) => void;
@@ -266,6 +279,7 @@ interface AppState {
   // reservation open window limits
   courtOpenDays: number;
   pensionOpenMonths: number;
+  bbqOpenDays: number;
   updateReservationLimits: (courtDays: number, pensionMonths: number) => void;
 
   // telegram notifications
@@ -536,6 +550,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             isFeatured: (g.is_featured as boolean) || false,
             showOnCourt: (g.show_on_court as boolean) || false,
             showOnPension: (g.show_on_pension as boolean) || false,
+            showOnBbq: (g.show_on_bbq as boolean) || false,
             sortOrder: (g.sort_order as number) || 0,
           })),
         );
@@ -810,12 +825,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionWeekendBaseCapacity, setPensionWeekendBaseCapacity] = useState(4);
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
   const [courtPricing, setCourtPricing] = useState<CourtPricing>(DEFAULT_COURT_PRICING);
+  const [bbqPricing, setBbqPricing] = useState<BBQPricing>(DEFAULT_BBQ_PRICING);
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
   const [bannerGradientColors, setBannerGradientColors] = useState<{ from: string; via: string; to: string } | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
   const [courtOpenDays, setCourtOpenDays] = useState(10);
   const [pensionOpenMonths, setPensionOpenMonths] = useState(3);
+  const [bbqOpenDays, setBbqOpenDays] = useState(30);
   const [telegramConfig, setTelegramConfig] = useState({ botToken: '', chatId: '' });
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
   const [dateMemos, setDateMemos] = useState<Record<string, string>>({});
@@ -826,7 +843,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
       .eq('id', 1)
       .maybeSingle();
     if (data) {
@@ -853,6 +870,21 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
       if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
+      if (data.bbq_day_start_hour != null || data.bbq_night_start_hour != null) {
+        setBbqPricing(prev => ({
+          ...prev,
+          dayStartHour: data.bbq_day_start_hour ?? prev.dayStartHour,
+          nightStartHour: data.bbq_night_start_hour ?? prev.nightStartHour,
+          baseHours: data.bbq_base_hours ?? prev.baseHours,
+          baseCapacity: data.bbq_base_capacity ?? prev.baseCapacity,
+          dayPrice: data.bbq_day_price ?? prev.dayPrice,
+          nightPrice: data.bbq_night_price ?? prev.nightPrice,
+          extraPersonFee: data.bbq_extra_person_fee ?? prev.extraPersonFee,
+          extraHourFee: data.bbq_extra_hour_fee ?? prev.extraHourFee,
+          openDays: data.bbq_open_days ?? prev.openDays,
+        }));
+        if (data.bbq_open_days != null) setBbqOpenDays(data.bbq_open_days as number);
+      }
     }
   }, [supabaseConfigured]);
 
@@ -1063,6 +1095,35 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           });
       }
       pushToast('코트 대관 요금이 변경되었습니다.');
+    },
+    [pushToast],
+  );
+
+  const updateBBQPricing = useCallback(
+    (pricing: BBQPricing) => {
+      setBbqPricing(pricing);
+      setBbqOpenDays(pricing.openDays);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            bbq_day_start_hour: pricing.dayStartHour,
+            bbq_night_start_hour: pricing.nightStartHour,
+            bbq_base_hours: pricing.baseHours,
+            bbq_base_capacity: pricing.baseCapacity,
+            bbq_day_price: pricing.dayPrice,
+            bbq_night_price: pricing.nightPrice,
+            bbq_extra_person_fee: pricing.extraPersonFee,
+            bbq_extra_hour_fee: pricing.extraHourFee,
+            bbq_open_days: pricing.openDays,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('바베큐패키지 설정 저장 실패', 'error');
+          });
+      }
+      pushToast('바베큐패키지 설정이 변경되었습니다.');
     },
     [pushToast],
   );
@@ -1650,6 +1711,68 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       return { ok: true, reservation };
     },
     [getCourtSlotStatus, currentUserId, pushToast, upsertReservationToSupabase],
+  );
+
+  const createBBQReservation = useCallback(
+    (input: {
+      date: string;
+      startHour: number;
+      endHour: number;
+      capacity: number;
+      depositorName?: string;
+      depositorPhone?: string;
+    }) => {
+      if (input.endHour <= input.startHour) {
+        return { ok: false, reason: '시간 선택이 올바르지 않습니다.' };
+      }
+      if (input.capacity < 1) {
+        return { ok: false, reason: '인원은 1명 이상이어야 합니다.' };
+      }
+
+      // Check for existing BBQ reservation on same date
+      const existing = reservations.find(
+        (r) =>
+          r.type === 'bbq' &&
+          r.date === input.date &&
+          r.waitingSequence === null &&
+          r.status !== '취소',
+      );
+      if (existing) {
+        return { ok: false, reason: '해당 날짜에 이미 바베큐패키지 예약이 있습니다.' };
+      }
+
+      const { total } = computeBBQPrice(input.startHour, input.endHour, input.capacity, bbqPricing);
+      const timeSlot = `${String(input.startHour).padStart(2, '0')}:00-${String(input.endHour).padStart(2, '0')}:00`;
+
+      const reservation: Reservation = {
+        id: uid('r'),
+        type: 'bbq',
+        userId: currentUserId,
+        targetId: 'bbq',
+        targetLabel: '바베큐패키지',
+        date: input.date,
+        timeSlot,
+        capacity: input.capacity,
+        status: '신청',
+        waitingSequence: null,
+        amount: total,
+        createdAt: Date.now(),
+        depositorName: input.depositorName,
+        depositorPhone: input.depositorPhone,
+      };
+      setReservations((prev) => [...prev, reservation]);
+      upsertReservationToSupabase(reservation);
+
+      const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
+      void sendTelegramNotification(
+        '바베큐패키지 예약 신청',
+        `${userName}님 ${input.date} ${timeSlot} ${input.capacity}명 바베큐패키지 예약 신청이 접수되었습니다.`,
+      );
+
+      pushToast('바베큐패키지 예약 신청이 완료되었습니다.');
+      return { ok: true, reservation };
+    },
+    [reservations, currentUserId, bbqPricing, getUser, pushToast, upsertReservationToSupabase, sendTelegramNotification],
   );
   const requestWaiting = useCallback(
     (reservationId: string) => {
@@ -2548,6 +2671,24 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const toggleGalleryShowOnBbq = useCallback(
+    (id: string) => {
+      setGalleryItems((prev) =>
+        prev.map((g) => {
+          if (g.id !== id) return g;
+          const next = !g.showOnBbq;
+          if (supabaseConfigured) {
+            supabase.from('gallery_items').update({ show_on_bbq: next }).eq('id', id).then(({ error }) => {
+              if (error) pushToast('바베큐 화면 설정 실패: ' + error.message, 'error');
+            });
+          }
+          return { ...g, showOnBbq: next };
+        }),
+      );
+    },
+    [pushToast],
+  );
+
   const reorderGalleryItem = useCallback(
     (id: string, direction: 'up' | 'down') => {
       setGalleryItems((prev) => {
@@ -2812,6 +2953,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     toggleGalleryFeatured,
     toggleGalleryShowOnCourt,
     toggleGalleryShowOnPension,
+    toggleGalleryShowOnBbq,
     reorderGalleryItem,
     setGalleryOrder,
     updateGalleryItem,
@@ -2837,6 +2979,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updatePensionBaseCapacity,
     courtPricing,
     updateCourtPricing,
+    bbqPricing,
+    updateBBQPricing,
+    createBBQReservation,
     bannerImageUrl,
     updateBannerImage,
     bannerGradientColors,
@@ -2847,6 +2992,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateBankAccount,
     courtOpenDays,
     pensionOpenMonths,
+    bbqOpenDays,
     updateReservationLimits,
     telegramConfig,
     updateTelegramConfig,

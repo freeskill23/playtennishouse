@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, Pencil, ImageUp, GripVertical } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, Pencil, ImageUp, GripVertical, Flame } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -40,7 +40,7 @@ function resizeImage(file: File): Promise<Blob> {
 }
 
 export function AdminGalleryScreen() {
-  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension, updateGalleryItem, setGalleryOrder } = useApp();
+  const { galleryItems, createGalleryItem, deleteGalleryItem, toggleGalleryFeatured, toggleGalleryShowOnCourt, toggleGalleryShowOnPension, toggleGalleryShowOnBbq, updateGalleryItem, setGalleryOrder } = useApp();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSummary, setEditSummary] = useState('');
   const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
@@ -354,6 +354,14 @@ export function AdminGalleryScreen() {
                   title="펜션 예약 화면 슬라이드"
                 >
                   <BedDouble size={14} />
+                </button>
+                <button
+                  onClick={() => toggleGalleryShowOnBbq(item.id)}
+                  className={`absolute top-[5.5rem] left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow transition ${item.showOnBbq ? 'bg-amber-500 text-white opacity-100' : 'bg-white/90 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-amber-600'}`}
+                  aria-label={item.showOnBbq ? '바베큐 화면 해제' : '바베큐 화면 설정'}
+                  title="바베큐패키지 화면 슬라이드"
+                >
+                  <Flame size={14} />
                 </button>
                 <button
                   onClick={() => deleteGalleryItem(item.id)}
