@@ -170,43 +170,16 @@ export function computeBBQPrice(
   const extraHours = Math.max(0, totalHours - pricing.baseHours);
   const extraPersons = Math.max(0, capacity - pricing.baseCapacity);
 
-  let baseAmount = 0;
-  const breakdown: string[] = [];
+  const startTier = getBBQSlotTier(startHour, pricing);
+  const baseAmount = startTier === 'night' ? pricing.nightPrice : pricing.dayPrice;
 
-  for (let h = startHour; h < endHour; h++) {
-    const tier = getBBQSlotTier(h, pricing);
-    if (tier === 'night') {
-      baseAmount += pricing.nightPrice;
-    } else {
-      baseAmount += pricing.dayPrice;
-    }
-  }
-
-  // baseAmount is the sum of per-hour tier prices for the entire duration
-  // But the user wants: 기본 5시간에 데이타임 16만원, 나이트타임 20만원
-  // So the base price covers the base hours, and extra hours are charged per-person-per-hour
-  // Re-compute: base price is for the baseHours window, extra hours charged extra
-
-  // Reset and compute properly:
-  baseAmount = 0;
-  breakdown.length = 0;
-
-  // For the base hours window, compute the mixed price
-  for (let h = startHour; h < startHour + pricing.baseHours && h < endHour; h++) {
-    const tier = getBBQSlotTier(h, pricing);
-    if (tier === 'night') {
-      baseAmount += pricing.nightPrice;
-    } else {
-      baseAmount += pricing.dayPrice;
-    }
-  }
-
-  const extraHourAmount = extraHours * pricing.extraHourFee * Math.max(capacity, pricing.baseCapacity);
+  const extraHourAmount = extraHours * pricing.extraHourFee * capacity;
   const extraPersonAmount = extraPersons * pricing.extraPersonFee;
   const total = baseAmount + extraHourAmount + extraPersonAmount;
 
+  const breakdown: string[] = [];
   if (extraHours > 0) {
-    breakdown.push(`시간 초과 ${extraHours}시간 × ${formatWon(pricing.extraHourFee)} × ${Math.max(capacity, pricing.baseCapacity)}명 = ${formatWon(extraHourAmount)}`);
+    breakdown.push(`시간 초과 ${extraHours}시간 × ${formatWon(pricing.extraHourFee)} × ${capacity}명 = ${formatWon(extraHourAmount)}`);
   }
   if (extraPersons > 0) {
     breakdown.push(`추가 인원 ${extraPersons}명 × ${formatWon(pricing.extraPersonFee)} = ${formatWon(extraPersonAmount)}`);

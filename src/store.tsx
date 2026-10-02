@@ -21,6 +21,7 @@ import type {
   ReservationStatus,
   CourtName,
   RoomName,
+  BBQVenue,
   NoticeType,
   MatchingApplication,
   ApplicantGender,
@@ -254,6 +255,7 @@ interface AppState {
   bbqPricing: BBQPricing;
   updateBBQPricing: (pricing: BBQPricing) => void;
   createBBQReservation: (input: {
+    venue: BBQVenue;
     date: string;
     startHour: number;
     endHour: number;
@@ -1715,6 +1717,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const createBBQReservation = useCallback(
     (input: {
+      venue: BBQVenue;
       date: string;
       startHour: number;
       endHour: number;
@@ -1729,16 +1732,33 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return { ok: false, reason: '인원은 1명 이상이어야 합니다.' };
       }
 
-      // Check for existing BBQ reservation on same date
+      // Check for existing BBQ reservation on same date + same venue
       const existing = reservations.find(
         (r) =>
           r.type === 'bbq' &&
           r.date === input.date &&
+          r.targetId === input.venue &&
           r.waitingSequence === null &&
           r.status !== '취소',
       );
       if (existing) {
-        return { ok: false, reason: '해당 날짜에 이미 바베큐패키지 예약이 있습니다.' };
+        return { ok: false, reason: `${input.venue}에 이미 바베큐패키지 예약이 있습니다.` };
+      }
+
+      // Check if this venue has a pension reservation blocking it
+      const pensionConflict = reservations.some(
+        (r) => r.type === 'pension' && r.date === input.date && r.targetLabel === input.venue && r.waitingSequence === null && r.status !== '취소',
+      );
+      if (pensionConflict) {
+        return { ok: false, reason: `${input.venue} 펜션 예약이 있어 바베큐패키지 예약이 불가합니다.` };
+      }
+
+      // Check if this venue has court reservations blocking it
+      const courtConflict = reservations.some(
+        (r) => r.type === 'court' && r.date === input.date && r.waitingSequence === null && r.status !== '취소',
+      );
+      if (courtConflict) {
+        return { ok: false, reason: '해당 날짜에 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다.' };
       }
 
       const { total } = computeBBQPrice(input.startHour, input.endHour, input.capacity, bbqPricing);
@@ -1748,8 +1768,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         id: uid('r'),
         type: 'bbq',
         userId: currentUserId,
-        targetId: 'bbq',
-        targetLabel: '바베큐패키지',
+        targetId: input.venue,
+        targetLabel: `${input.venue} 바베큐패키지`,
         date: input.date,
         timeSlot,
         capacity: input.capacity,
@@ -1766,7 +1786,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
       void sendTelegramNotification(
         '바베큐패키지 예약 신청',
-        `${userName}님 ${input.date} ${timeSlot} ${input.capacity}명 바베큐패키지 예약 신청이 접수되었습니다.`,
+        `${userName}님 ${input.venue} ${input.date} ${timeSlot} ${input.capacity}명 바베큐패키지 예약 신청이 접수되었습니다.`,
       );
 
       pushToast('바베큐패키지 예약 신청이 완료되었습니다.');

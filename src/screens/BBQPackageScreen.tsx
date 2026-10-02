@@ -1,12 +1,17 @@
 import { useState, useMemo } from 'react';
-import { Flame, Clock, Users, Wallet, AlertTriangle, CheckCircle2, Calendar as CalendarIcon, Plus, Minus } from 'lucide-react';
+import { Flame, Clock, Users, Wallet, AlertTriangle, CheckCircle2, Calendar as CalendarIcon, Plus, Minus, BedDouble } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { computeBBQPrice, getBBQSlotTier, formatWon } from '../pricing';
-import type { BBQPricing } from '../pricing';
+import type { BBQVenue } from '../types';
+
+const VENUES: { name: BBQVenue; desc: string; color: string }[] = [
+  { name: 'A동', desc: '테니스코트 + 라운지 + 바베큐장', color: 'bg-amber-500' },
+  { name: 'B동', desc: '테니스코트 + 라운지 + 바베큐장', color: 'bg-navy-700' },
+];
 
 const HOURS = Array.from({ length: 20 }, (_, i) => i + 5); // 5~24
 
@@ -22,6 +27,7 @@ export function BBQPackageScreen() {
   const { isGuest } = useAuth();
   const bbqSlides = galleryItems.filter((g) => g.showOnBbq);
 
+  const [venue, setVenue] = useState<BBQVenue>('A동');
   const [date, setDate] = useState(todayYMD());
   const [startHour, setStartHour] = useState<number | null>(null);
   const [endHour, setEndHour] = useState<number | null>(null);
@@ -30,26 +36,33 @@ export function BBQPackageScreen() {
   const [errorReason, setErrorReason] = useState<string | null>(null);
   const [reservedAmount, setReservedAmount] = useState(0);
   const [reservedTime, setReservedTime] = useState('');
+  const [reservedVenue, setReservedVenue] = useState<BBQVenue>('A동');
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
 
-  const existingBBQ = reservations.find(
-    (r) => r.type === 'bbq' && r.date === date && r.waitingSequence === null && r.status !== '취소',
+  // Per-venue checks: BBQ conflict on same venue+date
+  const existingBBQSameVenue = reservations.find(
+    (r) => r.type === 'bbq' && r.date === date && r.targetId === venue && r.waitingSequence === null && r.status !== '취소',
+  );
+  const existingBBQOtherVenue = reservations.find(
+    (r) => r.type === 'bbq' && r.date === date && r.targetId !== venue && r.waitingSequence === null && r.status !== '취소',
   );
 
-  const hasPensionOrCourt = reservations.some(
-    (r) =>
-      r.date === date &&
-      r.waitingSequence === null &&
-      r.status !== '취소' &&
-      (r.type === 'pension' || r.type === 'court'),
+  // Pension on same venue blocks BBQ (same building)
+  const hasPensionSameVenue = reservations.some(
+    (r) => r.type === 'pension' && r.date === date && r.targetLabel === venue && r.waitingSequence === null && r.status !== '취소',
   );
-  const hasPensionOnDate = reservations.some(
-    (r) => r.type === 'pension' && r.date === date && r.waitingSequence === null && r.status !== '취소',
+  // Pension on other venue does NOT block
+  const hasPensionOtherVenue = reservations.some(
+    (r) => r.type === 'pension' && r.date === date && r.targetLabel !== venue && r.waitingSequence === null && r.status !== '취소',
   );
+
+  // Court reservations block BBQ (court is shared)
   const hasCourtOnDate = reservations.some(
     (r) => r.type === 'court' && r.date === date && r.waitingSequence === null && r.status !== '취소',
   );
+
+  const isBlocked = !!existingBBQSameVenue || hasPensionSameVenue || hasCourtOnDate;
 
   const handleSelectStart = (hour: number) => {
     if (date === todayYMD() && hour <= new Date().getHours()) return;
@@ -79,14 +92,6 @@ export function BBQPackageScreen() {
       setErrorReason('시간을 선택해주세요.');
       return;
     }
-    if (existingBBQ) {
-      setErrorReason('해당 날짜에 이미 바베큐패키지 예약이 있습니다.');
-      return;
-    }
-    if (hasPensionOrCourt) {
-      setErrorReason('해당 날짜에 펜션 또는 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다.');
-      return;
-    }
     if (!depositorName.trim()) {
       setErrorReason('입금자명을 입력해주세요.');
       return;
@@ -96,6 +101,7 @@ export function BBQPackageScreen() {
       return;
     }
     const res = createBBQReservation({
+      venue,
       date,
       startHour,
       endHour,
@@ -104,6 +110,7 @@ export function BBQPackageScreen() {
       depositorPhone: (isGuest ? depositorPhone.trim() : undefined) || undefined,
     });
     if (res.ok) {
+      setReservedVenue(venue);
       setReservedAmount(res.reservation?.amount || 0);
       setReservedTime(`${String(startHour).padStart(2, '0')}:00 ~ ${String(endHour).padStart(2, '0')}:00`);
       setModalOpen(true);
@@ -153,10 +160,10 @@ export function BBQPackageScreen() {
         minDate={todayYMD()}
         maxDate={addDaysYMD(bbqOpenDays)}
         dayRender={(d) => {
-          const hasBBQ = reservations.some(
+          const bbqRes = reservations.filter(
             (r) => r.type === 'bbq' && r.date === d && r.waitingSequence === null && r.status !== '취소',
           );
-          if (hasBBQ) return <span className="w-2 h-2 rounded-full bg-amber-500" />;
+          if (bbqRes.length > 0) return <span className="w-2 h-2 rounded-full bg-amber-500" />;
           const hasPensionOrCourt = reservations.some(
             (r) =>
               r.date === d &&
@@ -180,35 +187,101 @@ export function BBQPackageScreen() {
         </div>
       </div>
 
-      {existingBBQ && (
+      {/* Venue selector */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        {VENUES.map((v) => {
+          const isSel = venue === v.name;
+          const bbqTaken = reservations.some(
+            (r) => r.type === 'bbq' && r.date === date && r.targetId === v.name && r.waitingSequence === null && r.status !== '취소',
+          );
+          const pensionTaken = reservations.some(
+            (r) => r.type === 'pension' && r.date === date && r.targetLabel === v.name && r.waitingSequence === null && r.status !== '취소',
+          );
+          const courtTaken = reservations.some(
+            (r) => r.type === 'court' && r.date === date && r.waitingSequence === null && r.status !== '취소',
+          );
+          const unavailable = bbqTaken || pensionTaken || courtTaken;
+          return (
+            <button
+              key={v.name}
+              onClick={() => { setVenue(v.name); setStartHour(null); setEndHour(null); setErrorReason(null); }}
+              disabled={unavailable}
+              className={`card p-4 text-left transition-all relative ${
+                isSel ? 'ring-2 ring-amber-500 -translate-y-0.5' : unavailable ? 'opacity-40 cursor-not-allowed' : 'hover:border-navy-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl ${v.color} flex items-center justify-center text-white`}>
+                  <Flame size={20} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-navy-900 text-lg">{v.name} 바베큐패키지</p>
+                  <p className="text-xs text-slate-500">{v.desc}</p>
+                </div>
+                {unavailable && (
+                  <span className="chip bg-rose-100 text-rose-600 text-xs">예약불가</span>
+                )}
+                {isSel && !unavailable && (
+                  <span className="chip bg-amber-100 text-amber-700 text-xs">선택됨</span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Conflict warnings */}
+      {existingBBQSameVenue && (
         <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-rose-800">이 날짜는 예약 불가</p>
+            <p className="font-bold text-rose-800">{venue} 바베큐패키지 예약 불가</p>
             <p className="text-sm text-rose-700 mt-0.5">
-              이미 바베큐패키지 예약이 있습니다. 다른 날짜를 선택해주세요.
+              {venue}에 이미 바베큐패키지 예약이 있습니다. 다른 동을 선택하거나 다른 날짜를 선택해주세요.
             </p>
           </div>
         </div>
       )}
-      {!existingBBQ && hasPensionOnDate && (
+      {!existingBBQSameVenue && hasPensionSameVenue && (
         <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-rose-800">펜션 예약으로 인해 예약 불가</p>
+            <p className="font-bold text-rose-800">{venue} 펜션 예약으로 인해 예약 불가</p>
             <p className="text-sm text-rose-700 mt-0.5">
-              이 날짜에는 펜션 예약이 있어 바베큐패키지 예약이 불가합니다. 다른 날짜를 선택해주세요.
+              {venue}에 펜션 예약이 있어 바베큐패키지 예약이 불가합니다. 다른 동을 선택하거나 다른 날짜를 선택해주세요.
             </p>
           </div>
         </div>
       )}
-      {!existingBBQ && !hasPensionOnDate && hasCourtOnDate && (
+      {!existingBBQSameVenue && !hasPensionSameVenue && hasCourtOnDate && (
         <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-rose-800">코트 대관으로 인해 예약 불가</p>
             <p className="text-sm text-rose-700 mt-0.5">
               이 날짜에는 코트 대관 예약이 있어 바베큐패키지 예약이 불가합니다. 다른 날짜를 선택해주세요.
+            </p>
+          </div>
+        </div>
+      )}
+      {existingBBQOtherVenue && !isBlocked && (
+        <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 flex items-start gap-3">
+          <CheckCircle2 size={20} className="text-sky-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-sky-800">다른 동에 바베큐패키지 예약이 있습니다</p>
+            <p className="text-sm text-sky-700 mt-0.5">
+              {venue}은(는) 예약 가능합니다.
+            </p>
+          </div>
+        </div>
+      )}
+      {hasPensionOtherVenue && !isBlocked && !hasCourtOnDate && (
+        <div className="rounded-2xl bg-sky-50 border border-sky-200 p-4 flex items-start gap-3">
+          <CheckCircle2 size={20} className="text-sky-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-sky-800">다른 동 펜션 예약이 있습니다</p>
+            <p className="text-sm text-sky-700 mt-0.5">
+              {venue}은(는) 예약 가능합니다.
             </p>
           </div>
         </div>
@@ -230,12 +303,12 @@ export function BBQPackageScreen() {
             return (
               <button
                 key={hour}
-                disabled={passed}
+                disabled={passed || isBlocked}
                 onClick={() => handleSelectStart(hour)}
                 className={`relative rounded-xl p-2 text-sm font-bold transition-all border ${
                   isSel
                     ? 'bg-navy-900 text-white border-navy-900 shadow-navy'
-                    : passed
+                    : passed || isBlocked
                       ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
                       : tier === 'night'
                         ? 'bg-white text-navy-800 border-navy-200 hover:border-navy-400'
@@ -319,10 +392,10 @@ export function BBQPackageScreen() {
               <div className="rounded-xl bg-amber-50 border border-amber-100 p-3.5 space-y-2">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Wallet size={14} className="text-amber-700" />
-                  <p className="text-xs font-bold text-amber-800">요금 안내</p>
+                  <p className="text-xs font-bold text-amber-800">{venue} 요금 안내</p>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-600">기본 이용료</span>
+                  <span className="text-slate-600">기본 이용료 ({getBBQSlotTier(startHour, bbqPricing) === 'night' ? '나이트' : '데이'})</span>
                   <span className="font-bold text-navy-900">{formatWon(priceCalc.baseAmount)}</span>
                 </div>
                 {priceCalc.extraHourAmount > 0 && (
@@ -381,10 +454,10 @@ export function BBQPackageScreen() {
 
           <button
             onClick={handleReserve}
-            disabled={!!existingBBQ || hasPensionOrCourt}
+            disabled={isBlocked}
             className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-lg hover:bg-amber-400 transition shadow-amber disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <Flame size={20} /> 바베큐패키지 예약 신청
+            <Flame size={20} /> {venue} 바베큐패키지 예약 신청
           </button>
         </div>
       )}
@@ -409,11 +482,11 @@ export function BBQPackageScreen() {
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 size={15} className="text-amber-500 shrink-0 mt-0.5" />
-            조명을 켜는 기준에 따라 데이타임과 나이트타임으로 구분됩니다. (계절에 따라 변경 가능)
+            A동과 B동 중 선택 가능하며, 같은 동에 펜션 예약이 있으면 바베큐패키지 예약이 불가합니다.
           </li>
           <li className="flex items-start gap-2">
             <CheckCircle2 size={15} className="text-amber-500 shrink-0 mt-0.5" />
-            데이타임과 나이트타임이 겹치는 구간은 각각의 요금이 자동 계산됩니다.
+            코트 대관 예약이 있는 날짜는 바베큐패키지 예약이 불가합니다.
           </li>
         </ul>
       </div>
@@ -423,7 +496,7 @@ export function BBQPackageScreen() {
           <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
             <CheckCircle2 size={28} className="text-amber-500" />
           </div>
-          <p className="font-bold text-navy-900 text-lg">바베큐패키지 예약 신청 완료</p>
+          <p className="font-bold text-navy-900 text-lg">{reservedVenue} 바베큐패키지 예약 신청 완료</p>
           <p className="text-sm text-slate-500 mt-2">
             {date} · {reservedTime}
           </p>

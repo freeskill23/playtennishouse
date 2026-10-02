@@ -23,6 +23,7 @@ export interface User {
 
 export type RoomName = 'A동' | 'B동';
 export type CourtName = 'A코트' | 'B코트';
+export type BBQVenue = 'A동' | 'B동';
 
 export interface Room {
   id: string;
