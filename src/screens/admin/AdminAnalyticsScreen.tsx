@@ -235,6 +235,17 @@ export function AdminAnalyticsScreen() {
   const [logs, setLogs] = useState<RawLog[]>([]);
   const [todaySignups, setTodaySignups] = useState(0);
   const [totalMembers, setTotalMembers] = useState(0);
+  const [dbCounts, setDbCounts] = useState({
+    total: 0,
+    today: 0,
+    todayUnique: 0,
+    yesterday: 0,
+    yesterdayUnique: 0,
+    week: 0,
+    month: 0,
+    member: 0,
+    guest: 0,
+  });
   const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
   const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | 'todayVisitors' | null>(null);
   const [memberVisitLogs, setMemberVisitLogs] = useState<RawLog[]>([]);
@@ -276,6 +287,48 @@ export function AdminAnalyticsScreen() {
     if (data) {
       setLogs(data as RawLog[]);
     }
+
+    // Fetch exact counts from DB (not capped by the 5000-row limit)
+    const now = new Date();
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    const startYesterday = new Date(); startYesterday.setDate(startYesterday.getDate() - 1); startYesterday.setHours(0, 0, 0, 0);
+    const endYesterday = new Date(); endYesterday.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+    const [
+      { count: cTotal },
+      { count: cToday },
+      { count: cYesterday },
+      { count: cWeek },
+      { count: cMonth },
+      { count: cMember },
+      { count: cGuest },
+    ] = await Promise.all([
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }),
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', startToday.toISOString()),
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', startYesterday.toISOString()).lt('created_at', endYesterday.toISOString()),
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', monthAgo.toISOString()),
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).eq('is_member', true),
+      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).eq('is_member', false),
+    ]);
+
+    // Unique visitors for today and yesterday (from the loaded logs, which is fine for short ranges)
+    const todayUnique = new Set((data as RawLog[] || []).filter((l) => isToday(l.created_at)).map((l) => l.session_id)).size;
+    const yesterdayUnique = new Set((data as RawLog[] || []).filter((l) => isYesterday(l.created_at)).map((l) => l.session_id)).size;
+
+    setDbCounts({
+      total: cTotal ?? 0,
+      today: cToday ?? 0,
+      todayUnique,
+      yesterday: cYesterday ?? 0,
+      yesterdayUnique,
+      week: cWeek ?? 0,
+      month: cMonth ?? 0,
+      member: cMember ?? 0,
+      guest: cGuest ?? 0,
+    });
 
     // Fetch today's signups and total members from profiles
     const startOfToday = new Date();
@@ -389,22 +442,18 @@ export function AdminAnalyticsScreen() {
 
   // Compute stats
   const stats: Stats = {
-    totalVisits: logs.length,
-    todayVisits: logs.filter((l) => isToday(l.created_at)).length,
-    todayUniqueVisitors: new Set(
-      logs.filter((l) => isToday(l.created_at)).map((l) => l.session_id),
-    ).size,
-    yesterdayVisits: logs.filter((l) => isYesterday(l.created_at)).length,
-    yesterdayUniqueVisitors: new Set(
-      logs.filter((l) => isYesterday(l.created_at)).map((l) => l.session_id),
-    ).size,
-    weekVisits: logs.filter((l) => isWithinDays(l.created_at, 7)).length,
+    totalVisits: dbCounts.total,
+    todayVisits: dbCounts.today,
+    todayUniqueVisitors: dbCounts.todayUnique,
+    yesterdayVisits: dbCounts.yesterday,
+    yesterdayUniqueVisitors: dbCounts.yesterdayUnique,
+    weekVisits: dbCounts.week,
     weekUniqueVisitors: new Set(
       logs.filter((l) => isWithinDays(l.created_at, 7)).map((l) => l.session_id),
     ).size,
-    monthVisits: logs.filter((l) => isThisMonth(l.created_at)).length,
-    memberVisits: logs.filter((l) => l.is_member).length,
-    guestVisits: logs.filter((l) => !l.is_member).length,
+    monthVisits: dbCounts.month,
+    memberVisits: dbCounts.member,
+    guestVisits: dbCounts.guest,
     todaySignups,
     totalMembers,
   };
@@ -517,7 +566,7 @@ export function AdminAnalyticsScreen() {
   const maxAdKw = Math.max(...adKwCounts.map((k) => k.visits), 1);
 
   const adVisits = logs.filter((l) => l.ad_platform).length;
-  const organicVisits = logs.length - adVisits;
+  const organicVisits = stats.totalVisits - adVisits;
 
   const rangeLabels: Record<typeof range, string> = {
     today: '오늘',
