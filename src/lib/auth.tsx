@@ -89,6 +89,15 @@ function detectReferralSource(): string {
 
 const DEFAULT_PROFILE_IMG = '/logo_png.png';
 
+function withTimeout<T>(promise: PromiseLike<T>, milliseconds: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), milliseconds);
+    }),
+  ]);
+}
+
 function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
   return {
     id: row.id as string,
@@ -146,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(sessionTimeout);
       setSession(data.session);
       if (data.session?.user) {
-        fetchProfile(data.session.user).then((p) => {
+        withTimeout(fetchProfile(data.session.user), 8000).then((p) => {
           if (p) setUser(p);
           setLoading(false);
         }).catch(() => setLoading(false));
@@ -168,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (sess?.user) {
         (async () => {
-          const p = await fetchProfile(sess.user);
+          const p = await withTimeout(fetchProfile(sess.user), 8000).catch(() => null);
           if (p) setUser(p);
           setLoading(false);
         })();
@@ -226,17 +235,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     signingOutRef.current = false;
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data'];
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error'];
+    try {
+      ({ data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        10000,
+      ));
+    } catch {
+      return { ok: false, error: '로그인 요청 시간이 초과되었습니다. 잠시 후 다시 시도하세요.' };
+    }
     if (error) return { ok: false, error: error.message };
     if (!data.user) return { ok: false, error: '로그인에 실패했습니다.' };
-    // Increment cumulative login count (await + log to diagnose failures)
-    const { error: rpcError } = await supabase.rpc('increment_login_count', {
+    void supabase.rpc('increment_login_count', {
       user_id: data.user.id,
+    }).then(({ error: rpcError }) => {
+      if (rpcError) console.error('login_count increment failed:', rpcError.message);
     });
-    if (rpcError) console.error('login_count increment failed:', rpcError.message);
     return { ok: true };
   }, []);
 

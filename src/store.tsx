@@ -554,7 +554,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // Load gallery items from Supabase
   const loadGalleryItems = useCallback(async () => {
-    if (!supabaseConfigured) return;
+    if (!supabaseConfigured) return false;
     const { data, error } = await supabase
       .from('gallery_items')
       .select('*')
@@ -562,35 +562,50 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       .order('created_at', { ascending: false });
     if (error) {
       console.error('[loadGalleryItems]', error.message);
-      return;
+      return false;
     }
-    setGalleryItems(
-      (data || []).map((g) => ({
-        id: g.id as string,
-        imageUrl: g.image_url as string,
-        summary: g.summary as string,
-        createdAt: g.created_at as number,
-        isFeatured: (g.is_featured as boolean) || false,
-        showOnCourt: (g.show_on_court as boolean) || false,
-        showOnPension: (g.show_on_pension as boolean) || false,
-        showOnBbq: (g.show_on_bbq as boolean) || false,
-        sortOrder: (g.sort_order as number) || 0,
-      })),
-    );
+    const nextItems = (data || []).map((g) => ({
+      id: g.id as string,
+      imageUrl: g.image_url as string,
+      summary: g.summary as string,
+      createdAt: g.created_at as number,
+      isFeatured: (g.is_featured as boolean) || false,
+      showOnCourt: (g.show_on_court as boolean) || false,
+      showOnPension: (g.show_on_pension as boolean) || false,
+      showOnBbq: (g.show_on_bbq as boolean) || false,
+      sortOrder: (g.sort_order as number) || 0,
+    }));
+    setGalleryItems((previous) => nextItems.length === 0 && previous.length > 0 ? previous : nextItems);
+    return true;
   }, []);
 
   useEffect(() => {
     if (!supabaseConfigured) return;
-    loadGalleryItems();
+    let cancelled = false;
+    const refreshGallery = async () => {
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+        if (await loadGalleryItems()) return;
+        await new Promise<void>((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshGallery();
+    };
+    void refreshGallery();
+    const poll = window.setInterval(() => void refreshGallery(), 60000);
+    document.addEventListener('visibilitychange', handleVisibility);
     const channel = supabase
       .channel('gallery_items_changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'gallery_items' },
-        () => loadGalleryItems(),
+        () => void refreshGallery(),
       )
       .subscribe();
     return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', handleVisibility);
       supabase.removeChannel(channel);
     };
   }, [loadGalleryItems]);
