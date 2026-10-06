@@ -124,6 +124,7 @@ export interface Notice {
   sortOrder?: number;
   imageUrl?: string;
   isMustRead?: boolean;
+  linkUrl?: string;
 }
 
 export interface NoticeComment {

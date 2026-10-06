@@ -17,6 +17,8 @@ import {
   Send,
   ShieldAlert,
   Reply,
+  ExternalLink,
+  Link2,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
@@ -77,6 +79,7 @@ export function AdminNoticeScreen() {
     type: '일반공지' as NoticeType,
     imageUrl: '' as string,
     isMustRead: false,
+    linkUrl: '' as string,
   });
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Notice | null>(null);
@@ -86,6 +89,7 @@ export function AdminNoticeScreen() {
     type: '일반공지' as NoticeType,
     imageUrl: '' as string,
     isMustRead: false,
+    linkUrl: '' as string,
   });
   const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
@@ -135,6 +139,7 @@ export function AdminNoticeScreen() {
       type: n.type,
       imageUrl: n.imageUrl ?? '',
       isMustRead: n.isMustRead ?? false,
+      linkUrl: n.linkUrl ?? '',
     });
     setEditPreviewUrl(n.imageUrl ?? null);
     setEditPendingFile(null);
@@ -206,6 +211,7 @@ export function AdminNoticeScreen() {
       type: editForm.type,
       imageUrl: imageUrl || undefined,
       isMustRead: editForm.isMustRead,
+      linkUrl: editForm.linkUrl.trim() || undefined,
     });
     closeEdit();
   };
@@ -239,8 +245,9 @@ export function AdminNoticeScreen() {
       type: form.type,
       imageUrl: imageUrl || undefined,
       isMustRead: form.isMustRead,
+      linkUrl: form.linkUrl.trim() || undefined,
     });
-    setForm({ title: '', content: '', type: '일반공지', imageUrl: '', isMustRead: false });
+    setForm({ title: '', content: '', type: '일반공지', imageUrl: '', isMustRead: false, linkUrl: '' });
     clearPick();
     setShowForm(false);
   };
@@ -327,6 +334,19 @@ export function AdminNoticeScreen() {
               placeholder="공지 내용을 입력하세요"
               className="input min-h-[100px]"
             />
+          </div>
+          <div>
+            <label className="label">링크 URL (선택)</label>
+            <div className="relative">
+              <Link2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={form.linkUrl}
+                onChange={(e) => setForm((f) => ({ ...f, linkUrl: e.target.value }))}
+                placeholder="https://example.com"
+                className="input pl-9"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">입력하면 공지에 "링크 열기" 버튼이 표시됩니다.</p>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -441,6 +461,16 @@ export function AdminNoticeScreen() {
                       alt={n.title}
                       className="mt-2 w-24 h-24 object-cover rounded-lg border border-slate-200"
                     />
+                  )}
+                  {n.linkUrl && (
+                    <a
+                      href={n.linkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-volt-600 hover:text-volt-700"
+                    >
+                      <ExternalLink size={12} /> {n.linkUrl}
+                    </a>
                   )}
                   <p className="text-[10px] text-slate-400 mt-1">
                     {new Date(n.createdAt).toLocaleString('ko-KR')}
@@ -681,6 +711,19 @@ export function AdminNoticeScreen() {
                 placeholder="공지 내용을 입력하세요"
                 className="input min-h-[100px]"
               />
+            </div>
+            <div>
+              <label className="label">링크 URL (선택)</label>
+              <div className="relative">
+                <Link2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={editForm.linkUrl}
+                  onChange={(e) => setEditForm((f) => ({ ...f, linkUrl: e.target.value }))}
+                  placeholder="https://example.com"
+                  className="input pl-9"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">입력하면 공지에 "링크 열기" 버튼이 표시됩니다.</p>
             </div>
             <div>
               <label className="label">이미지</label>

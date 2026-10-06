@@ -195,8 +195,8 @@ interface AppState {
   deleteMatchingPost: (postId: string) => void;
 
   // notices
-  createNotice: (n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => void;
-  updateNotice: (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => void;
+  createNotice: (n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean; linkUrl?: string }) => void;
+  updateNotice: (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean; linkUrl?: string }) => void;
   deleteNotice: (id: string) => void;
   reorderNotices: (orderedIds: string[]) => void;
   noticeComments: NoticeComment[];
@@ -522,6 +522,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
               sortOrder: n.sort_order as number | undefined,
               imageUrl: (n.image_url as string | null) || undefined,
               isMustRead: (n.is_must_read as boolean) ?? false,
+              linkUrl: (n.link_url as string | null) || undefined,
             }))
             .sort((a, b) => {
               const sa = a.sortOrder ?? a.createdAt;
@@ -2351,7 +2352,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Notices =====
   const createNotice = useCallback(
-    (n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => {
+    (n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean; linkUrl?: string }) => {
       const notice: Notice = {
         id: uid('n'),
         title: n.title,
@@ -2360,6 +2361,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         createdAt: Date.now(),
         imageUrl: n.imageUrl,
         isMustRead: n.isMustRead ?? false,
+        linkUrl: n.linkUrl,
       };
       setNotices((prev) => {
         const next = [notice, ...prev];
@@ -2391,6 +2393,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           created_at: notice.createdAt,
           image_url: notice.imageUrl ?? null,
           is_must_read: notice.isMustRead,
+          link_url: notice.linkUrl ?? null,
         }).then(({ error }) => {
           if (error) pushToast('공지 저장 실패: ' + error.message, 'error');
         });
@@ -2406,11 +2409,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   const updateNotice = useCallback(
-    (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean }) => {
+    (id: string, n: { title: string; content: string; type: NoticeType; imageUrl?: string; isMustRead?: boolean; linkUrl?: string }) => {
       setNotices((prev) => {
         const next = prev.map((it) =>
           it.id === id
-            ? { ...it, title: n.title, content: n.content, type: n.type, imageUrl: n.imageUrl, isMustRead: n.isMustRead ?? false }
+            ? { ...it, title: n.title, content: n.content, type: n.type, imageUrl: n.imageUrl, isMustRead: n.isMustRead ?? false, linkUrl: n.linkUrl }
             : it,
         );
         if (n.isMustRead) {
@@ -2440,6 +2443,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             type: n.type,
             image_url: n.imageUrl ?? null,
             is_must_read: n.isMustRead ?? false,
+            link_url: n.linkUrl ?? null,
           })
           .eq('id', id)
           .then(({ error }) => {

@@ -10,6 +10,7 @@ import {
   Send,
   Trash2,
   ShieldAlert,
+  ExternalLink,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -128,6 +129,16 @@ export function NoticesScreen() {
               />
             )}
             <p className="text-navy-800 whitespace-pre-wrap leading-relaxed">{selected.content}</p>
+            {selected.linkUrl && (
+              <a
+                href={selected.linkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-navy-50 text-navy-700 font-bold text-sm hover:bg-navy-100 transition"
+              >
+                <ExternalLink size={16} /> 링크 열기
+              </a>
+            )}
 
             <div className="border-t border-slate-100 pt-3">
               <div className="flex items-center gap-1.5 mb-2">
