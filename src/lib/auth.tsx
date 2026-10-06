@@ -151,23 +151,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }, 8000);
 
-    supabase.auth.getSession().then(({ data }) => {
-      clearTimeout(sessionTimeout);
-      setSession(data.session);
-      if (data.session?.user) {
-        withTimeout(fetchProfile(data.session.user), 8000).then((p) => {
-          if (p) setUser(p);
-          setLoading(false);
-        }).catch(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    }).catch(() => {
-      clearTimeout(sessionTimeout);
-      setLoading(false);
-    });
-
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      clearTimeout(sessionTimeout);
       if (signingOutRef.current && event !== 'SIGNED_OUT') return;
       setSession(sess);
       if (event === 'SIGNED_OUT' || !sess) {
@@ -176,15 +161,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (sess?.user) {
-        (async () => {
-          const p = await withTimeout(fetchProfile(sess.user), 8000).catch(() => null);
-          if (p) setUser(p);
-          setLoading(false);
-        })();
+        setUser(mapProfile({ id: sess.user.id, email: sess.user.email }, sess.user.email || ''));
+        setLoading(false);
+        window.setTimeout(() => {
+          void withTimeout(fetchProfile(sess.user), 8000).then((p) => {
+            if (p) setUser(p);
+          }).catch(() => undefined);
+        }, 0);
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      clearTimeout(sessionTimeout);
+      sub.subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const signUp = useCallback(
@@ -247,6 +237,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (error) return { ok: false, error: error.message };
     if (!data.user) return { ok: false, error: '로그인에 실패했습니다.' };
+    setSession(data.session);
+    setUser(mapProfile({ id: data.user.id, email: data.user.email }, data.user.email || email));
+    setLoading(false);
     void supabase.rpc('increment_login_count', {
       user_id: data.user.id,
     }).then(({ error: rpcError }) => {
