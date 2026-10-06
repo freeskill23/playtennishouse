@@ -352,7 +352,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load all profiles from Supabase so admin can resolve any user's name/phone
   const loadProfiles = useCallback(async () => {
     if (!supabaseConfigured) return;
-    const { data } = await supabase.from('profiles').select('*');
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (error) {
+      console.error('[loadProfiles]', error.message);
+      return;
+    }
     if (!data) return;
     setUsers((prev) => {
       const existingIds = new Set(prev.map((u) => u.id));
@@ -435,11 +439,15 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load matching posts from Supabase so they survive refresh
   const loadMatchingPosts = useCallback(async () => {
     if (!supabaseConfigured) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('matching_posts')
       .select('*')
       .order('created_at', { ascending: false });
-    if (data && data.length > 0) {
+    if (error) {
+      console.error('[loadMatchingPosts]', error.message);
+      return;
+    }
+    if (data) {
       const rows = data.map((p) => ({
         id: p.id as string,
         reservationId: p.reservation_id as string,
@@ -505,58 +513,70 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load notices from Supabase so admin edits are shared across sessions
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase
+    let cancelled = false;
+    let retryCount = 0;
+    const load = async () => {
+      const { data, error } = await supabase
         .from('notices')
         .select('*')
         .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        setNotices(
-          data
-            .map((n) => ({
-              id: n.id as string,
-              title: n.title as string,
-              content: n.content as string,
-              type: n.type as NoticeType,
-              createdAt: n.created_at as number,
-              sortOrder: n.sort_order as number | undefined,
-              imageUrl: (n.image_url as string | null) || undefined,
-              isMustRead: (n.is_must_read as boolean) ?? false,
-              linkUrl: (n.link_url as string | null) || undefined,
-            }))
-            .sort((a, b) => {
-              const sa = a.sortOrder ?? a.createdAt;
-              const sb = b.sortOrder ?? b.createdAt;
-              return sb - sa; // descending: larger sort_order first
-            }),
-        );
+      if (cancelled) return;
+      if (error) {
+        if (retryCount < 3) {
+          retryCount++;
+          setTimeout(load, 1500 * retryCount);
+        }
+        return;
       }
-    })();
+      setNotices(
+        (data || [])
+          .map((n) => ({
+            id: n.id as string,
+            title: n.title as string,
+            content: n.content as string,
+            type: n.type as NoticeType,
+            createdAt: n.created_at as number,
+            sortOrder: n.sort_order as number | undefined,
+            imageUrl: (n.image_url as string | null) || undefined,
+            isMustRead: (n.is_must_read as boolean) ?? false,
+            linkUrl: (n.link_url as string | null) || undefined,
+          }))
+          .sort((a, b) => {
+            const sa = a.sortOrder ?? a.createdAt;
+            const sb = b.sortOrder ?? b.createdAt;
+            return sb - sa;
+          }),
+      );
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   // Load gallery items from Supabase
   const loadGalleryItems = useCallback(async () => {
     if (!supabaseConfigured) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('gallery_items')
       .select('*')
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
-    if (data && data.length > 0) {
-      setGalleryItems(
-        data.map((g) => ({
-          id: g.id as string,
-          imageUrl: g.image_url as string,
-          summary: g.summary as string,
-          createdAt: g.created_at as number,
-          isFeatured: (g.is_featured as boolean) || false,
-          showOnCourt: (g.show_on_court as boolean) || false,
-          showOnPension: (g.show_on_pension as boolean) || false,
-          showOnBbq: (g.show_on_bbq as boolean) || false,
-          sortOrder: (g.sort_order as number) || 0,
-        })),
-      );
+    if (error) {
+      console.error('[loadGalleryItems]', error.message);
+      return;
     }
+    setGalleryItems(
+      (data || []).map((g) => ({
+        id: g.id as string,
+        imageUrl: g.image_url as string,
+        summary: g.summary as string,
+        createdAt: g.created_at as number,
+        isFeatured: (g.is_featured as boolean) || false,
+        showOnCourt: (g.show_on_court as boolean) || false,
+        showOnPension: (g.show_on_pension as boolean) || false,
+        showOnBbq: (g.show_on_bbq as boolean) || false,
+        sortOrder: (g.sort_order as number) || 0,
+      })),
+    );
   }, []);
 
   useEffect(() => {
@@ -578,30 +598,39 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load reviews from Supabase
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
-      const { data } = await supabase
+    let cancelled = false;
+    let retryCount = 0;
+    const load = async () => {
+      const { data, error } = await supabase
         .from('reviews')
         .select('*')
         .order('created_at', { ascending: false });
-      if (data) {
-        setReviews(
-          data
-            .map((r) => ({
-              id: r.id as string,
-              authorName: r.author_name as string,
-              authorId: (r.author_id as string | null) ?? null,
-              content: r.content as string,
-              rating: r.rating as number,
-              imageUrls: (r.image_urls as string[]) || [],
-              adminReply: (r.admin_reply as string | null) ?? null,
-              adminReplyAt: (r.admin_reply_at as number | null) ?? null,
-              isDeleted: (r.is_deleted as boolean) ?? false,
-              createdAt: r.created_at as number,
-            }))
-            .filter((r) => !r.isDeleted),
-        );
+      if (cancelled) return;
+      if (error) {
+        if (retryCount < 3) {
+          retryCount++;
+          setTimeout(load, 1500 * retryCount);
+        }
+        return;
       }
-    })();
+      setReviews(
+        (data || [])
+          .map((r) => ({
+            id: r.id as string,
+            authorName: r.author_name as string,
+            authorId: (r.author_id as string | null) ?? null,
+            content: r.content as string,
+            rating: r.rating as number,
+            imageUrls: (r.image_urls as string[]) || [],
+            adminReply: (r.admin_reply as string | null) ?? null,
+            adminReplyAt: (r.admin_reply_at as number | null) ?? null,
+            isDeleted: (r.is_deleted as boolean) ?? false,
+            createdAt: r.created_at as number,
+          }))
+          .filter((r) => !r.isDeleted),
+      );
+    };
+    load();
     const channel = supabase
       .channel('reviews_changes')
       .on(
@@ -634,6 +663,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       )
       .subscribe();
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, []);
@@ -858,11 +888,15 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load all settings (pension prices, overrides, banner, logo) from Supabase
   const loadSettings = useCallback(async () => {
     if (!supabaseConfigured) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('settings')
       .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
       .eq('id', 1)
       .maybeSingle();
+    if (error) {
+      console.error('[loadSettings]', error.message);
+      return;
+    }
     if (data) {
       setBannerImageUrl(data.banner_image_url);
       if (data.banner_gradient_colors) setBannerGradientColors(data.banner_gradient_colors as { from: string; via: string; to: string });
@@ -906,8 +940,67 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   }, [supabaseConfigured]);
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    if (!supabaseConfigured) return;
+    let cancelled = false;
+    let retryCount = 0;
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+        .eq('id', 1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        if (retryCount < 3) {
+          retryCount++;
+          setTimeout(load, 1500 * retryCount);
+        }
+        return;
+      }
+      if (data) {
+        setBannerImageUrl(data.banner_image_url);
+        if (data.banner_gradient_colors) setBannerGradientColors(data.banner_gradient_colors as { from: string; via: string; to: string });
+        setLogoImageUrl(data.logo_image_url);
+        if (data.bank_name || data.bank_account_number || data.bank_account_holder) {
+          setBankAccount({
+            bank: data.bank_name || BANK_ACCOUNT.bank,
+            number: data.bank_account_number || BANK_ACCOUNT.number,
+            holder: data.bank_account_holder || BANK_ACCOUNT.holder,
+          });
+        }
+        if (data.pension_weekday_price != null) setPensionWeekdayPrice(data.pension_weekday_price);
+        if (data.pension_weekend_price != null) setPensionWeekendPrice(data.pension_weekend_price);
+        if (data.pension_weekday_base_capacity != null) setPensionWeekdayBaseCapacity(data.pension_weekday_base_capacity);
+        if (data.pension_weekend_base_capacity != null) setPensionWeekendBaseCapacity(data.pension_weekend_base_capacity);
+        if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
+        if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
+        if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
+        setTelegramConfig({
+          botToken: (data.telegram_bot_token as string) || '',
+          chatId: (data.telegram_chat_id as string) || '',
+        });
+        if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
+        if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
+        if (data.bbq_day_start_hour != null || data.bbq_night_start_hour != null) {
+          setBbqPricing(prev => ({
+            ...prev,
+            dayStartHour: data.bbq_day_start_hour ?? prev.dayStartHour,
+            nightStartHour: data.bbq_night_start_hour ?? prev.nightStartHour,
+            baseHours: data.bbq_base_hours ?? prev.baseHours,
+            baseCapacity: data.bbq_base_capacity ?? prev.baseCapacity,
+            dayPrice: data.bbq_day_price ?? prev.dayPrice,
+            nightPrice: data.bbq_night_price ?? prev.nightPrice,
+            extraPersonFee: data.bbq_extra_person_fee ?? prev.extraPersonFee,
+            extraHourFee: data.bbq_extra_hour_fee ?? prev.extraHourFee,
+            openDays: data.bbq_open_days ?? prev.openDays,
+          }));
+          if (data.bbq_open_days != null) setBbqOpenDays(data.bbq_open_days as number);
+        }
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [supabaseConfigured]);
 
   // Realtime sync: when settings row changes on another device, reload
   useEffect(() => {
@@ -930,19 +1023,30 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load rooms from Supabase so admin edits are shared across sessions
   useEffect(() => {
     if (!supabaseConfigured) return;
+    let cancelled = false;
+    let retryCount = 0;
     const loadRooms = async () => {
-      const { data } = await supabase.from('rooms').select('*').order('name', { ascending: true });
-      if (!data || data.length === 0) return;
-      setRooms(
-        data.map((r) => ({
-          id: r.id as string,
-          name: r.name as RoomName,
-          maxCapacity: r.max_capacity as number,
-          baseCapacity: (r.base_capacity as number) || 4,
-          description: r.description as string,
-          pricePerNight: r.price_per_night as number,
-        })),
-      );
+      const { data, error } = await supabase.from('rooms').select('*').order('name', { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        if (retryCount < 3) {
+          retryCount++;
+          setTimeout(loadRooms, 1500 * retryCount);
+        }
+        return;
+      }
+      if (data && data.length > 0) {
+        setRooms(
+          data.map((r) => ({
+            id: r.id as string,
+            name: r.name as RoomName,
+            maxCapacity: r.max_capacity as number,
+            baseCapacity: (r.base_capacity as number) || 4,
+            description: r.description as string,
+            pricePerNight: r.price_per_night as number,
+          })),
+        );
+      }
     };
     loadRooms();
     const channel = supabase

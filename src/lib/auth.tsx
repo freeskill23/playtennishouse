@@ -138,16 +138,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    const sessionTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
     supabase.auth.getSession().then(({ data }) => {
+      clearTimeout(sessionTimeout);
       setSession(data.session);
       if (data.session?.user) {
         fetchProfile(data.session.user).then((p) => {
           if (p) setUser(p);
           setLoading(false);
-        });
+        }).catch(() => setLoading(false));
       } else {
         setLoading(false);
       }
+    }).catch(() => {
+      clearTimeout(sessionTimeout);
+      setLoading(false);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
