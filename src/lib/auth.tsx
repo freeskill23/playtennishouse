@@ -161,13 +161,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (sess?.user) {
-        setUser(mapProfile({ id: sess.user.id, email: sess.user.email }, sess.user.email || ''));
-        setLoading(false);
-        window.setTimeout(() => {
-          void withTimeout(fetchProfile(sess.user), 8000).then((p) => {
-            if (p) setUser(p);
-          }).catch(() => undefined);
-        }, 0);
+        void withTimeout(fetchProfile(sess.user), 8000)
+          .then((p) => {
+            setUser(p || mapProfile({ id: sess.user.id, email: sess.user.email }, sess.user.email || ''));
+            setLoading(false);
+          })
+          .catch(() => {
+            setUser(mapProfile({ id: sess.user.id, email: sess.user.email }, sess.user.email || ''));
+            setLoading(false);
+          });
       }
     });
 
@@ -238,8 +240,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) return { ok: false, error: error.message };
     if (!data.user) return { ok: false, error: '로그인에 실패했습니다.' };
     setSession(data.session);
-    setUser(mapProfile({ id: data.user.id, email: data.user.email }, data.user.email || email));
     setLoading(false);
+    void withTimeout(fetchProfile(data.user), 8000)
+      .then((p) => {
+        if (p) setUser(p);
+        else setUser(mapProfile({ id: data.user.id, email: data.user.email }, data.user.email || email));
+      })
+      .catch(() => {
+        setUser(mapProfile({ id: data.user.id, email: data.user.email }, data.user.email || email));
+      });
     void supabase.rpc('increment_login_count', {
       user_id: data.user.id,
     }).then(({ error: rpcError }) => {
