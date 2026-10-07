@@ -24,6 +24,16 @@ import { supabase } from '../../lib/supabase';
 import { SectionTitle, EmptyState, ReferralBadge } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 
+interface PensionReservation {
+  id: string;
+  target_label: string;
+  date: string;
+  status: string;
+  capacity: number | null;
+  waiting_sequence: number | null;
+  created_at: string;
+}
+
 interface MemberRow {
   id: string;
   email: string;
@@ -64,6 +74,8 @@ export function AdminMembersScreen() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
+
+  const [pensionModal, setPensionModal] = useState<{ member: MemberRow; reservations: PensionReservation[]; loading: boolean } | null>(null);
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -198,6 +210,24 @@ export function AdminMembersScreen() {
     }
   };
 
+  const handleShowPensionReservations = useCallback(async (member: MemberRow) => {
+    setPensionModal({ member, reservations: [], loading: true });
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('reservations')
+        .select('id, target_label, date, status, capacity, waiting_sequence, created_at')
+        .eq('user_id', member.id)
+        .eq('type', 'pension')
+        .neq('status', '취소')
+        .order('date', { ascending: false });
+      if (fetchError) throw new Error(fetchError.message);
+      setPensionModal({ member, reservations: (data || []) as PensionReservation[], loading: false });
+    } catch (e) {
+      setPensionModal({ member, reservations: [], loading: false });
+      setError(e instanceof Error ? e.message : '예약 조회 실패');
+    }
+  }, []);
+
   const handleExportSmsList = () => {
     const consented = filtered.filter(
       (m) => m.marketing_consent && m.phone && !m.is_bad_member,
@@ -316,9 +346,13 @@ export function AdminMembersScreen() {
                     <span className="flex items-center gap-1 text-navy-700 font-semibold">
                       <CalendarRange size={11} /> 코트 {m.court_count}
                     </span>
-                    <span className="flex items-center gap-1 text-volt-700 font-semibold">
+                    <button
+                      onClick={() => handleShowPensionReservations(m)}
+                      className="flex items-center gap-1 text-volt-700 font-semibold hover:underline disabled:opacity-60"
+                      disabled={m.pension_count === 0}
+                    >
                       <BedDouble size={11} /> 펜션 {m.pension_count}
-                    </span>
+                    </button>
                     <span className="flex items-center gap-1 text-slate-700 font-semibold">
                       <Shuffle size={11} /> 매칭 {m.matching_count}
                     </span>
@@ -534,6 +568,51 @@ export function AdminMembersScreen() {
             <p className="text-xs text-slate-500">
               삭제 시 해당 회원의 로그인 권한도 함께 제거되며, 기존 예약 내역도 모두 사라집니다.
             </p>
+          </div>
+        )}
+      </Modal>
+
+      {/* Pension reservations modal */}
+      <Modal
+        open={!!pensionModal}
+        onClose={() => setPensionModal(null)}
+        title="펜션 예약 내역"
+        size="sm"
+        footer={
+          <button className="btn-primary" onClick={() => setPensionModal(null)}>
+            확인
+          </button>
+        }
+      >
+        {pensionModal && (
+          <div className="space-y-3">
+            <p className="text-sm text-navy-800">
+              <span className="font-bold">{pensionModal.member.name}</span>님의 펜션 예약 내역
+            </p>
+            {pensionModal.loading ? (
+              <div className="flex items-center justify-center py-6 text-slate-400">
+                <Loader2 size={20} className="animate-spin" />
+              </div>
+            ) : pensionModal.reservations.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4">펜션 예약 내역이 없습니다.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                {pensionModal.reservations.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <BedDouble size={14} className="text-volt-600" />
+                      <span className="font-semibold text-navy-900">{r.date}</span>
+                      <span className="text-xs text-slate-500">{r.target_label}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      {r.capacity != null && <span className="text-slate-500">{r.capacity}명</span>}
+                      {r.waiting_sequence != null && <span className="text-amber-600">대기 {r.waiting_sequence}순위</span>}
+                      <span className="font-semibold text-navy-700">{r.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </Modal>
