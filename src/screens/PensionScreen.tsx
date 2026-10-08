@@ -77,7 +77,6 @@ export function PensionScreen() {
           <span className="text-xs font-semibold text-volt-800">
             이용료 {formatWon(pensionWeekdayPrice)}~{formatWon(pensionWeekendPrice)}
           </span>
-          <span className="text-[10px] font-semibold text-amber-600">(VAT 별도)</span>
         </div>
       </div>
 

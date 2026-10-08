@@ -136,7 +136,6 @@ export function CourtScreen() {
           <span className="text-xs font-semibold text-volt-800">
             이용요금 {formatWon(courtPricing.weekdayDay.pricePerHour)}~{formatWon(courtPricing.weekdayNight.pricePerHour)}/시간
           </span>
-          <span className="text-[10px] font-semibold text-amber-600">(VAT 별도)</span>
         </div>
       </div>
 

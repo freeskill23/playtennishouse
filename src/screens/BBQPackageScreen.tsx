@@ -209,7 +209,6 @@ export function BBQPackageScreen() {
           <span className="text-[10px] font-semibold text-slate-500">
             · 추가 인원 1인 {formatWon(bbqPricing.extraPersonFee)} · 시간 초과 1인당 {formatWon(bbqPricing.extraHourFee)}/시간
           </span>
-          <span className="text-[10px] font-semibold text-amber-600">(VAT 별도)</span>
         </div>
       </div>
 
