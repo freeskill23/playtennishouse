@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { Image as ImageIcon, X } from 'lucide-react';
+import { Image as ImageIcon, X, Play } from 'lucide-react';
 import { useApp } from '../store';
 import { SectionTitle, EmptyState } from '../components/ui';
 
 export function GalleryScreen() {
   const { galleryItems } = useApp();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const sorted = [...galleryItems].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const videoItems = sorted.filter((i) => i.youtubeUrl);
+  const photoItems = sorted.filter((i) => !i.youtubeUrl);
 
   const selectedItem = selectedId
     ? galleryItems.find((i) => i.id === selectedId) ?? null
@@ -21,34 +25,72 @@ export function GalleryScreen() {
       {galleryItems.length === 0 ? (
         <EmptyState icon={<ImageIcon size={28} />} title="아직 등록된 사진이 없어요" />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {[...galleryItems].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((item) => (
-            <figure
-              key={item.id}
-              onClick={() =>
-                setSelectedId((prev) => (prev === item.id ? null : item.id))
-              }
-              className="group relative cursor-pointer overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition hover:shadow-lg hover:-translate-y-0.5"
-            >
-              <div className="aspect-square overflow-hidden">
-                <img
-                  src={item.imageUrl}
-                  alt={item.summary}
-                  loading="lazy"
-                  className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
-                />
+        <>
+          {videoItems.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-bold text-navy-900">
+                <Play size={16} className="text-rose-600 fill-rose-600" />
+                <span>동영상</span>
               </div>
-              <figcaption className="p-2.5">
-                <p className="text-xs font-semibold text-navy-900 line-clamp-2 leading-snug">
-                  {item.summary}
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  {new Date(item.createdAt).toLocaleDateString('ko-KR')}
-                </p>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
+              <div className={`grid gap-3 ${videoItems.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                {videoItems.map((item) => (
+                  <figure
+                    key={item.id}
+                    className="overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100"
+                  >
+                    <div className="relative aspect-video bg-black">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${item.youtubeUrl}`}
+                        title={item.summary}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="w-full h-full"
+                      />
+                    </div>
+                    {item.summary && (
+                      <figcaption className="p-2.5">
+                        <p className="text-xs font-semibold text-navy-900 line-clamp-2 leading-snug">
+                          {item.summary}
+                        </p>
+                      </figcaption>
+                    )}
+                  </figure>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {photoItems.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {photoItems.map((item) => (
+                <figure
+                  key={item.id}
+                  onClick={() =>
+                    setSelectedId((prev) => (prev === item.id ? null : item.id))
+                  }
+                  className="group relative cursor-pointer overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition hover:shadow-lg hover:-translate-y-0.5"
+                >
+                  <div className="aspect-square overflow-hidden">
+                    <img
+                      src={item.imageUrl}
+                      alt={item.summary}
+                      loading="lazy"
+                      className="w-full h-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  </div>
+                  <figcaption className="p-2.5">
+                    <p className="text-xs font-semibold text-navy-900 line-clamp-2 leading-snug">
+                      {item.summary}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {new Date(item.createdAt).toLocaleDateString('ko-KR')}
+                    </p>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {selectedItem && (

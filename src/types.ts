@@ -111,6 +111,7 @@ export interface GalleryItem {
   showOnPension?: boolean;
   showOnBbq?: boolean;
   sortOrder?: number;
+  youtubeUrl?: string | null;
 }
 
 export type NoticeType = '일반공지' | '이벤트' | '우천' | '환불' | '이용수칙';

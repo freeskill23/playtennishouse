@@ -207,7 +207,7 @@ interface AppState {
   deleteNoticeComment: (commentId: string) => void;
 
   // gallery
-  createGalleryItem: (input: { imageUrl: string; summary: string }) => void;
+  createGalleryItem: (input: { imageUrl?: string; summary: string; youtubeUrl?: string }) => void;
   deleteGalleryItem: (id: string) => void;
   toggleGalleryFeatured: (id: string) => void;
   toggleGalleryShowOnCourt: (id: string) => void;
@@ -215,7 +215,7 @@ interface AppState {
   toggleGalleryShowOnBbq: (id: string) => void;
   reorderGalleryItem: (id: string, direction: 'up' | 'down') => void;
   setGalleryOrder: (orderedIds: string[]) => void;
-  updateGalleryItem: (id: string, patch: { summary?: string; imageUrl?: string }) => void;
+  updateGalleryItem: (id: string, patch: { summary?: string; imageUrl?: string; youtubeUrl?: string | null }) => void;
 
   // reviews
   reviews: Review[];
@@ -574,6 +574,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       showOnPension: (g.show_on_pension as boolean) || false,
       showOnBbq: (g.show_on_bbq as boolean) || false,
       sortOrder: (g.sort_order as number) || 0,
+      youtubeUrl: (g.youtube_url as string | null) ?? null,
     }));
     setGalleryItems((previous) => nextItems.length === 0 && previous.length > 0 ? previous : nextItems);
     return true;
@@ -2750,20 +2751,22 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   // ===== Gallery =====
   const createGalleryItem = useCallback(
-    (input: { imageUrl: string; summary: string }) => {
+    (input: { imageUrl?: string; summary: string; youtubeUrl?: string }) => {
       const item: GalleryItem = {
         id: uid('g'),
-        imageUrl: input.imageUrl,
+        imageUrl: input.imageUrl || '',
         summary: input.summary,
         createdAt: Date.now(),
+        youtubeUrl: input.youtubeUrl || null,
       };
       setGalleryItems((prev) => [item, ...prev]);
       if (supabaseConfigured) {
         supabase.from('gallery_items').insert({
           id: item.id,
-          image_url: item.imageUrl,
+          image_url: item.imageUrl || null,
           summary: item.summary,
           created_at: item.createdAt,
+          youtube_url: item.youtubeUrl || null,
         }).then(({ error }) => {
           if (error) pushToast('갤러리 저장 실패: ' + error.message, 'error');
         });
@@ -2908,16 +2911,18 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   );
 
   const updateGalleryItem = useCallback(
-    (id: string, patch: { summary?: string; imageUrl?: string }) => {
-      const updates: Record<string, string> = {};
+    (id: string, patch: { summary?: string; imageUrl?: string; youtubeUrl?: string | null }) => {
+      const updates: Record<string, string | null> = {};
       if (patch.summary !== undefined) updates.summary = patch.summary;
       if (patch.imageUrl !== undefined) updates.image_url = patch.imageUrl;
+      if (patch.youtubeUrl !== undefined) updates.youtube_url = patch.youtubeUrl;
       setGalleryItems((prev) =>
         prev.map((g) => {
           if (g.id !== id) return g;
           const next = { ...g };
           if (patch.summary !== undefined) next.summary = patch.summary;
           if (patch.imageUrl !== undefined) next.imageUrl = patch.imageUrl;
+          if (patch.youtubeUrl !== undefined) next.youtubeUrl = patch.youtubeUrl;
           if (supabaseConfigured && Object.keys(updates).length > 0) {
             supabase.from('gallery_items').update(updates).eq('id', id).then(({ error }) => {
               if (error) pushToast('수정 실패: ' + error.message, 'error');

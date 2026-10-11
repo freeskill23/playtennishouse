@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, Pencil, ImageUp, GripVertical, Flame } from 'lucide-react';
+import { ImagePlus, Trash2, Loader2, CheckCircle2, X, Star, CalendarRange, BedDouble, Pencil, ImageUp, GripVertical, Flame, Youtube, Play } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -54,6 +54,41 @@ export function AdminGalleryScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const [ytUrl, setYtUrl] = useState('');
+  const [ytSummary, setYtSummary] = useState('');
+
+  function extractYouTubeId(url: string): string | null {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]{11})/,
+      /[?&]v=([\w-]{11})/,
+    ];
+    for (const p of patterns) {
+      const m = url.match(p);
+      if (m) return m[1];
+    }
+    if (/^[\w-]{11}$/.test(url.trim())) return url.trim();
+    return null;
+  }
+
+  function ytThumb(id: string): string {
+    return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+  }
+
+  const handleYtSubmit = () => {
+    const videoId = extractYouTubeId(ytUrl);
+    if (!videoId) {
+      alert('올바른 유튜브 URL을 입력해주세요.');
+      return;
+    }
+    if (!ytSummary.trim()) {
+      alert('한줄 요약을 입력해주세요.');
+      return;
+    }
+    createGalleryItem({ summary: ytSummary.trim(), youtubeUrl: videoId });
+    setYtUrl('');
+    setYtSummary('');
+  };
 
   const onEditPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -153,6 +188,10 @@ export function AdminGalleryScreen() {
       />
 
       <div className="card p-5 space-y-4 animate-slide-up">
+        <div className="flex items-center gap-2 mb-1">
+          <ImagePlus size={18} className="text-navy-700" />
+          <span className="font-bold text-navy-900 text-sm">사진 업로드</span>
+        </div>
         <div>
           <label className="label">사진 선택</label>
           <input
@@ -217,6 +256,42 @@ export function AdminGalleryScreen() {
         </button>
       </div>
 
+      <div className="card p-5 space-y-4 animate-slide-up">
+        <div className="flex items-center gap-2 mb-1">
+          <Youtube size={18} className="text-rose-600" />
+          <span className="font-bold text-navy-900 text-sm">유튜브 동영상 등록</span>
+        </div>
+        <div>
+          <label className="label">유튜브 URL</label>
+          <input
+            value={ytUrl}
+            onChange={(e) => setYtUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            className="input"
+          />
+          <p className="text-[11px] text-slate-400 mt-1">
+            유튜브 영상 주소를 그대로 붙여넣으세요. 동영상은 갤러리 상단에 고정됩니다.
+          </p>
+        </div>
+        <div>
+          <label className="label">한줄 요약</label>
+          <input
+            value={ytSummary}
+            onChange={(e) => setYtSummary(e.target.value)}
+            placeholder="동영상에 대한 한줄 요약을 입력하세요"
+            maxLength={60}
+            className="input"
+          />
+        </div>
+        <button
+          onClick={handleYtSubmit}
+          disabled={!ytUrl.trim() || !ytSummary.trim()}
+          className="btn-primary w-full disabled:opacity-50"
+        >
+          <Youtube size={18} /> 동영상 등록하기
+        </button>
+      </div>
+
       <div className="space-y-2">
         {galleryItems.length === 0 ? (
           <EmptyState icon={<ImagePlus size={28} />} title="등록된 사진이 없어요" />
@@ -254,14 +329,32 @@ export function AdminGalleryScreen() {
                 }}
                 className={`group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 transition-all ${draggedId === item.id ? 'opacity-40 scale-95' : ''} ${dragOverId === item.id ? 'ring-2 ring-volt-400 ring-offset-1 scale-[1.02]' : ''}`}
               >
-                <div className="aspect-square overflow-hidden pointer-events-none">
-                  <img
-                    src={item.imageUrl}
-                    alt={item.summary}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                    draggable={false}
-                  />
+                <div className="aspect-square overflow-hidden pointer-events-none relative">
+                  {item.youtubeUrl ? (
+                    <>
+                      <img
+                        src={ytThumb(item.youtubeUrl)}
+                        alt={item.summary}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <Play size={32} className="text-white fill-white" />
+                      </div>
+                      <div className="absolute top-1.5 right-1.5 chip bg-rose-600 text-white text-[10px]">
+                        <Youtube size={10} /> 영상
+                      </div>
+                    </>
+                  ) : (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.summary}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
+                  )}
                 </div>
                 <figcaption className="p-2.5">
                   {editingId === item.id ? (
