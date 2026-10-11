@@ -258,93 +258,90 @@ export function AdminAnalyticsScreen() {
   const fetchLogs = useCallback(async () => {
     if (!supabaseConfigured) return;
     setLoading(true);
-    let cutoff = new Date();
-    let endCutoff: Date | null = null;
-    if (range === 'today') cutoff.setHours(0, 0, 0, 0);
-    else if (range === 'yesterday') {
-      cutoff.setDate(cutoff.getDate() - 1);
-      cutoff.setHours(0, 0, 0, 0);
-      endCutoff = new Date();
-      endCutoff.setHours(0, 0, 0, 0);
-    } else if (range === 'week') cutoff.setDate(cutoff.getDate() - 7);
-    else if (range === 'month') cutoff.setMonth(cutoff.getMonth() - 1);
-    else cutoff.setFullYear(2020);
+    try {
+      let cutoff = new Date();
+      let endCutoff: Date | null = null;
+      if (range === 'today') cutoff.setHours(0, 0, 0, 0);
+      else if (range === 'yesterday') {
+        cutoff.setDate(cutoff.getDate() - 1);
+        cutoff.setHours(0, 0, 0, 0);
+        endCutoff = new Date();
+        endCutoff.setHours(0, 0, 0, 0);
+      } else if (range === 'week') cutoff.setDate(cutoff.getDate() - 7);
+      else if (range === 'month') cutoff.setMonth(cutoff.getMonth() - 1);
+      else cutoff.setFullYear(2020);
 
-    let query = supabase
-      .from('visitor_logs')
-      .select('*')
-      .gte('created_at', cutoff.toISOString());
-    if (endCutoff) {
-      query = query.lt('created_at', endCutoff.toISOString());
+      let query = supabase
+        .from('visitor_logs')
+        .select('*')
+        .gte('created_at', cutoff.toISOString());
+      if (endCutoff) {
+        query = query.lt('created_at', endCutoff.toISOString());
+      }
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(5000);
+
+      if (error) {
+        console.error('[analytics]', error.message);
+      }
+      const logsData = (data as RawLog[]) || [];
+      if (data) {
+        setLogs(logsData);
+      }
+
+      // Fetch exact counts from DB (not capped by the 5000-row limit)
+      const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+      const startYesterday = new Date(); startYesterday.setDate(startYesterday.getDate() - 1); startYesterday.setHours(0, 0, 0, 0);
+      const endYesterday = new Date(); endYesterday.setHours(0, 0, 0, 0);
+      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+      const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+      const countResults = await Promise.allSettled([
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }),
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', startToday.toISOString()),
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', startYesterday.toISOString()).lt('created_at', endYesterday.toISOString()),
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', monthAgo.toISOString()),
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).eq('is_member', true),
+        supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).eq('is_member', false),
+      ]);
+      const getCount = (r: PromiseSettledResult<{ count: number | null }>) =>
+        r.status === 'fulfilled' ? (r.value.count ?? 0) : 0;
+
+      const todayUnique = new Set(logsData.filter((l) => isToday(l.created_at)).map((l) => l.session_id)).size;
+      const yesterdayUnique = new Set(logsData.filter((l) => isYesterday(l.created_at)).map((l) => l.session_id)).size;
+
+      setDbCounts({
+        total: getCount(countResults[0]),
+        today: getCount(countResults[1]),
+        todayUnique,
+        yesterday: getCount(countResults[2]),
+        yesterdayUnique,
+        week: getCount(countResults[3]),
+        month: getCount(countResults[4]),
+        member: getCount(countResults[5]),
+        guest: getCount(countResults[6]),
+      });
+
+      // Fetch today's signups and total members from profiles
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const { count: todayCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', startOfToday.toISOString());
+      if (todayCount !== null) setTodaySignups(todayCount);
+
+      const { count: totalCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+      if (totalCount !== null) setTotalMembers(totalCount);
+    } catch (err) {
+      console.error('[analytics] fetchLogs error:', err);
+    } finally {
+      setLoading(false);
     }
-    const { data, error } = await query
-      .order('created_at', { ascending: false })
-      .limit(5000);
-
-    if (error) {
-      console.error('[analytics]', error.message);
-    }
-    if (data) {
-      setLogs(data as RawLog[]);
-    }
-
-    // Fetch exact counts from DB (not capped by the 5000-row limit)
-    const now = new Date();
-    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
-    const startYesterday = new Date(); startYesterday.setDate(startYesterday.getDate() - 1); startYesterday.setHours(0, 0, 0, 0);
-    const endYesterday = new Date(); endYesterday.setHours(0, 0, 0, 0);
-    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-    const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
-
-    const [
-      { count: cTotal },
-      { count: cToday },
-      { count: cYesterday },
-      { count: cWeek },
-      { count: cMonth },
-      { count: cMember },
-      { count: cGuest },
-    ] = await Promise.all([
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }),
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', startToday.toISOString()),
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', startYesterday.toISOString()).lt('created_at', endYesterday.toISOString()),
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('created_at', monthAgo.toISOString()),
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).eq('is_member', true),
-      supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).eq('is_member', false),
-    ]);
-
-    // Unique visitors for today and yesterday (from the loaded logs, which is fine for short ranges)
-    const todayUnique = new Set((data as RawLog[] || []).filter((l) => isToday(l.created_at)).map((l) => l.session_id)).size;
-    const yesterdayUnique = new Set((data as RawLog[] || []).filter((l) => isYesterday(l.created_at)).map((l) => l.session_id)).size;
-
-    setDbCounts({
-      total: cTotal ?? 0,
-      today: cToday ?? 0,
-      todayUnique,
-      yesterday: cYesterday ?? 0,
-      yesterdayUnique,
-      week: cWeek ?? 0,
-      month: cMonth ?? 0,
-      member: cMember ?? 0,
-      guest: cGuest ?? 0,
-    });
-
-    // Fetch today's signups and total members from profiles
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const { count: todayCount } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', startOfToday.toISOString());
-    if (todayCount !== null) setTodaySignups(todayCount);
-
-    const { count: totalCount } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-    if (totalCount !== null) setTotalMembers(totalCount);
-
-    setLoading(false);
   }, [range]);
 
   useEffect(() => {

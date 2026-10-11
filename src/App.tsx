@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
-import { useIdleLogout } from './lib/useIdleLogout';
 import { useClickSound } from './lib/useClickSound';
 import { logVisit } from './lib/visitorLog';
 import type { LucideIcon } from 'lucide-react';
@@ -426,10 +425,7 @@ function AdminShell() {
   const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard', 'admin_tab');
   const [mobileMenu, setMobileMenu] = useState(false);
 
-  useIdleLogout(() => {
-    sessionStorage.removeItem(AUTH_KEY);
-    setAuthed(false);
-  }, authed);
+  // Idle logout disabled for admin — session persists until manual logout
 
   if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;
 
