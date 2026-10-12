@@ -19,6 +19,7 @@ import {
   Reply,
   ExternalLink,
   Link2,
+  Eye,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
@@ -474,6 +475,9 @@ export function AdminNoticeScreen() {
                   )}
                   <p className="text-[10px] text-slate-400 mt-1">
                     {new Date(n.createdAt).toLocaleString('ko-KR')}
+                    <span className="ml-2 inline-flex items-center gap-0.5">
+                      <Eye size={10} /> {n.views ?? 0}
+                    </span>
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">

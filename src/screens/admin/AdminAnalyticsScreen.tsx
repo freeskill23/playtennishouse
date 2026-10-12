@@ -356,7 +356,7 @@ export function AdminAnalyticsScreen() {
       .select('*')
       .eq('is_member', true)
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(1000);
     setMemberVisitLogs((data as RawLog[]) || []);
 
     // Fetch all reservations and count pension/court per member by depositor_name
@@ -395,7 +395,7 @@ export function AdminAnalyticsScreen() {
       .select('*')
       .gte('created_at', startOfToday.toISOString())
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(1000);
     setTodayVisitorLogs((data as RawLog[]) || []);
 
     // Fetch last 7 days of logs to compute per-visitor visit counts
@@ -915,7 +915,7 @@ export function AdminAnalyticsScreen() {
           />
         ) : (
           <div className="space-y-1">
-            <p className="text-xs text-slate-400 mb-3">오늘 방문 {todayVisitorLogs.length}건 (최대 200건)</p>
+            <p className="text-xs text-slate-400 mb-3">오늘 방문 {todayVisitorLogs.length}건 (최대 1000건)</p>
             {todayVisitorLogs.map((log) => (
               <div
                 key={log.id}
@@ -992,7 +992,7 @@ export function AdminAnalyticsScreen() {
             };
             return (
               <div className="space-y-3">
-                <p className="text-xs text-slate-400">회원 {members.length}명 · 총 {memberVisitLogs.length}건 (최대 200건)</p>
+                <p className="text-xs text-slate-400">회원 {members.length}명 · 총 {memberVisitLogs.length}건 (최대 1000건)</p>
                 {members.map((m) => {
                   const pages = new Map<string, number>();
                   for (const log of m.logs) {

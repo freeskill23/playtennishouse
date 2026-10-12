@@ -205,6 +205,7 @@ interface AppState {
   addAdminNoticeComment: (noticeId: string, content: string, password: string, parentId?: string | null) => Promise<{ ok: boolean; error?: string }>;
   deleteAdminNoticeComment: (commentId: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   deleteNoticeComment: (commentId: string) => void;
+  incrementNoticeViews: (noticeId: string) => void;
 
   // gallery
   createGalleryItem: (input: { imageUrl?: string; summary: string; youtubeUrl?: string }) => void;
@@ -540,6 +541,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             imageUrl: (n.image_url as string | null) || undefined,
             isMustRead: (n.is_must_read as boolean) ?? false,
             linkUrl: (n.link_url as string | null) || undefined,
+            views: (n.views as number) ?? 0,
           }))
           .sort((a, b) => {
             const sa = a.sortOrder ?? a.createdAt;
@@ -2616,6 +2618,18 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const incrementNoticeViews = useCallback(
+    (noticeId: string) => {
+      setNotices((prev) => prev.map((n) => n.id === noticeId ? { ...n, views: (n.views ?? 0) + 1 } : n));
+      if (supabaseConfigured) {
+        supabase.rpc('increment_notice_views', { p_notice_id: noticeId }).then(({ error }) => {
+          if (error) console.error('[incrementNoticeViews]', error.message);
+        });
+      }
+    },
+    [],
+  );
+
   const [noticeComments, setNoticeComments] = useState<NoticeComment[]>([]);
 
   const loadNoticeComments = useCallback(async (noticeId: string) => {
@@ -3122,6 +3136,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     addAdminNoticeComment,
     deleteAdminNoticeComment,
     deleteNoticeComment,
+    incrementNoticeViews,
     createGalleryItem,
     deleteGalleryItem,
     toggleGalleryFeatured,

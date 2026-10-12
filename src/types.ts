@@ -126,6 +126,7 @@ export interface Notice {
   imageUrl?: string;
   isMustRead?: boolean;
   linkUrl?: string;
+  views?: number;
 }
 
 export interface NoticeComment {

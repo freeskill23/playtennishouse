@@ -11,6 +11,7 @@ import {
   Trash2,
   ShieldAlert,
   ExternalLink,
+  Eye,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -29,7 +30,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 export function NoticesScreen() {
-  const { notices, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment } = useApp();
+  const { notices, noticeComments, loadNoticeComments, addNoticeComment, deleteNoticeComment, incrementNoticeViews } = useApp();
   const { user, isGuest } = useAuth();
   const [selected, setSelected] = useState<Notice | null>(null);
   const [filter, setFilter] = useState<NoticeType | 'all'>('all');
@@ -42,8 +43,9 @@ export function NoticesScreen() {
     if (selected) {
       setCommentText('');
       void loadNoticeComments(selected.id);
+      incrementNoticeViews(selected.id);
     }
-  }, [selected, loadNoticeComments]);
+  }, [selected, loadNoticeComments, incrementNoticeViews]);
 
   const handleAddComment = async () => {
     if (!selected || !commentText.trim()) return;
@@ -92,6 +94,9 @@ export function NoticesScreen() {
                   <span className={`chip ${NOTICE_META[n.type].cls}`}>{n.type}</span>
                   <p className="font-bold text-navy-900 truncate">{n.title}</p>
                   <p className="text-xs text-slate-500 line-clamp-1">{n.content}</p>
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <Eye size={11} /> {n.views ?? 0}
+                  </div>
                 </div>
                 {n.imageUrl && (
                   <img
@@ -119,6 +124,9 @@ export function NoticesScreen() {
               <span className={`chip ${NOTICE_META[selected.type].cls}`}>{selected.type}</span>
               <span className="text-xs text-slate-400">
                 {new Date(selected.createdAt).toLocaleDateString('ko-KR')}
+              </span>
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <Eye size={12} /> {selected.views ?? 0}
               </span>
             </div>
             {selected.imageUrl && (
