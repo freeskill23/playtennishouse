@@ -16,6 +16,8 @@ import {
   Megaphone,
   Target,
   KeyRound,
+  ChevronRight,
+  ArrowLeft,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -254,6 +256,7 @@ export function AdminAnalyticsScreen() {
   const [todayVisitorLogs, setTodayVisitorLogs] = useState<RawLog[]>([]);
   const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
   const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedVisitorKey, setSelectedVisitorKey] = useState<string | null>(null);
 
   const fetchLogs = useCallback(async () => {
     if (!supabaseConfigured) return;
@@ -899,7 +902,7 @@ export function AdminAnalyticsScreen() {
       {/* Today visitors detail modal */}
       <Modal
         open={detailModal === 'todayVisitors'}
-        onClose={() => setDetailModal(null)}
+        onClose={() => { setDetailModal(null); setSelectedVisitorKey(null); }}
         title="오늘 방문자 내역"
         size="lg"
       >
@@ -914,45 +917,106 @@ export function AdminAnalyticsScreen() {
             description="방문 기록이 여기에 표시됩니다."
           />
         ) : (
-          <div className="space-y-1">
-            <p className="text-xs text-slate-400 mb-3">오늘 방문 {todayVisitorLogs.length}건 (최대 1000건)</p>
-            {todayVisitorLogs.map((log) => (
-              <div
-                key={log.id}
-                className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 transition"
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${log.is_member ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
-                  {log.is_member ? <Users size={14} /> : <Globe size={14} />}
+          (() => {
+            const pageLabelMap: Record<string, string> = {
+              home: '홈', pension: '펜션', court: '코트대관', matching: '매칭',
+              notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
+            };
+            const visitorKey = (log: RawLog) => log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`;
+            if (selectedVisitorKey) {
+              const visitorLogs = todayVisitorLogs.filter((l) => visitorKey(l) === selectedVisitorKey);
+              const firstName = visitorLogs[0]?.is_member && visitorLogs[0]?.user_name ? visitorLogs[0].user_name : '비회원';
+              const isMember = visitorLogs[0]?.is_member ?? false;
+              return (
+                <div className="space-y-1">
+                  <button
+                    onClick={() => setSelectedVisitorKey(null)}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-navy-700 hover:text-navy-900 transition mb-3"
+                  >
+                    <ArrowLeft size={16} /> 목록으로
+                  </button>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isMember ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {isMember ? firstName.charAt(0) : <Globe size={16} />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-navy-900">
+                        {firstName}
+                        <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${isMember ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {isMember ? '회원' : '비회원'}
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-slate-400">오늘 방문 {visitorLogs.length}회 · 7일 {visitorWeekCounts.get(selectedVisitorKey) || 0}회</p>
+                    </div>
+                  </div>
+                  <div className="relative pl-4 space-y-0">
+                    {visitorLogs.map((log, idx) => (
+                      <div key={log.id} className="relative flex gap-3 pb-3">
+                        {idx < visitorLogs.length - 1 && (
+                          <div className="absolute left-[3px] top-5 bottom-0 w-px bg-slate-200" />
+                        )}
+                        <div className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 z-10 ${isMember ? 'bg-green-400' : 'bg-slate-300'}`} />
+                        <div className="flex-1 min-w-0 -mt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-navy-900">{pageLabelMap[log.page] || log.page}</span>
+                            <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                              <Clock size={10} />
+                              {new Date(log.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}{log.ad_platform ? ` \u00b7 ${formatAdPlatform(log.ad_platform)}` : ''}{log.utm_campaign ? ` \u00b7 ${log.utm_campaign}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-navy-900">
-                    {log.is_member && log.user_name ? log.user_name : log.page}
-                    {log.is_member && log.user_name && (
-                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-600">
-                        {log.page}
-                      </span>
-                    )}
-                    <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${log.is_member ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
-                      {log.is_member ? '회원' : '비회원'}
-                    </span>
-                    <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600" title="최근 7일 접속 횟수">
-                      7일 {visitorWeekCounts.get(log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`) || 0}회
-                    </span>
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">
-                    {log.is_member && log.user_name ? log.page : formatReferrer(log.referrer)}{log.search_keyword ? ` \u00b7 "${log.search_keyword}"` : ''}{log.ad_platform ? ` \u00b7 ${formatAdPlatform(log.ad_platform)}` : ''}{log.utm_campaign ? ` \u00b7 ${log.utm_campaign}` : ''}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
-                  <Clock size={12} />
-                  {new Date(log.created_at).toLocaleString('ko-KR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
+              );
+            }
+            const grouped = new Map<string, { logs: RawLog[]; isMember: boolean; name: string }>();
+            for (const log of todayVisitorLogs) {
+              const key = visitorKey(log);
+              if (!grouped.has(key)) grouped.set(key, { logs: [], isMember: log.is_member, name: log.is_member && log.user_name ? log.user_name : '비회원' });
+              grouped.get(key)!.logs.push(log);
+            }
+            const visitors = Array.from(grouped.entries()).map(([key, v]) => ({ key, ...v })).sort((a, b) => b.logs.length - a.logs.length);
+            return (
+              <div className="space-y-1">
+                <p className="text-xs text-slate-400 mb-3">오늘 방문자 {visitors.length}명 · 총 {todayVisitorLogs.length}건 (최대 1000건)</p>
+                {visitors.map((v) => (
+                  <button
+                    key={v.key}
+                    onClick={() => setSelectedVisitorKey(v.key)}
+                    className="w-full flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 transition text-left"
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${v.isMember ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {v.isMember ? <Users size={14} /> : <Globe size={14} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-navy-900">
+                        {v.name}
+                        <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${v.isMember ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {v.isMember ? '회원' : '비회원'}
+                        </span>
+                        <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600" title="최근 7일 접속 횟수">
+                          7일 {visitorWeekCounts.get(v.key) || 0}회
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        오늘 {v.logs.length}회 · {pageLabelMap[v.logs[0].page] || v.logs[0].page}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+                      <Clock size={12} />
+                      {new Date(v.logs[0].created_at).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <ChevronRight size={16} className="text-slate-300 shrink-0" />
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()
         )}
       </Modal>
 
