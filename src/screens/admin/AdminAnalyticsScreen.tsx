@@ -987,7 +987,11 @@ export function AdminAnalyticsScreen() {
               if (!grouped.has(key)) grouped.set(key, { logs: [], isMember: log.is_member, name: log.is_member && log.user_name ? log.user_name : '비회원' });
               grouped.get(key)!.logs.push(log);
             }
-            const visitors = Array.from(grouped.entries()).map(([key, v]) => ({ key, ...v })).sort((a, b) => b.logs.length - a.logs.length);
+            const visitors = Array.from(grouped.entries()).map(([key, v]) => ({ key, ...v })).sort((a, b) => {
+              const aTime = new Date(a.logs[0].created_at).getTime();
+              const bTime = new Date(b.logs[0].created_at).getTime();
+              return bTime - aTime;
+            });
             return (
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-3">
