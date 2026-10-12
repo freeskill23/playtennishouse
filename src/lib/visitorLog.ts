@@ -3,7 +3,7 @@ import { supabase, supabaseConfigured } from './supabase';
 const SESSION_KEY = 'pth_session_id';
 const PAGE_VISIT_KEY = 'pth_last_visit';
 const CAMPAIGN_KEY = 'pth_campaign';
-const VISIT_COOLDOWN_MS = 30 * 60 * 1000; // 30 min — don't re-log same page within this window
+const VISIT_COOLDOWN_MS = 5 * 60 * 1000; // 5 min — don't re-log same page within this window
 
 function getSessionId(): string {
   let id = localStorage.getItem(SESSION_KEY);

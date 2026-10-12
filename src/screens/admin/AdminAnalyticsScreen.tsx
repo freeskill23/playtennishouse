@@ -948,6 +948,13 @@ export function AdminAnalyticsScreen() {
                       </p>
                       <p className="text-[11px] text-slate-400">오늘 방문 {visitorLogs.length}회 · 7일 {visitorWeekCounts.get(selectedVisitorKey) || 0}회</p>
                     </div>
+                    <button
+                      onClick={openTodayVisitors}
+                      className="ml-auto rounded-lg p-1.5 bg-white border border-slate-200 text-navy-700 hover:bg-slate-50 transition"
+                      aria-label="새로고침"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
                   </div>
                   <div className="relative pl-4 space-y-0">
                     {visitorLogs.map((log, idx) => (
@@ -983,7 +990,16 @@ export function AdminAnalyticsScreen() {
             const visitors = Array.from(grouped.entries()).map(([key, v]) => ({ key, ...v })).sort((a, b) => b.logs.length - a.logs.length);
             return (
               <div className="space-y-1">
-                <p className="text-xs text-slate-400 mb-3">오늘 방문자 {visitors.length}명 · 총 {todayVisitorLogs.length}건 (최대 1000건)</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-slate-400">오늘 방문자 {visitors.length}명 · 총 {todayVisitorLogs.length}건 (최대 1000건)</p>
+                  <button
+                    onClick={openTodayVisitors}
+                    className="rounded-lg p-1.5 bg-white border border-slate-200 text-navy-700 hover:bg-slate-50 transition"
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                </div>
                 {visitors.map((v) => (
                   <button
                     key={v.key}
