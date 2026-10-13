@@ -94,6 +94,7 @@ export interface EventParticipant {
   playerName2: string | null; // 복식 파트너
   depositorName: string;
   depositorPhone: string | null;
+  refundAccount: string | null;
   status: '입금대기' | '참가' | '대기' | '취소';
   createdAt: number;
 }

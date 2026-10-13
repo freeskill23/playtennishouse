@@ -54,6 +54,7 @@ export function EventScreen() {
   const [playerName2, setPlayerName2] = useState('');
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
+  const [refundAccount, setRefundAccount] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [appliedEventIds, setAppliedEventIds] = useState<Set<string>>(new Set());
@@ -166,6 +167,7 @@ export function EventScreen() {
         playerName2: (r.player_name2 as string | null) || null,
         depositorName: (r.depositor_name as string) || '',
         depositorPhone: (r.depositor_phone as string) || null,
+        refundAccount: (r.refund_account as string) || null,
         status: r.status as EventParticipant['status'],
         createdAt: r.created_at as number,
       })));
@@ -203,6 +205,10 @@ export function EventScreen() {
       setError('입금자명을 입력해주세요.');
       return;
     }
+    if (!refundAccount.trim()) {
+      setError('환불받을 계좌번호를 입력해주세요.');
+      return;
+    }
     if (isGuest && !depositorPhone.trim()) {
       setError('연락처를 입력해주세요.');
       return;
@@ -234,6 +240,7 @@ export function EventScreen() {
       player_name2: selectedEvent.gameType === 'doubles' ? playerName2.trim() : null,
       depositor_name: depositorName.trim(),
       depositor_phone: isGuest ? depositorPhone.trim() : null,
+      refund_account: refundAccount.trim(),
       status,
     });
 
@@ -250,6 +257,7 @@ export function EventScreen() {
     setPlayerName2('');
     setDepositorName('');
     setDepositorPhone('');
+    setRefundAccount('');
     setAppliedEventIds((prev) => new Set([...prev, selectedEvent.id]));
     void openDetail(selectedEvent);
     void loadEvents();
@@ -418,7 +426,7 @@ export function EventScreen() {
                   ) : null}
                 </div>
                 {ev.description && (
-                  <p className="mt-3 text-xs text-slate-500 line-clamp-2">{ev.description}</p>
+                  <p className="mt-3 text-xs text-slate-500 line-clamp-2 whitespace-pre-line">{ev.description}</p>
                 )}
                 <div className="mt-3 flex items-center justify-between">
                   {alreadyApplied ? (
@@ -495,7 +503,7 @@ export function EventScreen() {
 
                 {selectedEvent.description && (
                   <div className="rounded-xl border border-slate-100 px-4 py-3">
-                    <p className="text-sm text-slate-600">{selectedEvent.description}</p>
+                    <p className="text-sm text-slate-600 whitespace-pre-line">{selectedEvent.description}</p>
                   </div>
                 )}
 
@@ -665,6 +673,16 @@ export function EventScreen() {
               placeholder="입금자명"
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
             />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">환불 계좌</label>
+            <input
+              value={refundAccount}
+              onChange={(e) => setRefundAccount(e.target.value)}
+              placeholder="은행명 계좌번호 예금주"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
+            />
+            <p className="text-xs text-slate-400 mt-1">취소 시 환불을 위한 계좌를 입력해주세요.</p>
           </div>
           {isGuest && (
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
