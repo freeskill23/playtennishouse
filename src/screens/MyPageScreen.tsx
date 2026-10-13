@@ -4,11 +4,9 @@ import {
   CalendarRange,
   Users,
   Clock,
-  Phone,
   Plus,
   Hand,
   CheckCircle2,
-  XCircle,
   LogOut,
   Pencil,
   KeyRound,
@@ -66,7 +64,6 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
     reservations,
     matchingPosts,
     createMatchingPostFromReservation,
-    getUser,
     updateCurrentUser,
     bankAccount,
     cancelReservation,
@@ -148,12 +145,6 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
   };
 
   const myReservations = reservations.filter((r) => r.userId === currentUser.id);
-  const myMatchings = matchingPosts
-    .filter((m) => m.userId === currentUser.id)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const myAppliedMatchings = matchingPosts
-    .filter((m) => m.applications.some((a) => a.userId === currentUser.id))
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   // Group reservations by date + targetLabel (e.g. 7/17 A코트) so consecutive slots collapse into one row
   const groupKey = (r: Reservation) => `${r.date}|${r.targetLabel}|${r.type}|${r.matchingPostId || ''}|${r.batchId || ''}`;
@@ -517,76 +508,6 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
           </div>
         </div>
       )}
-
-      {/* My matchings */}
-      <div>
-        <SectionTitle title="내 매칭" subtitle="내가 모집한 / 신청한 매칭" />
-        {myMatchings.length === 0 && myAppliedMatchings.length === 0 ? (
-          <EmptyState icon={<Users size={28} />} title="매칭 내역이 없어요" />
-        ) : (
-          <div className="space-y-2">
-            {myMatchings.map((m) => (
-              <div key={m.id} className="card p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-navy-900">{m.court} · {timeWithDuration(m.time)}</p>
-                    <p className="text-xs text-slate-500">{m.date} · {m.applications.length}명 신청</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {isBatchEnded(m.date, m.time) && (
-                      <span className="chip bg-slate-100 text-slate-500"><Clock size={12} /> 이용시간이 종료</span>
-                    )}
-                    <span className={`chip ${m.status === '모집중' ? 'bg-volt-100 text-volt-800' : 'bg-slate-100 text-slate-600'}`}>{m.status}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {myAppliedMatchings.filter((m) => m.userId !== currentUser.id).map((m) => {
-              const myApp = m.applications.find((a) => a.userId === currentUser.id);
-              const host = getUser(m.userId);
-              return (
-                <div key={m.id} className="card p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-navy-900">{host?.name}님 매칭 · {m.court}</p>
-                      <p className="text-xs text-slate-500">{m.date} {timeWithDuration(m.time)}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {isBatchEnded(m.date, m.time) && (
-                        <span className="chip bg-slate-100 text-slate-500"><Clock size={12} /> 이용시간이 종료</span>
-                      )}
-                      {myApp?.status === '승인' ? (
-                        <span className="chip bg-volt-100 text-volt-800"><CheckCircle2 size={12} /> 승인</span>
-                      ) : myApp?.status === '거절' ? (
-                        <span className="chip bg-rose-100 text-rose-700"><XCircle size={12} /> 거절</span>
-                      ) : (
-                        <span className="chip bg-amber-100 text-amber-700"><Clock size={12} /> 대기</span>
-                      )}
-                    </div>
-                  </div>
-                  {myApp?.status === '거절' && (
-                    <div className="mt-3 pt-3 border-t border-slate-100">
-                      <div className="rounded-xl bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
-                        {myApp.rejectReason ? (
-                          <><span className="font-bold">거절 사유: </span>{myApp.rejectReason}</>
-                        ) : (
-                          <span className="text-rose-600">거절된 매칭입니다.</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {myApp?.status === '승인' && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-sm">
-                      <Phone size={14} className="text-volt-700" />
-                      <span className="font-bold text-navy-900">{host?.phone}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {/* Matching form */}
       <Modal
