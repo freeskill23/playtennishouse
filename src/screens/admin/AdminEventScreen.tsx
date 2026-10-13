@@ -1,0 +1,872 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Trophy,
+  Plus,
+  Calendar as CalendarIcon,
+  Clock,
+  Users,
+  Trash2,
+  CheckCircle2,
+  X,
+  Loader2,
+  AlertTriangle,
+  Medal,
+  Edit3,
+  ClipboardList,
+} from 'lucide-react';
+import { supabase, supabaseConfigured } from '../../lib/supabase';
+import { Calendar, todayYMD, addDaysToYMD } from '../../components/Calendar';
+import { Modal } from '../../components/Modal';
+import { EmptyState } from '../../components/ui';
+import type { GameDayEvent, EventParticipant, EventMatch, EventGameType, CourtName } from '../../types';
+
+const COURTS: CourtName[] = ['A코트', 'B코트'];
+
+const GAME_TYPE_LABEL: Record<EventGameType, string> = {
+  singles: '단식',
+  doubles: '복식',
+};
+
+const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  모집중: { label: '모집중', cls: 'bg-green-100 text-green-700' },
+  대기모집: { label: '대기신청', cls: 'bg-amber-100 text-amber-700' },
+  대진완료: { label: '대진완료', cls: 'bg-sky-100 text-sky-700' },
+  진행중: { label: '진행중', cls: 'bg-volt-100 text-volt-800' },
+  종료: { label: '종료', cls: 'bg-navy-100 text-navy-700' },
+  취소: { label: '취소', cls: 'bg-rose-100 text-rose-600' },
+};
+
+const HOURS = Array.from({ length: 20 }, (_, i) => i + 5); // 5~24
+
+function formatHour(h: number) {
+  return `${String(h).padStart(2, '0')}:00`;
+}
+
+interface AdminEventWithCounts extends GameDayEvent {
+  participantCount: number;
+  waitingCount: number;
+}
+
+export function AdminEventScreen() {
+  const [events, setEvents] = useState<AdminEventWithCounts[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createModal, setCreateModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<GameDayEvent | null>(null);
+  const [detailEvent, setDetailEvent] = useState<GameDayEvent | null>(null);
+  const [participants, setParticipants] = useState<EventParticipant[]>([]);
+  const [matches, setMatches] = useState<EventMatch[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Create form state
+  const [title, setTitle] = useState('');
+  const [gameType, setGameType] = useState<EventGameType>('doubles');
+  const [date, setDate] = useState(todayYMD());
+  const [startHour, setStartHour] = useState(9);
+  const [endHour, setEndHour] = useState(18);
+  const [court, setCourt] = useState<CourtName>('A코트');
+  const [maxTeams, setMaxTeams] = useState(8);
+  const [minTeams, setMinTeams] = useState(4);
+  const [fee, setFee] = useState(0);
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Score editing
+  const [scoreEdit, setScoreEdit] = useState<string | null>(null);
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+
+  const loadEvents = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data, error } = await supabase
+      .from('game_day_events')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) {
+      console.error('[loadEvents]', error.message);
+      return;
+    }
+    if (!data) { setLoading(false); return; }
+
+    const eventIds = (data as Record<string, unknown>[]).map((r) => r.id as string);
+    let pCounts: Record<string, { 참가: number; 대기: number }> = {};
+    if (eventIds.length > 0) {
+      const { data: pData } = await supabase
+        .from('game_day_participants')
+        .select('event_id, status')
+        .in('event_id', eventIds);
+      if (pData) {
+        for (const p of pData as Record<string, unknown>[]) {
+          const eid = p.event_id as string;
+          const st = p.status as string;
+          if (!pCounts[eid]) pCounts[eid] = { 참가: 0, 대기: 0 };
+          if (st === '참가') pCounts[eid].참가++;
+          else if (st === '대기') pCounts[eid].대기++;
+        }
+      }
+    }
+
+    const enriched: AdminEventWithCounts[] = (data as Record<string, unknown>[]).map((r) => {
+      const ev: GameDayEvent = {
+        id: r.id as string,
+        title: r.title as string,
+        gameType: r.game_type as EventGameType,
+        date: typeof r.date === 'string' ? r.date : new Date(r.date as string).toISOString().slice(0, 10),
+        startTime: r.start_time as string,
+        endTime: r.end_time as string,
+        court: r.court as CourtName,
+        maxTeams: r.max_teams as number,
+        minTeams: r.min_teams as number,
+        fee: r.fee as number,
+        description: r.description as string,
+        status: r.status as GameDayEvent['status'],
+        bracketGeneratedAt: r.bracket_generated_at as number | null,
+        createdAt: r.created_at as number,
+      };
+      const counts = pCounts[ev.id] || { 참가: 0, 대기: 0 };
+      return { ...ev, participantCount: counts.참가, waitingCount: counts.대기 };
+    });
+    setEvents(enriched);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadEvents();
+    if (supabaseConfigured) {
+      const channel = supabase
+        .channel('admin_game_day_events_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_events' }, () => loadEvents())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_participants' }, () => loadEvents())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_matches' }, () => { if (detailEvent) loadDetail(detailEvent.id); })
+        .subscribe();
+      return () => { supabase.removeChannel(channel); };
+    }
+  }, [loadEvents, detailEvent]);
+
+  const loadDetail = async (eventId: string) => {
+    setDetailLoading(true);
+    const [pRes, mRes] = await Promise.all([
+      supabase.from('game_day_participants').select('*').eq('event_id', eventId).order('created_at', { ascending: true }),
+      supabase.from('game_day_matches').select('*').eq('event_id', eventId).order('round', { ascending: true }),
+    ]);
+    if (pRes.data) {
+      setParticipants((pRes.data as Record<string, unknown>[]).map((r) => ({
+        id: r.id as string,
+        eventId: r.event_id as string,
+        userId: r.user_id as string,
+        playerName: r.player_name as string,
+        playerName2: (r.player_name2 as string | null) || null,
+        depositorName: (r.depositor_name as string) || '',
+        depositorPhone: (r.depositor_phone as string) || null,
+        status: r.status as EventParticipant['status'],
+        createdAt: r.created_at as number,
+      })));
+    }
+    if (mRes.data) {
+      setMatches((mRes.data as Record<string, unknown>[]).map((r) => ({
+        id: r.id as string,
+        eventId: r.event_id as string,
+        round: r.round as number,
+        teamA: r.team_a as string[],
+        teamB: r.team_b as string[],
+        scoreA: (r.score_a as number | null) ?? null,
+        scoreB: (r.score_b as number | null) ?? null,
+        winner: (r.winner as 'A' | 'B' | 'draw' | null) ?? null,
+      })));
+    }
+    setDetailLoading(false);
+  };
+
+  const openDetail = async (ev: GameDayEvent) => {
+    setDetailEvent(ev);
+    void loadDetail(ev.id);
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setGameType('doubles');
+    setDate(todayYMD());
+    setStartHour(9);
+    setEndHour(18);
+    setCourt('A코트');
+    setMaxTeams(8);
+    setMinTeams(4);
+    setFee(0);
+    setDescription('');
+    setError(null);
+    setEditTarget(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setCreateModal(true);
+  };
+
+  const openEdit = (ev: GameDayEvent) => {
+    setEditTarget(ev);
+    setTitle(ev.title);
+    setGameType(ev.gameType);
+    setDate(ev.date);
+    setStartHour(parseInt(ev.startTime.slice(0, 2), 10) || 9);
+    setEndHour(parseInt(ev.endTime.slice(0, 2), 10) || 18);
+    setCourt(ev.court);
+    setMaxTeams(ev.maxTeams);
+    setMinTeams(ev.minTeams);
+    setFee(ev.fee);
+    setDescription(ev.description);
+    setCreateModal(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim()) { setError('타이틀을 입력해주세요.'); return; }
+    if (maxTeams < 2) { setError('최대 팀 수는 2 이상이어야 합니다.'); return; }
+    if (minTeams < 0) { setError('최소 팀 수는 0 이상이어야 합니다.'); return; }
+
+    setSubmitting(true);
+    setError(null);
+
+    if (editTarget) {
+      const { error: updateError } = await supabase
+        .from('game_day_events')
+        .update({
+          title: title.trim(),
+          game_type: gameType,
+          date,
+          start_time: formatHour(startHour),
+          end_time: formatHour(endHour),
+          court,
+          max_teams: maxTeams,
+          min_teams: minTeams,
+          fee,
+          description: description.trim(),
+        })
+        .eq('id', editTarget.id);
+      setSubmitting(false);
+      if (updateError) { setError(updateError.message); return; }
+    } else {
+      const newId = `gd_${Math.random().toString(36).slice(2, 9)}`;
+      const { error: insertError } = await supabase.from('game_day_events').insert({
+        id: newId,
+        title: title.trim(),
+        game_type: gameType,
+        date,
+        start_time: formatHour(startHour),
+        end_time: formatHour(endHour),
+        court,
+        max_teams: maxTeams,
+        min_teams: minTeams,
+        fee,
+        description: description.trim(),
+        status: '모집중',
+        created_at: Date.now(),
+      });
+      setSubmitting(false);
+      if (insertError) { setError(insertError.message); return; }
+    }
+
+    setCreateModal(false);
+    resetForm();
+    void loadEvents();
+  };
+
+  const handleDelete = async (ev: GameDayEvent) => {
+    if (!confirm(`"${ev.title}" 이벤트를 삭제하시겠습니까?`)) return;
+    await supabase.from('game_day_events').delete().eq('id', ev.id);
+    void loadEvents();
+  };
+
+  const handleCancelEvent = async (ev: GameDayEvent) => {
+    if (!confirm(`"${ev.title}" 이벤트를 취소하시겠습니까? 참가자들에게 환불 처리가 필요합니다.`)) return;
+    await supabase.from('game_day_events').update({ status: '취소' }).eq('id', ev.id);
+    void loadEvents();
+  };
+
+  const handlePromoteParticipant = async (p: EventParticipant) => {
+    await supabase.from('game_day_participants').update({ status: '참가' }).eq('id', p.id);
+    if (detailEvent) void loadDetail(detailEvent.id);
+    void loadEvents();
+  };
+
+  const handleRemoveParticipant = async (p: EventParticipant) => {
+    await supabase.from('game_day_participants').update({ status: '취소' }).eq('id', p.id);
+    // Promote first waiting
+    const waiting = participants.filter((pp) => pp.status === '대기' && pp.id !== p.id);
+    if (waiting.length > 0) {
+      await supabase.from('game_day_participants').update({ status: '참가' }).eq('id', waiting[0].id);
+    }
+    if (detailEvent) void loadDetail(detailEvent.id);
+    void loadEvents();
+  };
+
+  // Generate bracket: each team plays 4 games, round-robin style
+  const generateBracket = async (ev: GameDayEvent) => {
+    const confirmed = participants.filter((p) => p.status === '참가');
+    if (confirmed.length < 2) {
+      alert('참가 팀이 2팀 이상이어야 대진표를 생성할 수 있습니다.');
+      return;
+    }
+
+    // Check if it's 2 days before the event
+    const eventDate = new Date(ev.date + 'T00:00:00');
+    const now = new Date();
+    const diffDays = Math.floor((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 2) {
+      if (!confirm('아직 이벤트 2일 전이 아닙니다. 그래도 대진표를 생성하시겠습니까?')) return;
+    }
+
+    // Delete existing matches
+    await supabase.from('game_day_matches').delete().eq('event_id', ev.id);
+
+    // Generate 4 rounds of round-robin matches
+    // For N teams, we need to create matches so each team plays exactly 4 games
+    // Simple approach: create all unique pairs, then select 4 per team
+    const teamIds = confirmed.map((p) => p.id);
+    const allPairs: [string, string][] = [];
+    for (let i = 0; i < teamIds.length; i++) {
+      for (let j = i + 1; j < teamIds.length; j++) {
+        allPairs.push([teamIds[i], teamIds[j]]);
+      }
+    }
+
+    // If 4 or fewer teams, use round-robin (each plays each other once or twice to get 4 games)
+    // If more than 5 teams, assign 4 random unique opponents per team
+    const matchesToCreate: { teamA: string[]; teamB: string[]; round: number }[] = [];
+    const gamesPerTeam = new Map<string, number>();
+    for (const id of teamIds) gamesPerTeam.set(id, 0);
+
+    let round = 1;
+    const usedPairs = new Set<string>();
+
+    // Keep creating matches until every team has 4 games or we run out of pairs
+    while (Array.from(gamesPerTeam.values()).some((v) => v < 4) && allPairs.length > usedPairs.size) {
+      let bestPair: [string, string] | null = null;
+      let bestScore = Infinity;
+
+      for (const [a, b] of allPairs) {
+        const key = `${a}|${b}`;
+        if (usedPairs.has(key)) continue;
+        const ga = gamesPerTeam.get(a) || 0;
+        const gb = gamesPerTeam.get(b) || 0;
+        if (ga >= 4 && gb >= 4) continue;
+        const score = Math.max(ga, gb);
+        if (score < bestScore) {
+          bestScore = score;
+          bestPair = [a, b];
+        }
+      }
+
+      if (!bestPair) break;
+      const key = `${bestPair[0]}|${bestPair[1]}`;
+      usedPairs.add(key);
+      matchesToCreate.push({ teamA: [bestPair[0]], teamB: [bestPair[1]], round });
+      gamesPerTeam.set(bestPair[0], (gamesPerTeam.get(bestPair[0]) || 0) + 1);
+      gamesPerTeam.set(bestPair[1], (gamesPerTeam.get(bestPair[1]) || 0) + 1);
+      round = Math.floor(matchesToCreate.length / Math.ceil(teamIds.length / 2)) + 1;
+    }
+
+    // Assign rounds sequentially, max 1 game per team per round
+    const teamLastRound = new Map<string, number>();
+    let currentRound = 1;
+    for (const m of matchesToCreate) {
+      const lastA = teamLastRound.get(m.teamA[0]) || 0;
+      const lastB = teamLastRound.get(m.teamB[0]) || 0;
+      const minRound = Math.max(lastA, lastB) + 1;
+      m.round = minRound;
+      teamLastRound.set(m.teamA[0], minRound);
+      teamLastRound.set(m.teamB[0], minRound);
+    }
+
+    for (const m of matchesToCreate) {
+      const matchId = `gm_${Math.random().toString(36).slice(2, 9)}`;
+      await supabase.from('game_day_matches').insert({
+        id: matchId,
+        event_id: ev.id,
+        round: m.round,
+        team_a: m.teamA,
+        team_b: m.teamB,
+        score_a: null,
+        score_b: null,
+        winner: null,
+      });
+    }
+
+    await supabase.from('game_day_events').update({
+      status: '대진완료',
+      bracket_generated_at: Date.now(),
+    }).eq('id', ev.id);
+
+    if (detailEvent) void loadDetail(ev.id);
+    void loadEvents();
+    alert('대진표가 생성되었습니다!');
+  };
+
+  const handleSaveScore = async (matchId: string) => {
+    const a = parseInt(scoreA, 10);
+    const b = parseInt(scoreB, 10);
+    if (isNaN(a) || isNaN(b)) {
+      alert('점수를 올바르게 입력해주세요.');
+      return;
+    }
+    const winner = a > b ? 'A' : b > a ? 'B' : 'draw';
+    await supabase.from('game_day_matches').update({
+      score_a: a,
+      score_b: b,
+      winner,
+    }).eq('id', matchId);
+    setScoreEdit(null);
+    setScoreA('');
+    setScoreB('');
+    if (detailEvent) void loadDetail(detailEvent.id);
+  };
+
+  const handleFinishEvent = async (ev: GameDayEvent) => {
+    if (!confirm('이벤트를 종료 처리하시겠습니까?')) return;
+    await supabase.from('game_day_events').update({ status: '종료' }).eq('id', ev.id);
+    void loadEvents();
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' });
+  };
+
+  // Rankings
+  const rankings = (() => {
+    if (matches.length === 0 || participants.length === 0) return [];
+    const scores = new Map<string, { wins: number; pointDiff: number; name: string }>();
+    for (const p of participants) {
+      if (p.status === '참가') {
+        const name = p.playerName2 ? `${p.playerName}·${p.playerName2}` : p.playerName;
+        scores.set(p.id, { wins: 0, pointDiff: 0, name });
+      }
+    }
+    for (const m of matches) {
+      if (m.winner === null || m.scoreA === null || m.scoreB === null) continue;
+      for (const pid of m.teamA) {
+        const s = scores.get(pid);
+        if (s) {
+          if (m.winner === 'A') s.wins++;
+          s.pointDiff += m.scoreA - m.scoreB;
+        }
+      }
+      for (const pid of m.teamB) {
+        const s = scores.get(pid);
+        if (s) {
+          if (m.winner === 'B') s.wins++;
+          s.pointDiff += m.scoreB - m.scoreA;
+        }
+      }
+    }
+    return Array.from(scores.entries())
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
+  })();
+
+  const detailEventWithCounts = detailEvent ? events.find((e) => e.id === detailEvent.id) : null;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-navy-900 flex items-center gap-1.5">
+          <Trophy size={22} className="text-amber-500" />
+          게임데이 관리
+        </h2>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-800 transition"
+        >
+          <Plus size={16} />
+          게임데이 생성
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-slate-300" />
+        </div>
+      ) : events.length === 0 ? (
+        <EmptyState
+          icon={<Trophy size={28} />}
+          title="게임데이가 없습니다"
+          description="새로운 게임데이를 생성해주세요."
+          action={
+            <button onClick={openCreate} className="px-4 py-2 rounded-xl bg-green-700 text-white text-sm font-bold hover:bg-green-800 transition">
+              게임데이 생성
+            </button>
+          }
+        />
+      ) : (
+        <div className="space-y-3">
+          {events.map((ev) => {
+            const st = STATUS_LABEL[ev.status] || STATUS_LABEL['모집중'];
+            return (
+              <div key={ev.id} className="card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-navy-900 text-lg">{ev.title}</p>
+                      <span className={`chip ${st.cls}`}>{st.label}</span>
+                      <span className="chip bg-slate-100 text-slate-600">{GAME_TYPE_LABEL[ev.gameType]}</span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                      <span className="flex items-center gap-1"><CalendarIcon size={13} />{formatDate(ev.date)}</span>
+                      <span className="flex items-center gap-1"><Clock size={13} />{ev.startTime}~{ev.endTime}</span>
+                      <span className="flex items-center gap-1">{ev.court}</span>
+                      <span className="flex items-center gap-1"><Users size={13} />{ev.participantCount}/{ev.maxTeams}팀{ev.waitingCount > 0 && ` (대기${ev.waitingCount})`}</span>
+                      {ev.fee > 0 && <span>{ev.fee.toLocaleString()}원</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => openEdit(ev)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition" title="수정">
+                      <Edit3 size={16} />
+                    </button>
+                    <button onClick={() => openDetail(ev)} className="rounded-lg p-2 text-navy-600 hover:bg-navy-50 transition" title="상세관리">
+                      <ClipboardList size={16} />
+                    </button>
+                    {ev.status !== '취소' && ev.status !== '종료' && (
+                      <button onClick={() => handleCancelEvent(ev)} className="rounded-lg p-2 text-amber-500 hover:bg-amber-50 transition" title="이벤트 취소">
+                        <AlertTriangle size={16} />
+                      </button>
+                    )}
+                    <button onClick={() => handleDelete(ev)} className="rounded-lg p-2 text-rose-500 hover:bg-rose-50 transition" title="삭제">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                {ev.minTeams > 0 && ev.participantCount < ev.minTeams && ev.status === '모집중' && (
+                  <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700">
+                    최소 {ev.minTeams}팀 미달 — 마감 시 자동 취소 및 환불 처리 필요
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create/Edit modal */}
+      <Modal
+        open={createModal}
+        onClose={() => { setCreateModal(false); resetForm(); }}
+        title={editTarget ? '게임데이 수정' : '게임데이 생성'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">이벤트 타이틀</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="예: 남자복식데이, 여자단식데이, 혼성복식데이"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">게임 구분</label>
+            <div className="flex gap-2">
+              {(['singles', 'doubles'] as EventGameType[]).map((gt) => (
+                <button
+                  key={gt}
+                  onClick={() => setGameType(gt)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition ${
+                    gameType === gt ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {GAME_TYPE_LABEL[gt]}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              {gameType === 'singles' ? '참가자 1명 입력란이 표시됩니다.' : '참가자 2명(파트너) 입력란이 표시됩니다.'}
+            </p>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">날짜</label>
+            <Calendar
+              value={date}
+              onChange={(d) => setDate(d)}
+              minDate={todayYMD()}
+              maxDate={addDaysToYMD(90)}
+              compact
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-navy-800 block mb-1">시작 시간</label>
+              <select
+                value={startHour}
+                onChange={(e) => setStartHour(parseInt(e.target.value, 10))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+              >
+                {HOURS.filter((h) => h < endHour).map((h) => (
+                  <option key={h} value={h}>{formatHour(h)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-navy-800 block mb-1">종료 시간</label>
+              <select
+                value={endHour}
+                onChange={(e) => setEndHour(parseInt(e.target.value, 10))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+              >
+                {HOURS.filter((h) => h > startHour).map((h) => (
+                  <option key={h} value={h}>{formatHour(h)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">코트</label>
+            <div className="flex gap-2">
+              {COURTS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCourt(c)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition ${
+                    court === c ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-navy-800 block mb-1">최대 팀 수</label>
+              <input
+                type="number"
+                value={maxTeams}
+                onChange={(e) => setMaxTeams(parseInt(e.target.value, 10) || 0)}
+                min={2}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-navy-800 block mb-1">최소 팀 수</label>
+              <input
+                type="number"
+                value={minTeams}
+                onChange={(e) => setMinTeams(parseInt(e.target.value, 10) || 0)}
+                min={0}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+              />
+              <p className="text-xs text-rose-400 mt-0.5">미달 시 자동 취소·환불</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">참가비 (원)</label>
+            <input
+              type="number"
+              value={fee}
+              onChange={(e) => setFee(parseInt(e.target.value, 10) || 0)}
+              min={0}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">설명</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="이벤트 설명, 규칙, 준비물 등"
+              rows={3}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100 resize-none"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-600">
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full py-3 rounded-xl bg-green-700 text-white font-bold hover:bg-green-800 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {submitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+            {editTarget ? '수정하기' : '생성하기'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Detail management modal */}
+      <Modal
+        open={!!detailEvent}
+        onClose={() => setDetailEvent(null)}
+        title={detailEvent?.title || ''}
+        size="lg"
+      >
+        {detailEvent && (
+          <div className="space-y-4">
+            {detailLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-slate-300" />
+              </div>
+            ) : (
+              <>
+                {/* Participants management */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-navy-900 text-sm">참가 현황 ({detailEventWithCounts?.participantCount ?? 0}/{detailEvent.maxTeams}팀)</h4>
+                    {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
+                      <button
+                        onClick={() => generateBracket(detailEvent)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 transition"
+                      >
+                        <ClipboardList size={14} />
+                        대진표 생성
+                      </button>
+                    ) : null}
+                    {detailEvent.status === '대진완료' && (
+                      <button
+                        onClick={() => handleFinishEvent(detailEvent)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-navy-700 text-white text-xs font-bold hover:bg-navy-800 transition"
+                      >
+                        <CheckCircle2 size={14} />
+                        종료 처리
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {participants.filter((p) => p.status === '참가').map((p, idx) => (
+                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-green-50/50">
+                        <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-navy-900">
+                            {p.playerName}
+                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                          </p>
+                          <p className="text-xs text-slate-400">입금자: {p.depositorName}{p.depositorPhone ? ` · ${p.depositorPhone}` : ''}</p>
+                        </div>
+                        {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
+                          <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>
+                        ) : null}
+                      </div>
+                    ))}
+                    {participants.filter((p) => p.status === '대기').map((p, idx) => (
+                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-amber-50/50">
+                        <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">대{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-navy-900">
+                            {p.playerName}
+                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                          </p>
+                          <p className="text-xs text-slate-400">입금자: {p.depositorName}</p>
+                        </div>
+                        <button onClick={() => handlePromoteParticipant(p)} className="text-xs font-semibold text-green-600 hover:text-green-800 transition">참가 승격</button>
+                        <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>
+                      </div>
+                    ))}
+                    {participants.filter((p) => p.status !== '취소').length === 0 && (
+                      <p className="text-sm text-slate-400 py-3 text-center">아직 신청한 팀이 없습니다.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bracket / Matches */}
+                {matches.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-navy-900 mb-2 text-sm">대진표 · 결과</h4>
+                    <div className="space-y-2">
+                      {matches.sort((a, b) => a.round - b.round).map((m) => {
+                        const pA = participants.find((p) => p.id === m.teamA[0]);
+                        const pB = participants.find((p) => p.id === m.teamB[0]);
+                        const nameA = pA ? (pA.playerName2 ? `${pA.playerName}·${pA.playerName2}` : pA.playerName) : '?';
+                        const nameB = pB ? (pB.playerName2 ? `${pB.playerName}·${pB.playerName2}` : pB.playerName) : '?';
+                        return (
+                          <div key={m.id} className="rounded-xl border border-slate-100 px-4 py-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-slate-400">게임 {m.round}</span>
+                              {m.winner && (
+                                <span className={`chip text-[10px] ${m.winner === 'draw' ? 'bg-slate-100 text-slate-600' : 'bg-sky-100 text-sky-700'}`}>
+                                  {m.winner === 'draw' ? '무승부' : '종료'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className={`flex-1 text-sm font-semibold ${m.winner === 'A' ? 'text-green-700' : 'text-navy-900'}`}>
+                                {nameA}
+                                {m.scoreA !== null && <span className="ml-2 text-lg font-extrabold">{m.scoreA}</span>}
+                              </div>
+                              <span className="text-xs text-slate-400">vs</span>
+                              <div className={`flex-1 text-right text-sm font-semibold ${m.winner === 'B' ? 'text-green-700' : 'text-navy-900'}`}>
+                                {m.scoreB !== null && <span className="mr-2 text-lg font-extrabold">{m.scoreB}</span>}
+                                {nameB}
+                              </div>
+                            </div>
+                            {detailEvent.status === '대진완료' || detailEvent.status === '진행중' ? (
+                              scoreEdit === m.id ? (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    value={scoreA}
+                                    onChange={(e) => setScoreA(e.target.value)}
+                                    placeholder="A점수"
+                                    className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-center"
+                                  />
+                                  <span className="text-slate-400">:</span>
+                                  <input
+                                    type="number"
+                                    value={scoreB}
+                                    onChange={(e) => setScoreB(e.target.value)}
+                                    placeholder="B점수"
+                                    className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-center"
+                                  />
+                                  <button onClick={() => handleSaveScore(m.id)} className="px-3 py-1.5 rounded-lg bg-navy-900 text-white text-xs font-bold">저장</button>
+                                  <button onClick={() => setScoreEdit(null)} className="px-2 py-1.5 rounded-lg text-slate-400 text-xs"><X size={14} /></button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setScoreEdit(m.id); setScoreA(m.scoreA?.toString() || ''); setScoreB(m.scoreB?.toString() || ''); }}
+                                  className="mt-2 text-xs font-semibold text-navy-600 hover:text-navy-900 transition"
+                                >
+                                  {m.winner ? '점수 수정' : '점수 입력'}
+                                </button>
+                              )
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rankings */}
+                {rankings.length > 0 && (
+                  <div>
+                    <h4 className="font-bold text-navy-900 mb-2 text-sm">순위</h4>
+                    <div className="space-y-1">
+                      {rankings.map((r, idx) => (
+                        <div key={r.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-50">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {idx < 3 ? <Medal size={14} /> : idx + 1}
+                          </div>
+                          <span className="text-sm font-bold text-navy-900 flex-1">{r.name}</span>
+                          <span className="text-xs text-slate-500">{r.wins}승</span>
+                          <span className="text-xs text-slate-400">+/-{r.pointDiff}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}

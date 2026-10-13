@@ -257,6 +257,7 @@ export function AdminAnalyticsScreen() {
   const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedVisitorKey, setSelectedVisitorKey] = useState<string | null>(null);
+  const [dailyLogs, setDailyLogs] = useState<RawLog[]>([]);
 
   const fetchLogs = useCallback(async () => {
     if (!supabaseConfigured) return;
@@ -326,6 +327,17 @@ export function AdminAnalyticsScreen() {
         member: getCount(countResults[5]),
         guest: getCount(countResults[6]),
       });
+
+      // Fetch last 7 days of logs for the daily trend chart (independent of range)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const { data: dailyData } = await supabase
+        .from('visitor_logs')
+        .select('created_at, session_id')
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50000);
+      setDailyLogs((dailyData as Pick<RawLog, 'created_at' | 'session_id'>[]) || []);
 
       // Fetch today's signups and total members from profiles
       const startOfToday = new Date();
@@ -458,14 +470,14 @@ export function AdminAnalyticsScreen() {
     totalMembers,
   };
 
-  // Daily trend (last 7 days)
+  // Daily trend (last 7 days) — uses dedicated dailyLogs fetched independent of range
   const dailyMap = new Map<string, { visits: number; sessions: Set<string> }>();
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     dailyMap.set(d.toDateString(), { visits: 0, sessions: new Set() });
   }
-  for (const log of logs) {
+  for (const log of dailyLogs) {
     const key = new Date(log.created_at).toDateString();
     if (dailyMap.has(key)) {
       const entry = dailyMap.get(key)!;

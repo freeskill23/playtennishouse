@@ -6,7 +6,6 @@ import {
   Megaphone,
   Flame,
   Ticket,
-  Images,
   ChevronRight,
   Hand,
   CheckCircle2,
@@ -20,6 +19,7 @@ import {
   Trash2,
   ShieldAlert,
   ExternalLink,
+  Trophy,
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -33,8 +33,8 @@ const QUICK_MENUS = [
   { key: 'pension', label: '펜션예약', icon: BedDouble, color: 'bg-volt-500', desc: 'A·B동 숙박' },
   { key: 'court', label: '코트예약', icon: CalendarRange, color: 'bg-navy-700', desc: '1시간 단위' },
   { key: 'bbq', label: '바베큐패키지', icon: Flame, color: 'bg-amber-500', desc: '코트+BBQ' },
+  { key: 'event', label: '게임데이', icon: Trophy, color: 'bg-green-600', desc: '단식·복식' },
   { key: 'notices', label: '공지', icon: Megaphone, color: 'bg-clay-400', desc: '이벤트·안내' },
-  { key: 'gallery', label: '갤러리', icon: Images, color: 'bg-amber-500', desc: '플테하 순간' },
   { key: 'mypage', label: '내예약', icon: Ticket, color: 'bg-rose-500', desc: '예약·매칭 내역' },
 ] as const;
 

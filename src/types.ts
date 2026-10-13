@@ -82,6 +82,50 @@ export interface MatchingApplication {
 
 export const MATCHING_MAX_PLAYERS = 8;
 
+// ===== Game Day (게임데이) =====
+export type EventGameType = 'singles' | 'doubles';
+export type EventStatus = '모집중' | '대기모집' | '대진완료' | '진행중' | '종료' | '취소';
+
+export interface EventParticipant {
+  id: string;
+  eventId: string;
+  userId: string;
+  playerName: string;
+  playerName2: string | null; // 복식 파트너
+  depositorName: string;
+  depositorPhone: string | null;
+  status: '참가' | '대기' | '취소';
+  createdAt: number;
+}
+
+export interface EventMatch {
+  id: string;
+  eventId: string;
+  round: number; // 1~4 게임
+  teamA: string[]; // participant IDs
+  teamB: string[];
+  scoreA: number | null;
+  scoreB: number | null;
+  winner: 'A' | 'B' | 'draw' | null;
+}
+
+export interface GameDayEvent {
+  id: string;
+  title: string;
+  gameType: EventGameType;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  court: CourtName;
+  maxTeams: number;
+  minTeams: number;
+  fee: number;
+  description: string;
+  status: EventStatus;
+  bracketGeneratedAt: number | null;
+  createdAt: number;
+}
+
 export interface MatchingPost {
   id: string;
   reservationId: string;
