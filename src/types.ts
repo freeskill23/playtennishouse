@@ -116,10 +116,11 @@ export interface GameDayEvent {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:MM
   endTime: string; // HH:MM
-  court: CourtName;
+  court: string; // comma-separated court names, e.g. "A코트" or "A코트,B코트"
   maxTeams: number;
   minTeams: number;
-  fee: number;
+  fee: number; // team fee
+  feePerPlayer: number; // per-person fee
   description: string;
   status: EventStatus;
   bracketGeneratedAt: number | null;

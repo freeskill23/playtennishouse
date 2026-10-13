@@ -16,7 +16,7 @@ import { useAuth } from '../lib/auth';
 import { todayYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/ui';
-import type { GameDayEvent, EventParticipant, EventMatch, EventGameType, CourtName } from '../types';
+import type { GameDayEvent, EventParticipant, EventMatch, EventGameType } from '../types';
 
 const GAME_TYPE_LABEL: Record<EventGameType, string> = {
   singles: '단식',
@@ -93,10 +93,11 @@ export function EventScreen() {
         date: typeof r.date === 'string' ? r.date : new Date(r.date as string).toISOString().slice(0, 10),
         startTime: r.start_time as string,
         endTime: r.end_time as string,
-        court: r.court as CourtName,
+        court: r.court as string,
         maxTeams: r.max_teams as number,
         minTeams: r.min_teams as number,
         fee: r.fee as number,
+        feePerPlayer: (r.fee_per_player as number) ?? 0,
         description: r.description as string,
         status: r.status as string,
         bracketGeneratedAt: r.bracket_generated_at as number | null,
@@ -372,12 +373,14 @@ export function EventScreen() {
                       <span className="text-xs text-rose-400">최소 {ev.minTeams}팀</span>
                     )}
                   </div>
-                  {ev.fee > 0 && (
-                    <div className="flex items-center gap-2">
+                  {ev.fee > 0 || ev.feePerPlayer > 0 ? (
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Wallet size={14} className="text-slate-400" />
-                      참가비 {ev.fee.toLocaleString()}원
+                      {ev.feePerPlayer > 0 && <span className="text-sm font-semibold text-navy-900">1인 {ev.feePerPlayer.toLocaleString()}원</span>}
+                      {ev.feePerPlayer > 0 && ev.fee > 0 && <span className="text-slate-300">/</span>}
+                      {ev.fee > 0 && <span className="text-sm font-semibold text-navy-900">팀 {ev.fee.toLocaleString()}원</span>}
                     </div>
-                  )}
+                  ) : null}
                 </div>
                 {ev.description && (
                   <p className="mt-3 text-xs text-slate-500 line-clamp-2">{ev.description}</p>
@@ -439,10 +442,14 @@ export function EventScreen() {
                       {selectedEvent.minTeams > 0 && <span className="text-xs text-rose-500 ml-1">최소 {selectedEvent.minTeams}팀</span>}
                     </p>
                   </div>
-                  {selectedEvent.fee > 0 && (
+                  {(selectedEvent.fee > 0 || selectedEvent.feePerPlayer > 0) && (
                     <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                       <p className="text-xs text-slate-400">참가비</p>
-                      <p className="font-bold text-navy-900">{selectedEvent.fee.toLocaleString()}원</p>
+                      <p className="font-bold text-navy-900">
+                        {selectedEvent.feePerPlayer > 0 && <>1인 {selectedEvent.feePerPlayer.toLocaleString()}원</>}
+                        {selectedEvent.feePerPlayer > 0 && selectedEvent.fee > 0 && <span className="text-slate-300 mx-1">/</span>}
+                        {selectedEvent.fee > 0 && <>팀 {selectedEvent.fee.toLocaleString()}원</>}
+                      </p>
                     </div>
                   )}
                 </div>

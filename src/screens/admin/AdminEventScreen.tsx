@@ -63,10 +63,11 @@ export function AdminEventScreen() {
   const [date, setDate] = useState(todayYMD());
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(18);
-  const [court, setCourt] = useState<CourtName>('A코트');
+  const [courts, setCourts] = useState<CourtName[]>(['A코트']);
   const [maxTeams, setMaxTeams] = useState(8);
   const [minTeams, setMinTeams] = useState(4);
   const [fee, setFee] = useState(0);
+  const [feePerPlayer, setFeePerPlayer] = useState(0);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +119,7 @@ export function AdminEventScreen() {
         maxTeams: r.max_teams as number,
         minTeams: r.min_teams as number,
         fee: r.fee as number,
+        feePerPlayer: (r.fee_per_player as number) ?? 0,
         description: r.description as string,
         status: r.status as GameDayEvent['status'],
         bracketGeneratedAt: r.bracket_generated_at as number | null,
@@ -188,10 +190,11 @@ export function AdminEventScreen() {
     setDate(todayYMD());
     setStartHour(9);
     setEndHour(18);
-    setCourt('A코트');
+    setCourts(['A코트']);
     setMaxTeams(8);
     setMinTeams(4);
     setFee(0);
+    setFeePerPlayer(0);
     setDescription('');
     setError(null);
     setEditTarget(null);
@@ -209,10 +212,11 @@ export function AdminEventScreen() {
     setDate(ev.date);
     setStartHour(parseInt(ev.startTime.slice(0, 2), 10) || 9);
     setEndHour(parseInt(ev.endTime.slice(0, 2), 10) || 18);
-    setCourt(ev.court);
+    setCourts(ev.court.split(',').filter(Boolean) as CourtName[]);
     setMaxTeams(ev.maxTeams);
     setMinTeams(ev.minTeams);
     setFee(ev.fee);
+    setFeePerPlayer(ev.feePerPlayer);
     setDescription(ev.description);
     setCreateModal(true);
   };
@@ -234,10 +238,11 @@ export function AdminEventScreen() {
           date,
           start_time: formatHour(startHour),
           end_time: formatHour(endHour),
-          court,
+          court: courts.join(','),
           max_teams: maxTeams,
           min_teams: minTeams,
           fee,
+          fee_per_player: feePerPlayer,
           description: description.trim(),
         })
         .eq('id', editTarget.id);
@@ -252,10 +257,11 @@ export function AdminEventScreen() {
         date,
         start_time: formatHour(startHour),
         end_time: formatHour(endHour),
-        court,
+        court: courts.join(','),
         max_teams: maxTeams,
         min_teams: minTeams,
         fee,
+        fee_per_player: feePerPlayer,
         description: description.trim(),
         status: '모집중',
         created_at: Date.now(),
@@ -513,7 +519,8 @@ export function AdminEventScreen() {
                       <span className="flex items-center gap-1"><Clock size={13} />{ev.startTime}~{ev.endTime}</span>
                       <span className="flex items-center gap-1">{ev.court}</span>
                       <span className="flex items-center gap-1"><Users size={13} />{ev.participantCount}/{ev.maxTeams}팀{ev.waitingCount > 0 && ` (대기${ev.waitingCount})`}</span>
-                      {ev.fee > 0 && <span>{ev.fee.toLocaleString()}원</span>}
+                      {ev.fee > 0 && <span>팀 {ev.fee.toLocaleString()}원</span>}
+                      {ev.feePerPlayer > 0 && <span>1인 {ev.feePerPlayer.toLocaleString()}원</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -621,19 +628,22 @@ export function AdminEventScreen() {
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-navy-800 block mb-1">코트</label>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">코트 (복수 선택 가능)</label>
             <div className="flex gap-2">
-              {COURTS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setCourt(c)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition ${
-                    court === c ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
+              {COURTS.map((c) => {
+                const selected = courts.includes(c);
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setCourts(selected ? courts.filter((x) => x !== c) : [...courts, c])}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition ${
+                      selected ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -661,15 +671,27 @@ export function AdminEventScreen() {
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-semibold text-navy-800 block mb-1">참가비 (원)</label>
-            <input
-              type="number"
-              value={fee}
-              onChange={(e) => setFee(parseInt(e.target.value, 10) || 0)}
-              min={0}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-navy-800 block mb-1">참가비 - 팀 (원)</label>
+              <input
+                type="number"
+                value={fee}
+                onChange={(e) => setFee(parseInt(e.target.value, 10) || 0)}
+                min={0}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-navy-800 block mb-1">참가비 - 1인 (원)</label>
+              <input
+                type="number"
+                value={feePerPlayer}
+                onChange={(e) => setFeePerPlayer(parseInt(e.target.value, 10) || 0)}
+                min={0}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+              />
+            </div>
           </div>
 
           <div>
