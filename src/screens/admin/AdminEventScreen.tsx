@@ -10,7 +10,6 @@ import {
   X,
   Loader2,
   AlertTriangle,
-  Medal,
   Edit3,
   ClipboardList,
 } from 'lucide-react';
@@ -183,6 +182,7 @@ export function AdminEventScreen() {
         playerName2: (r.player_name2 as string | null) || null,
         depositorName: (r.depositor_name as string) || '',
         depositorPhone: (r.depositor_phone as string) || null,
+        refundAccount: (r.refund_account as string) || null,
         status: r.status as EventParticipant['status'],
         createdAt: r.created_at as number,
       })));
@@ -468,38 +468,6 @@ export function AdminEventScreen() {
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' });
   };
-
-  // Rankings
-  const rankings = (() => {
-    if (matches.length === 0 || participants.length === 0) return [];
-    const scores = new Map<string, { wins: number; pointDiff: number; name: string }>();
-    for (const p of participants) {
-      if (p.status === '참가') {
-        const name = p.playerName2 ? `${p.playerName}·${p.playerName2}` : p.playerName;
-        scores.set(p.id, { wins: 0, pointDiff: 0, name });
-      }
-    }
-    for (const m of matches) {
-      if (m.winner === null || m.scoreA === null || m.scoreB === null) continue;
-      for (const pid of m.teamA) {
-        const s = scores.get(pid);
-        if (s) {
-          if (m.winner === 'A') s.wins++;
-          s.pointDiff += m.scoreA - m.scoreB;
-        }
-      }
-      for (const pid of m.teamB) {
-        const s = scores.get(pid);
-        if (s) {
-          if (m.winner === 'B') s.wins++;
-          s.pointDiff += m.scoreB - m.scoreA;
-        }
-      }
-    }
-    return Array.from(scores.entries())
-      .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
-  })();
 
   const detailEventWithCounts = detailEvent ? events.find((e) => e.id === detailEvent.id) : null;
 
@@ -814,6 +782,7 @@ export function AdminEventScreen() {
                             {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                           </p>
                           <p className="text-xs text-slate-400">입금자: {p.depositorName}{p.depositorPhone ? ` · ${p.depositorPhone}` : ''}</p>
+                          {p.refundAccount && <p className="text-xs text-slate-400">환불계좌: {p.refundAccount}</p>}
                           <p className="text-xs text-slate-400 flex items-center gap-1"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
                         {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
@@ -830,6 +799,7 @@ export function AdminEventScreen() {
                             {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                           </p>
                           <p className="text-xs text-slate-400">입금자: {p.depositorName}{p.depositorPhone ? ` · ${p.depositorPhone}` : ''}</p>
+                          {p.refundAccount && <p className="text-xs text-slate-400">환불계좌: {p.refundAccount}</p>}
                           <p className="text-xs text-sky-600 flex items-center gap-1 font-semibold"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
                         {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
@@ -849,6 +819,7 @@ export function AdminEventScreen() {
                             {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                           </p>
                           <p className="text-xs text-slate-400">입금자: {p.depositorName}</p>
+                          {p.refundAccount && <p className="text-xs text-slate-400">환불계좌: {p.refundAccount}</p>}
                           <p className="text-xs text-slate-400 flex items-center gap-1"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
                         <button onClick={() => handlePromoteParticipant(p)} className="text-xs font-semibold text-green-600 hover:text-green-800 transition">참가 승격</button>
@@ -925,27 +896,6 @@ export function AdminEventScreen() {
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Rankings */}
-                {rankings.length > 0 && (
-                  <div>
-                    <h4 className="font-bold text-navy-900 mb-2 text-sm">순위</h4>
-                    <div className="space-y-1">
-                      {rankings.map((r, idx) => (
-                        <div key={r.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-50">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                            idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {idx < 3 ? <Medal size={14} /> : idx + 1}
-                          </div>
-                          <span className="text-sm font-bold text-navy-900 flex-1">{r.name}</span>
-                          <span className="text-xs text-slate-500">{r.wins}승</span>
-                          <span className="text-xs text-slate-400">+/-{r.pointDiff}</span>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}

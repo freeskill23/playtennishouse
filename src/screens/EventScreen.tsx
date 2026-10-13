@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
-  Medal,
   Loader2,
 } from 'lucide-react';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
@@ -127,6 +126,7 @@ export function EventScreen() {
         .channel('game_day_events_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_events' }, () => loadEvents())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_participants' }, () => loadEvents())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_matches' }, () => loadEvents())
         .subscribe();
       return () => { supabase.removeChannel(channel); };
     }
@@ -309,36 +309,14 @@ export function EventScreen() {
     return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
   };
 
-  // Build ranking from matches
-  const rankings = (() => {
-    if (matches.length === 0 || participants.length === 0) return [];
-    const scores = new Map<string, { wins: number; pointDiff: number; name: string }>();
+  // Build participant name lookup for bracket display
+  const participantNameMap = (() => {
+    const m = new Map<string, string>();
     for (const p of participants) {
-      if (p.status === '참가' || p.status === '대기') {
-        const name = p.playerName2 ? `${p.playerName}·${p.playerName2}` : p.playerName;
-        scores.set(p.id, { wins: 0, pointDiff: 0, name });
-      }
+      const name = p.playerName2 ? `${p.playerName}·${p.playerName2}` : p.playerName;
+      m.set(p.id, name);
     }
-    for (const m of matches) {
-      if (m.winner === null || m.scoreA === null || m.scoreB === null) continue;
-      for (const pid of m.teamA) {
-        const s = scores.get(pid);
-        if (s) {
-          if (m.winner === 'A') s.wins++;
-          s.pointDiff += m.scoreA - m.scoreB;
-        }
-      }
-      for (const pid of m.teamB) {
-        const s = scores.get(pid);
-        if (s) {
-          if (m.winner === 'B') s.wins++;
-          s.pointDiff += m.scoreB - m.scoreA;
-        }
-      }
-    }
-    return Array.from(scores.entries())
-      .map(([id, v]) => ({ id, ...v }))
-      .sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
+    return m;
   })();
 
   const selectedEventWithCounts = selectedEvent
@@ -353,7 +331,7 @@ export function EventScreen() {
           게임데이 신청
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          단식·복식 게임데이에 참가하세요. 각 팀은 4게임을 진행합니다.
+          단식·복식 게임데이에 참가하세요. 각 팀 최소 4게임 이상 진행.
         </p>
       </div>
 
@@ -526,19 +504,29 @@ export function EventScreen() {
                     {participants.filter((p) => p.status === '참가').map((p, idx) => (
                       <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-green-50/50">
                         <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
-                        <span className="text-sm font-semibold text-navy-900 flex-1">
-                          {p.playerName}
-                          {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold text-navy-900">
+                            {p.playerName}
+                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                          </span>
+                          {p.userId === user?.id && p.refundAccount && (
+                            <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {participants.filter((p) => p.status === '입금대기').map((p, idx) => (
                       <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-sky-50/50">
                         <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">입{idx + 1}</span>
-                        <span className="text-sm font-semibold text-navy-900 flex-1">
-                          {p.playerName}
-                          {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold text-navy-900">
+                            {p.playerName}
+                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                          </span>
+                          {p.userId === user?.id && p.refundAccount && (
+                            <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
+                          )}
+                        </div>
                         <span className="text-xs text-sky-600 font-semibold">입금대기</span>
                         {p.userId === user?.id && (
                           <button
@@ -553,10 +541,15 @@ export function EventScreen() {
                     {participants.filter((p) => p.status === '대기').map((p, idx) => (
                       <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-amber-50/50">
                         <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">대{idx + 1}</span>
-                        <span className="text-sm font-semibold text-navy-900 flex-1">
-                          {p.playerName}
-                          {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold text-navy-900">
+                            {p.playerName}
+                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                          </span>
+                          {p.userId === user?.id && p.refundAccount && (
+                            <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
+                          )}
+                        </div>
                         {p.userId === user?.id && (
                           <button
                             onClick={() => handleCancel(p.id)}
@@ -573,23 +566,38 @@ export function EventScreen() {
                   </div>
                 </div>
 
-                {/* Bracket / Rankings */}
+                {/* Bracket / Matches */}
                 {matches.length > 0 && (
                   <div>
-                    <h4 className="font-bold text-navy-900 mb-2 text-sm">순위</h4>
-                    <div className="space-y-1">
-                      {rankings.slice(0, 3).map((r, idx) => (
-                        <div key={r.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-slate-50">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                            idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-600' : 'bg-orange-100 text-orange-700'
-                          }`}>
-                            {idx === 0 ? <Medal size={14} /> : idx + 1}
+                    <h4 className="font-bold text-navy-900 mb-2 text-sm">대진표 · 결과</h4>
+                    <div className="space-y-2">
+                      {matches.sort((a, b) => a.round - b.round).map((m) => {
+                        const nameA = participantNameMap.get(m.teamA[0]) || '?';
+                        const nameB = participantNameMap.get(m.teamB[0]) || '?';
+                        return (
+                          <div key={m.id} className="rounded-xl border border-slate-100 px-4 py-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-slate-400">게임 {m.round}</span>
+                              {m.winner && (
+                                <span className={`chip text-[10px] ${m.winner === 'draw' ? 'bg-slate-100 text-slate-600' : 'bg-sky-100 text-sky-700'}`}>
+                                  {m.winner === 'draw' ? '무승부' : '종료'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className={`flex-1 text-sm font-semibold ${m.winner === 'A' ? 'text-green-700' : 'text-navy-900'}`}>
+                                {nameA}
+                                {m.scoreA !== null && <span className="ml-2 text-lg font-extrabold">{m.scoreA}</span>}
+                              </div>
+                              <span className="text-xs text-slate-400">vs</span>
+                              <div className={`flex-1 text-right text-sm font-semibold ${m.winner === 'B' ? 'text-green-700' : 'text-navy-900'}`}>
+                                {m.scoreB !== null && <span className="mr-2 text-lg font-extrabold">{m.scoreB}</span>}
+                                {nameB}
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-sm font-bold text-navy-900 flex-1">{r.name}</span>
-                          <span className="text-xs text-slate-500">{r.wins}승</span>
-                          <span className="text-xs text-slate-400">점득 +/-{r.pointDiff}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

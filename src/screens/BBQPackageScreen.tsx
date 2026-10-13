@@ -45,6 +45,7 @@ export function BBQPackageScreen() {
     bankAccount,
     bbqOpenDays,
     reservations,
+    getGameDayBlockedHours,
   } = useApp();
   const { isGuest } = useAuth();
   const bbqSlides = galleryItems.filter((g) => g.showOnBbq);
@@ -81,10 +82,13 @@ export function BBQPackageScreen() {
   );
 
   // Court reservations: only block specific hours, only for the matching court
-  const courtBlockedHours = useMemo(
-    () => getCourtBlockedHours(reservations, date, courtForVenue),
-    [reservations, date, courtForVenue],
-  );
+  const courtBlockedHours = useMemo(() => {
+    const courtHours = getCourtBlockedHours(reservations, date, courtForVenue);
+    const gameDayHours = getGameDayBlockedHours(date, courtForVenue);
+    const merged = new Set(courtHours);
+    for (const h of gameDayHours) merged.add(h);
+    return merged;
+  }, [reservations, date, courtForVenue, getGameDayBlockedHours]);
   const hasAnyCourtOnDate = courtBlockedHours.size > 0;
 
   // The venue is fully blocked only by BBQ conflict or pension on same building

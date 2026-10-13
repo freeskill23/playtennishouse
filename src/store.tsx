@@ -30,6 +30,9 @@ import type {
   NTRP,
   Hand,
   GamePreference,
+  GameDayEvent,
+  EventGameType,
+  EventStatus,
 } from './types';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS, mergeTimeSlots } from './types';
 import { addDaysToYMD } from './components/Calendar';
@@ -136,6 +139,7 @@ interface AppState {
   updateRoom: (id: string, patch: Partial<Pick<Room, 'maxCapacity' | 'description'>>) => void;
   reservations: Reservation[];
   matchingPosts: MatchingPost[];
+  gameDayEvents: GameDayEvent[];
   notices: Notice[];
   galleryItems: GalleryItem[];
   notifications: AppNotification[];
@@ -304,6 +308,9 @@ interface AppState {
   isPensionBlockedByCourt: (date: string, roomName: RoomName) => boolean;
   isCourtBlockedByPension: (date: string, court: CourtName) => boolean;
   isCourtSlotBlockedByPension: (date: string, court: CourtName, slot: string) => boolean;
+  isCourtSlotBlockedByGameDay: (date: string, court: CourtName, slot: string) => boolean;
+  isPensionBlockedByGameDay: (date: string, roomName: RoomName) => boolean;
+  getGameDayBlockedHours: (date: string, court: CourtName) => Set<number>;
   getPensionStatusForDate: (date: string, roomName: RoomName) => {
     status: 'available' | 'full' | 'booked' | 'pending';
     reservation?: Reservation;
@@ -413,6 +420,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
   const [reservations, setReservations] = useState<Reservation[]>(supabaseConfigured ? [] : initialReservations);
   const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(supabaseConfigured ? [] : initialMatchingPosts);
+  const [gameDayEvents, setGameDayEvents] = useState<GameDayEvent[]>([]);
 
   const syncMatchingPost = useCallback(async (post: MatchingPost) => {
     if (!supabaseConfigured) return;
@@ -507,6 +515,59 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       clearInterval(poll);
     };
   }, [loadMatchingPosts]);
+
+  // Load game day events from Supabase
+  const loadGameDayEvents = useCallback(async () => {
+    if (!supabaseConfigured) return;
+    const { data, error } = await supabase
+      .from('game_day_events')
+      .select('*')
+      .order('date', { ascending: true });
+    if (error) {
+      console.error('[loadGameDayEvents]', error.message);
+      return;
+    }
+    if (data) {
+      const rows: GameDayEvent[] = (data as Record<string, unknown>[]).map((r) => ({
+        id: r.id as string,
+        title: r.title as string,
+        gameType: r.game_type as EventGameType,
+        date: typeof r.date === 'string' ? r.date : new Date(r.date as string).toISOString().slice(0, 10),
+        startTime: r.start_time as string,
+        endTime: r.end_time as string,
+        court: r.court as string,
+        maxTeams: r.max_teams as number,
+        minTeams: r.min_teams as number,
+        fee: r.fee as number,
+        feePerPlayer: (r.fee_per_player as number) ?? 0,
+        refundAccount: (r.refund_account as string) || '',
+        description: r.description as string,
+        status: r.status as EventStatus,
+        bracketGeneratedAt: r.bracket_generated_at as number | null,
+        createdAt: r.created_at as number,
+      }));
+      setGameDayEvents(rows);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    loadGameDayEvents();
+    const channel = supabase
+      .channel('game_day_events_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_day_events' },
+        () => loadGameDayEvents(),
+      )
+      .subscribe();
+    const poll = setInterval(() => loadGameDayEvents(), 15000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
+  }, [loadGameDayEvents]);
+
   const [notices, setNotices] = useState<Notice[]>(supabaseConfigured ? [] : initialNotices);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -1559,6 +1620,54 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [reservations],
   );
 
+  // ===== Game day event blocking =====
+  // Active game day events (not cancelled/ended) block court/pension/BBQ.
+  const activeGameDayEvents = useCallback(
+    () => gameDayEvents.filter((e) => e.status !== '취소' && e.status !== '종료'),
+    [gameDayEvents],
+  );
+
+  const getGameDayBlockedHours = useCallback(
+    (date: string, court: CourtName): Set<number> => {
+      const blocked = new Set<number>();
+      for (const ev of activeGameDayEvents()) {
+        if (ev.date !== date) continue;
+        const courts = ev.court.split(',').map((c) => c.trim());
+        if (!courts.includes(court)) continue;
+        const start = parseInt(ev.startTime.split(':')[0], 10);
+        const end = parseInt(ev.endTime.split(':')[0], 10);
+        for (let h = start; h < end; h++) blocked.add(h);
+      }
+      return blocked;
+    },
+    [activeGameDayEvents],
+  );
+
+  const isCourtSlotBlockedByGameDay = useCallback(
+    (date: string, court: CourtName, slot: string): boolean => {
+      const startHour = parseInt(slot.split(':')[0], 10);
+      return getGameDayBlockedHours(date, court).has(startHour);
+    },
+    [getGameDayBlockedHours],
+  );
+
+  const isPensionBlockedByGameDay = useCallback(
+    (date: string, roomName: RoomName): boolean => {
+      const building = roomName[0];
+      for (const ev of activeGameDayEvents()) {
+        if (ev.date !== date) continue;
+        const courts = ev.court.split(',').map((c) => c.trim());
+        const usesSameBuilding = courts.some((c) => c[0] === building);
+        if (!usesSameBuilding) continue;
+        const start = parseInt(ev.startTime.split(':')[0], 10);
+        const end = parseInt(ev.endTime.split(':')[0], 10);
+        if (start >= 15 || end > 11) return true;
+      }
+      return false;
+    },
+    [activeGameDayEvents],
+  );
+
   // Court on `date` is affected by pension if: pension on `date` (blocks slots
   // at/after 15:00) OR pension on `date-1` (blocks slots before 11:00 checkout).
   const isCourtBlockedByPension = useCallback(
@@ -1664,6 +1773,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     (date: string, court: CourtName, slot: string): 'available' | 'booked' | 'pending' | 'blocked' => {
       // Blocked by pension (slot-level: 15:00 ~ next-day 11:00)
       if (isCourtSlotBlockedByPension(date, court, slot)) return 'blocked';
+      // Blocked by game day event
+      if (isCourtSlotBlockedByGameDay(date, court, slot)) return 'blocked';
       const found = reservations.find(
         (r) =>
           r.type === 'court' &&
@@ -1677,7 +1788,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (found.status === '예약완료' || found.status === '이용완료') return 'booked';
       return 'pending';
     },
-    [reservations, isCourtSlotBlockedByPension],
+    [reservations, isCourtSlotBlockedByPension, isCourtSlotBlockedByGameDay],
   );
 
   const getReservationsByDate = useCallback(
@@ -1701,6 +1812,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       // Blocked by court?
       if (isPensionBlockedByCourt(input.date, room.name)) {
         return { ok: false, reason: '해당 날짜에 코트 예약이 완료되어 펜션 예약이 불가합니다.' };
+      }
+      // Blocked by game day event?
+      if (isPensionBlockedByGameDay(input.date, room.name)) {
+        return { ok: false, reason: '해당 날짜에 게임데이 일정이 있어 펜션 예약이 불가합니다.' };
       }
       // Check existing
       const existing = reservations.filter(
@@ -1754,7 +1869,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       );
       return { ok: true, reservation };
     },
-    [rooms, reservations, currentUserId, isPensionBlockedByCourt, addNotification, getUser, pushToast, upsertReservationToSupabase, sendTelegramNotification],
+    [rooms, reservations, currentUserId, isPensionBlockedByCourt, isPensionBlockedByGameDay, addNotification, getUser, pushToast, upsertReservationToSupabase, sendTelegramNotification],
   );
 
   // ===== Create court reservation =====
@@ -1910,6 +2025,16 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         return { ok: false, reason: '선택하신 시간에 코트 대관이 있어 해당 시간은 예약이 불가합니다.' };
       }
 
+      // Check game day event overlap
+      const gameDayBlocked = getGameDayBlockedHours(input.date, courtForVenue);
+      let gameDayConflict = false;
+      for (let h = input.startHour; h < input.endHour; h++) {
+        if (gameDayBlocked.has(h)) { gameDayConflict = true; break; }
+      }
+      if (gameDayConflict) {
+        return { ok: false, reason: '선택하신 시간에 게임데이 일정이 있어 해당 시간은 예약이 불가합니다.' };
+      }
+
       const { total } = computeBBQPrice(input.startHour, input.endHour, input.capacity, bbqPricing);
       const timeSlot = `${String(input.startHour).padStart(2, '0')}:00-${String(input.endHour).padStart(2, '0')}:00`;
 
@@ -1941,7 +2066,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast('바베큐패키지 예약 신청이 완료되었습니다.');
       return { ok: true, reservation };
     },
-    [reservations, currentUserId, bbqPricing, getUser, pushToast, upsertReservationToSupabase, sendTelegramNotification],
+    [reservations, currentUserId, bbqPricing, getUser, pushToast, upsertReservationToSupabase, sendTelegramNotification, getGameDayBlockedHours],
   );
   const requestWaiting = useCallback(
     (reservationId: string) => {
@@ -3105,6 +3230,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     updateRoom,
     reservations,
     matchingPosts,
+    gameDayEvents,
     notices,
     galleryItems,
     notifications,
@@ -3195,6 +3321,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     isPensionBlockedByCourt,
     isCourtBlockedByPension,
     isCourtSlotBlockedByPension,
+    isCourtSlotBlockedByGameDay,
+    isPensionBlockedByGameDay,
+    getGameDayBlockedHours,
     getPensionStatusForDate,
     getCourtSlotStatus,
     getReservationsByDate,
