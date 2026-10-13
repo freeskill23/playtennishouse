@@ -23,9 +23,11 @@ import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { SectionTitle, StatusBadge, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
-import { useState, useRef } from 'react';
-import type { NTRP, GameType, GenderRequirement, Hand as HandType, Reservation } from '../types';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import type { NTRP, GameType, GenderRequirement, Hand as HandType, Reservation, GameDayEvent, EventParticipant } from '../types';
 import { mergeTimeSlots } from '../types';
+import { supabase, supabaseConfigured } from '../lib/supabase';
+import { Trophy } from 'lucide-react';
 
 function isBatchEnded(date: string, timeRange: string): boolean {
   if (!date || !timeRange) return false;
@@ -75,6 +77,75 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
   const [pwChangeOpen, setPwChangeOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<string[] | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
+
+  // Game day participations
+  const [myParticipations, setMyParticipations] = useState<{ participant: EventParticipant; event: GameDayEvent }[]>([]);
+  const loadMyParticipations = useCallback(async () => {
+    if (!supabaseConfigured || !currentUser.id) return;
+    const { data, error } = await supabase
+      .from('game_day_participants')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .neq('status', '취소')
+      .order('created_at', { ascending: false });
+    if (error || !data) return;
+    const eventIds = Array.from(new Set((data as Record<string, unknown>[]).map((r) => r.event_id as string)));
+    if (eventIds.length === 0) { setMyParticipations([]); return; }
+    const { data: eventData } = await supabase
+      .from('game_day_events')
+      .select('*')
+      .in('id', eventIds);
+    const eventMap = new Map<string, GameDayEvent>();
+    for (const r of (eventData || []) as Record<string, unknown>[]) {
+      eventMap.set(r.id as string, {
+        id: r.id as string,
+        title: r.title as string,
+        gameType: r.game_type as GameDayEvent['gameType'],
+        date: typeof r.date === 'string' ? r.date : new Date(r.date as string).toISOString().slice(0, 10),
+        startTime: r.start_time as string,
+        endTime: r.end_time as string,
+        court: r.court as string,
+        maxTeams: r.max_teams as number,
+        minTeams: r.min_teams as number,
+        fee: r.fee as number,
+        feePerPlayer: (r.fee_per_player as number) ?? 0,
+        refundAccount: (r.refund_account as string) || '',
+        description: r.description as string,
+        status: r.status as GameDayEvent['status'],
+        bracketGeneratedAt: r.bracket_generated_at as number | null,
+        createdAt: r.created_at as number,
+      });
+    }
+    const pairs: { participant: EventParticipant; event: GameDayEvent }[] = [];
+    for (const r of data as Record<string, unknown>[]) {
+      const ev = eventMap.get(r.event_id as string);
+      if (!ev) continue;
+      pairs.push({
+        participant: {
+          id: r.id as string,
+          eventId: r.event_id as string,
+          userId: r.user_id as string,
+          playerName: r.player_name as string,
+          playerName2: (r.player_name2 as string | null) || null,
+          depositorName: (r.depositor_name as string) || '',
+          depositorPhone: (r.depositor_phone as string) || null,
+          refundAccount: (r.refund_account as string) || null,
+          status: r.status as EventParticipant['status'],
+          createdAt: r.created_at as number,
+        },
+        event: ev,
+      });
+    }
+    setMyParticipations(pairs);
+  }, [currentUser.id]);
+
+  useEffect(() => { void loadMyParticipations(); }, [loadMyParticipations]);
+
+  const handleCancelGameDay = async (participantId: string) => {
+    if (!confirm('게임데이 참가를 취소하시겠습니까?')) return;
+    await supabase.from('game_day_participants').update({ status: '취소' }).eq('id', participantId);
+    void loadMyParticipations();
+  };
 
   const myReservations = reservations.filter((r) => r.userId === currentUser.id);
   const myMatchings = matchingPosts
@@ -219,7 +290,7 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
       {/* My reservations - grouped by category */}
       <div>
         <SectionTitle title="내 예약" subtitle="예약 및 대기 내역" />
-        {myReservations.length === 0 ? (
+        {myReservations.length === 0 && myParticipations.length === 0 ? (
           <EmptyState
             icon={<Ticket size={28} />}
             title="예약 내역이 없어요"
@@ -334,6 +405,73 @@ export function MyPageScreen({ go }: { go: (k: string) => void }) {
                 </div>
               );
             })}
+
+            {/* Game day reservations */}
+            {myParticipations.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 px-1 mb-2 text-slate-600">
+                  <Trophy size={14} />
+                  <span className="text-sm font-bold">게임데이</span>
+                  <span className="text-xs text-slate-400">({myParticipations.length})</span>
+                </div>
+                <div className="space-y-3">
+                  {myParticipations.map(({ participant, event }) => {
+                    const gameEnded = event.status === '종료' || event.status === '취소';
+                    const canCancel = !gameEnded && (participant.status === '입금대기' || participant.status === '대기');
+                    const statusLabel = participant.status === '참가'
+                      ? { label: '참가', cls: 'bg-green-100 text-green-700' }
+                      : participant.status === '입금대기'
+                        ? { label: '입금대기', cls: 'bg-sky-100 text-sky-700' }
+                        : participant.status === '대기'
+                          ? { label: '대기', cls: 'bg-amber-100 text-amber-700' }
+                          : { label: participant.status, cls: 'bg-slate-100 text-slate-600' };
+                    return (
+                      <div key={participant.id} className="card p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600">
+                            <Trophy size={18} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-volt-600">{event.date}</span>
+                              <p className="font-bold text-navy-900">{event.title}</p>
+                              <span className={`chip ${statusLabel.cls}`}>{statusLabel.label}</span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {event.startTime}~{event.endTime} · {event.court.split(',').filter(Boolean).sort().join(', ')}
+                              {participant.playerName2 && ` · ${participant.playerName}·${participant.playerName2}`}
+                            </p>
+                            {participant.status === '입금대기' && (event.fee > 0 || event.feePerPlayer > 0) && (
+                              <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-2">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <Wallet size={15} className="text-amber-600 shrink-0" />
+                                  <span className="text-amber-900 font-bold">
+                                    입금 계좌: {bankAccount.bank} {bankAccount.number} ({bankAccount.holder})
+                                  </span>
+                                </div>
+                                <p className="text-sm font-bold text-amber-900">
+                                  입금 금액: {(event.feePerPlayer > 0 ? event.feePerPlayer : event.fee).toLocaleString()}원
+                                </p>
+                              </div>
+                            )}
+                            {canCancel && (
+                              <div className="mt-3">
+                                <button
+                                  onClick={() => handleCancelGameDay(participant.id)}
+                                  className="flex items-center justify-center gap-1.5 w-full rounded-xl py-2 text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition"
+                                >
+                                  <Trash2 size={15} /> 참가 취소
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
