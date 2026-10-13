@@ -590,6 +590,11 @@ export function AdminAnalyticsScreen() {
 
   const todayLabel = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 
+  const PAGE_LABELS: Record<string, string> = {
+    home: '홈', pension: '펜션', court: '코트대관', matching: '매칭', event: '게임데이',
+    notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
+  };
+
   return (
     <div className="space-y-5 pb-4">
       <SectionTitle
@@ -775,7 +780,7 @@ export function AdminAnalyticsScreen() {
           ) : (
             <div className="space-y-0.5">
               {pageCounts.map((p) => (
-                <BarRow key={p.page} label={p.page} value={p.visits} max={maxPage} />
+                <BarRow key={p.page} label={PAGE_LABELS[p.page] || p.page} value={p.visits} max={maxPage} />
               ))}
             </div>
           )}
@@ -931,7 +936,7 @@ export function AdminAnalyticsScreen() {
         ) : (
           (() => {
             const pageLabelMap: Record<string, string> = {
-              home: '홈', pension: '펜션', court: '코트대관', matching: '매칭',
+              home: '홈', pension: '펜션', court: '코트대관', matching: '매칭', event: '게임데이',
               notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
             };
             const visitorKey = (log: RawLog) => log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`;
@@ -1083,7 +1088,7 @@ export function AdminAnalyticsScreen() {
               return bTime - aTime;
             });
             const pageLabelMap: Record<string, string> = {
-              home: '홈', pension: '펜션', court: '코트대관', matching: '매칭',
+              home: '홈', pension: '펜션', court: '코트대관', matching: '매칭', event: '게임데이',
               notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
             };
             return (
