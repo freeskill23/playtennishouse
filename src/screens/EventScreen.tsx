@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
+import { useApp } from '../store';
 import { todayYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/ui';
@@ -35,10 +36,12 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
 interface EventWithCounts extends GameDayEvent {
   participantCount: number;
   waitingCount: number;
+  pendingCount: number;
 }
 
 export function EventScreen() {
   const { isGuest, user } = useAuth();
+  const { gameDayBannerImageUrl } = useApp();
   const [events, setEvents] = useState<EventWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<GameDayEvent | null>(null);
@@ -68,7 +71,7 @@ export function EventScreen() {
     if (!data) return;
 
     const eventIds = (data as Record<string, unknown>[]).map((r) => r.id as string);
-    let participantCounts: Record<string, { 참가: number; 대기: number }> = {};
+    let participantCounts: Record<string, { 참가: number; 대기: number; 입금대기: number }> = {};
     if (eventIds.length > 0) {
       const { data: pData } = await supabase
         .from('game_day_participants')
@@ -78,9 +81,10 @@ export function EventScreen() {
         for (const p of pData as Record<string, unknown>[]) {
           const eid = p.event_id as string;
           const st = p.status as string;
-          if (!participantCounts[eid]) participantCounts[eid] = { 참가: 0, 대기: 0 };
+          if (!participantCounts[eid]) participantCounts[eid] = { 참가: 0, 대기: 0, 입금대기: 0 };
           if (st === '참가') participantCounts[eid].참가++;
           else if (st === '대기') participantCounts[eid].대기++;
+          else if (st === '입금대기') participantCounts[eid].입금대기++;
         }
       }
     }
@@ -98,13 +102,14 @@ export function EventScreen() {
         minTeams: r.min_teams as number,
         fee: r.fee as number,
         feePerPlayer: (r.fee_per_player as number) ?? 0,
+        refundAccount: (r.refund_account as string) || '',
         description: r.description as string,
         status: r.status as string,
         bracketGeneratedAt: r.bracket_generated_at as number | null,
         createdAt: r.created_at as number,
       };
-      const counts = participantCounts[ev.id] || { 참가: 0, 대기: 0 };
-      return { ...ev, participantCount: counts.참가, waitingCount: counts.대기 };
+      const counts = participantCounts[ev.id] || { 참가: 0, 대기: 0, 입금대기: 0 };
+      return { ...ev, participantCount: counts.참가, waitingCount: counts.대기, pendingCount: counts.입금대기 };
     });
 
     // Filter out past events (older than today)
@@ -182,6 +187,10 @@ export function EventScreen() {
 
   const handleApply = async () => {
     if (!selectedEvent || !user) return;
+    if (isGuest) {
+      setError('게임데이 신청은 회원만 가능합니다. 로그인 후 이용해주세요.');
+      return;
+    }
     if (!playerName.trim()) {
       setError('참가자 이름을 입력해주세요.');
       return;
@@ -211,8 +220,10 @@ export function EventScreen() {
       .order('created_at', { ascending: true });
 
     const confirmedCount = (existing || []).filter((p) => (p as Record<string, unknown>).status === '참가').length;
-    const isFull = confirmedCount >= selectedEvent.maxTeams;
-    const status = isFull ? '대기' : '참가';
+    const pendingCount = (existing || []).filter((p) => (p as Record<string, unknown>).status === '입금대기').length;
+    const effectiveCount = confirmedCount + pendingCount;
+    const isFull = effectiveCount >= selectedEvent.maxTeams;
+    const status = isFull ? '대기' : '입금대기';
 
     const newId = `ep_${Math.random().toString(36).slice(2, 9)}`;
     const { error: insertError } = await supabase.from('game_day_participants').insert({
@@ -307,14 +318,23 @@ export function EventScreen() {
 
   return (
     <div className="space-y-5 pb-4">
-      <div className="mb-3">
-        <h2 className="text-xl font-bold text-navy-900 flex items-center gap-1.5">
-          <Trophy size={22} className="text-amber-500" />
-          게임데이 신청
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">
-          단식·복식 게임데이에 참가하세요. 각 팀은 4게임을 진행합니다.
-        </p>
+      {/* Hero banner */}
+      <div className="relative rounded-2xl overflow-hidden h-32 sm:h-40 mb-3">
+        {gameDayBannerImageUrl ? (
+          <img src={gameDayBannerImageUrl} alt="게임데이 배너" className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        <div className="relative h-full flex flex-col justify-end p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Trophy size={24} className="text-amber-300 drop-shadow" />
+            <h2 className="text-2xl font-extrabold text-white drop-shadow-lg">게임데이</h2>
+          </div>
+          <p className="text-sm text-white/90 drop-shadow">
+            단식·복식 게임데이에 참가하세요. 각 팀은 4게임을 진행합니다.
+          </p>
+        </div>
       </div>
 
       {loading ? (
@@ -331,7 +351,7 @@ export function EventScreen() {
         <div className="grid gap-4 sm:grid-cols-2">
           {events.map((ev) => {
             const st = STATUS_LABEL[ev.status] || STATUS_LABEL['모집중'];
-            const isFull = ev.participantCount >= ev.maxTeams;
+            const isFull = (ev.participantCount + ev.pendingCount) >= ev.maxTeams;
             const canApply = ev.status === '모집중' || ev.status === '대기모집';
             const alreadyApplied = appliedEventIds.has(ev.id);
             return (
@@ -366,6 +386,9 @@ export function EventScreen() {
                     <span className={isFull ? 'text-amber-600 font-semibold' : ''}>
                       {ev.participantCount}/{ev.maxTeams}팀
                     </span>
+                    {ev.pendingCount > 0 && (
+                      <span className="text-xs text-sky-500">입금대기 {ev.pendingCount}</span>
+                    )}
                     {ev.waitingCount > 0 && (
                       <span className="text-xs text-slate-400">대기 {ev.waitingCount}</span>
                     )}
@@ -389,10 +412,14 @@ export function EventScreen() {
                   {alreadyApplied ? (
                     <span className="chip bg-green-100 text-green-700">신청완료</span>
                   ) : canApply ? (
-                    <span className="text-xs font-bold text-navy-600 flex items-center gap-1">
-                      {isFull ? '대기 신청하기' : '참가 신청하기'}
-                      <ChevronRight size={14} />
-                    </span>
+                    isGuest ? (
+                      <span className="text-xs font-semibold text-amber-600">회원만 신청 가능</span>
+                    ) : (
+                      <span className="text-xs font-bold text-navy-600 flex items-center gap-1">
+                        {isFull ? '대기 신청하기' : '참가 신청하기'}
+                        <ChevronRight size={14} />
+                      </span>
+                    )
                   ) : (
                     <span className="text-xs text-slate-400">신청 불가</span>
                   )}
@@ -438,7 +465,7 @@ export function EventScreen() {
                   <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                     <p className="text-xs text-slate-400">모집팀</p>
                     <p className="font-bold text-navy-900">
-                      {selectedEventWithCounts?.participantCount ?? 0}/{selectedEvent.maxTeams}팀
+                      {(selectedEventWithCounts?.participantCount ?? 0) + (selectedEventWithCounts?.pendingCount ?? 0)}/{selectedEvent.maxTeams}팀
                       {selectedEvent.minTeams > 0 && <span className="text-xs text-rose-500 ml-1">최소 {selectedEvent.minTeams}팀</span>}
                     </p>
                   </div>
@@ -465,6 +492,9 @@ export function EventScreen() {
                     <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-sm text-amber-800">
                       최소 {selectedEvent.minTeams}팀 미만 신청 시 해당 일정은 자동 취소되며 환불 처리됩니다.
+                      {selectedEvent.refundAccount && (
+                        <span className="block mt-1 text-xs">환불 계좌: {selectedEvent.refundAccount}</span>
+                      )}
                     </p>
                   </div>
                 )}
@@ -480,6 +510,24 @@ export function EventScreen() {
                           {p.playerName}
                           {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                         </span>
+                        {p.userId === user?.id && (
+                          <button
+                            onClick={() => handleCancel(p.id)}
+                            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition"
+                          >
+                            취소
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {participants.filter((p) => p.status === '입금대기').map((p, idx) => (
+                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-sky-50/50">
+                        <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">입{idx + 1}</span>
+                        <span className="text-sm font-semibold text-navy-900 flex-1">
+                          {p.playerName}
+                          {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                        </span>
+                        <span className="text-xs text-sky-600 font-semibold">입금대기</span>
                         {p.userId === user?.id && (
                           <button
                             onClick={() => handleCancel(p.id)}
@@ -539,7 +587,15 @@ export function EventScreen() {
                   const canApply = selectedEvent.status === '모집중' || selectedEvent.status === '대기모집';
                   const alreadyApplied = appliedEventIds.has(selectedEvent.id);
                   if (!canApply || alreadyApplied) return null;
-                  const isFull = (selectedEventWithCounts?.participantCount ?? 0) >= selectedEvent.maxTeams;
+                  if (isGuest) {
+                    return (
+                      <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-center">
+                        <p className="text-sm font-semibold text-amber-800">게임데이 신청은 회원만 가능합니다</p>
+                        <p className="text-xs text-amber-600 mt-0.5">로그인 후 이용해주세요.</p>
+                      </div>
+                    );
+                  }
+                  const isFull = ((selectedEventWithCounts?.participantCount ?? 0) + (selectedEventWithCounts?.pendingCount ?? 0)) >= selectedEvent.maxTeams;
                   return (
                     <button
                       onClick={() => {
@@ -607,14 +663,8 @@ export function EventScreen() {
             />
           </div>
           {isGuest && (
-            <div>
-              <label className="text-sm font-semibold text-navy-800 block mb-1">연락처</label>
-              <input
-                value={depositorPhone}
-                onChange={(e) => setDepositorPhone(e.target.value)}
-                placeholder="010-0000-0000"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
-              />
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+              게임데이 신청은 회원만 가능합니다. 로그인 후 이용해주세요.
             </div>
           )}
           {error && (
@@ -646,7 +696,10 @@ export function EventScreen() {
           </div>
           <p className="font-bold text-navy-900 mb-2">신청이 완료되었습니다!</p>
           <p className="text-sm text-slate-500">
-            입금 확인 후 참가가 확정됩니다. 관리자 계좌로 참가비를 입금해주세요.
+            입금하시면 관리자 확인 후 참가가 확정됩니다. 아래 계좌로 참가비를 입금해주세요.
+            {selectedEvent?.refundAccount && (
+              <span className="block mt-2 text-xs text-slate-400">환불 계좌: {selectedEvent.refundAccount}</span>
+            )}
           </p>
         </div>
       </Modal>

@@ -38,6 +38,18 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
 
 const HOURS = Array.from({ length: 20 }, (_, i) => i + 5); // 5~24
 
+function formatElapsed(createdMs: number, nowMs: number): string {
+  const diff = Math.max(0, nowMs - createdMs);
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return `${sec}초 전`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 ${min % 60}분 전`;
+  const day = Math.floor(hr / 24);
+  return `${day}일 ${hr % 24}시간 전`;
+}
+
 function formatHour(h: number) {
   return `${String(h).padStart(2, '0')}:00`;
 }
@@ -45,6 +57,7 @@ function formatHour(h: number) {
 interface AdminEventWithCounts extends GameDayEvent {
   participantCount: number;
   waitingCount: number;
+  pendingCount: number;
 }
 
 export function AdminEventScreen() {
@@ -68,9 +81,17 @@ export function AdminEventScreen() {
   const [minTeams, setMinTeams] = useState(4);
   const [fee, setFee] = useState(0);
   const [feePerPlayer, setFeePerPlayer] = useState(0);
+  const [refundAccount, setRefundAccount] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Live clock for elapsed-time display
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // Score editing
   const [scoreEdit, setScoreEdit] = useState<string | null>(null);
@@ -90,7 +111,7 @@ export function AdminEventScreen() {
     if (!data) { setLoading(false); return; }
 
     const eventIds = (data as Record<string, unknown>[]).map((r) => r.id as string);
-    let pCounts: Record<string, { 참가: number; 대기: number }> = {};
+    let pCounts: Record<string, { 참가: number; 대기: number; 입금대기: number }> = {};
     if (eventIds.length > 0) {
       const { data: pData } = await supabase
         .from('game_day_participants')
@@ -100,9 +121,10 @@ export function AdminEventScreen() {
         for (const p of pData as Record<string, unknown>[]) {
           const eid = p.event_id as string;
           const st = p.status as string;
-          if (!pCounts[eid]) pCounts[eid] = { 참가: 0, 대기: 0 };
+          if (!pCounts[eid]) pCounts[eid] = { 참가: 0, 대기: 0, 입금대기: 0 };
           if (st === '참가') pCounts[eid].참가++;
           else if (st === '대기') pCounts[eid].대기++;
+          else if (st === '입금대기') pCounts[eid].입금대기++;
         }
       }
     }
@@ -120,13 +142,14 @@ export function AdminEventScreen() {
         minTeams: r.min_teams as number,
         fee: r.fee as number,
         feePerPlayer: (r.fee_per_player as number) ?? 0,
+        refundAccount: (r.refund_account as string) || '',
         description: r.description as string,
         status: r.status as GameDayEvent['status'],
         bracketGeneratedAt: r.bracket_generated_at as number | null,
         createdAt: r.created_at as number,
       };
-      const counts = pCounts[ev.id] || { 참가: 0, 대기: 0 };
-      return { ...ev, participantCount: counts.참가, waitingCount: counts.대기 };
+      const counts = pCounts[ev.id] || { 참가: 0, 대기: 0, 입금대기: 0 };
+      return { ...ev, participantCount: counts.참가, waitingCount: counts.대기, pendingCount: counts.입금대기 };
     });
     setEvents(enriched);
     setLoading(false);
@@ -195,6 +218,7 @@ export function AdminEventScreen() {
     setMinTeams(4);
     setFee(0);
     setFeePerPlayer(0);
+    setRefundAccount('');
     setDescription('');
     setError(null);
     setEditTarget(null);
@@ -217,6 +241,7 @@ export function AdminEventScreen() {
     setMinTeams(ev.minTeams);
     setFee(ev.fee);
     setFeePerPlayer(ev.feePerPlayer);
+    setRefundAccount(ev.refundAccount);
     setDescription(ev.description);
     setCreateModal(true);
   };
@@ -243,6 +268,7 @@ export function AdminEventScreen() {
           min_teams: minTeams,
           fee,
           fee_per_player: feePerPlayer,
+          refund_account: refundAccount.trim(),
           description: description.trim(),
         })
         .eq('id', editTarget.id);
@@ -262,6 +288,7 @@ export function AdminEventScreen() {
         min_teams: minTeams,
         fee,
         fee_per_player: feePerPlayer,
+        refund_account: refundAccount.trim(),
         description: description.trim(),
         status: '모집중',
         created_at: Date.now(),
@@ -284,6 +311,12 @@ export function AdminEventScreen() {
   const handleCancelEvent = async (ev: GameDayEvent) => {
     if (!confirm(`"${ev.title}" 이벤트를 취소하시겠습니까? 참가자들에게 환불 처리가 필요합니다.`)) return;
     await supabase.from('game_day_events').update({ status: '취소' }).eq('id', ev.id);
+    void loadEvents();
+  };
+
+  const handleConfirmDeposit = async (p: EventParticipant) => {
+    await supabase.from('game_day_participants').update({ status: '참가' }).eq('id', p.id);
+    if (detailEvent) void loadDetail(detailEvent.id);
     void loadEvents();
   };
 
@@ -518,7 +551,7 @@ export function AdminEventScreen() {
                       <span className="flex items-center gap-1"><CalendarIcon size={13} />{formatDate(ev.date)}</span>
                       <span className="flex items-center gap-1"><Clock size={13} />{ev.startTime}~{ev.endTime}</span>
                       <span className="flex items-center gap-1">{ev.court}</span>
-                      <span className="flex items-center gap-1"><Users size={13} />{ev.participantCount}/{ev.maxTeams}팀{ev.waitingCount > 0 && ` (대기${ev.waitingCount})`}</span>
+                      <span className="flex items-center gap-1"><Users size={13} />{ev.participantCount}/{ev.maxTeams}팀{ev.pendingCount > 0 && ` (입금대기${ev.pendingCount})`}{ev.waitingCount > 0 && ` (대기${ev.waitingCount})`}</span>
                       {ev.fee > 0 && <span>팀 {ev.fee.toLocaleString()}원</span>}
                       {ev.feePerPlayer > 0 && <span>1인 {ev.feePerPlayer.toLocaleString()}원</span>}
                     </div>
@@ -540,7 +573,7 @@ export function AdminEventScreen() {
                     </button>
                   </div>
                 </div>
-                {ev.minTeams > 0 && ev.participantCount < ev.minTeams && ev.status === '모집중' && (
+                {ev.minTeams > 0 && (ev.participantCount + ev.pendingCount) < ev.minTeams && ev.status === '모집중' && (
                   <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-700">
                     최소 {ev.minTeams}팀 미달 — 마감 시 자동 취소 및 환불 처리 필요
                   </div>
@@ -695,6 +728,17 @@ export function AdminEventScreen() {
           </div>
 
           <div>
+            <label className="text-sm font-semibold text-navy-800 block mb-1">환불 계좌</label>
+            <input
+              value={refundAccount}
+              onChange={(e) => setRefundAccount(e.target.value)}
+              placeholder="예: 농협 123-45-678901 홍길동"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400"
+            />
+            <p className="text-xs text-slate-400 mt-0.5">참가수 미달 취소 시 참가자에게 안내될 환불 계좌</p>
+          </div>
+
+          <div>
             <label className="text-sm font-semibold text-navy-800 block mb-1">설명</label>
             <textarea
               value={description}
@@ -740,7 +784,7 @@ export function AdminEventScreen() {
                 {/* Participants management */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-bold text-navy-900 text-sm">참가 현황 ({detailEventWithCounts?.participantCount ?? 0}/{detailEvent.maxTeams}팀)</h4>
+                    <h4 className="font-bold text-navy-900 text-sm">참가 현황 ({(detailEventWithCounts?.participantCount ?? 0) + (detailEventWithCounts?.pendingCount ?? 0)}/{detailEvent.maxTeams}팀)</h4>
                     {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
                       <button
                         onClick={() => generateBracket(detailEvent)}
@@ -770,9 +814,29 @@ export function AdminEventScreen() {
                             {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                           </p>
                           <p className="text-xs text-slate-400">입금자: {p.depositorName}{p.depositorPhone ? ` · ${p.depositorPhone}` : ''}</p>
+                          <p className="text-xs text-slate-400 flex items-center gap-1"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
                         {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
                           <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>
+                        ) : null}
+                      </div>
+                    ))}
+                    {participants.filter((p) => p.status === '입금대기').map((p, idx) => (
+                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-sky-50/50">
+                        <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">입{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-navy-900">
+                            {p.playerName}
+                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                          </p>
+                          <p className="text-xs text-slate-400">입금자: {p.depositorName}{p.depositorPhone ? ` · ${p.depositorPhone}` : ''}</p>
+                          <p className="text-xs text-sky-600 flex items-center gap-1 font-semibold"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
+                        </div>
+                        {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
+                          <>
+                            <button onClick={() => handleConfirmDeposit(p)} className="text-xs font-semibold text-green-600 hover:text-green-800 transition">입금확정</button>
+                            <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>
+                          </>
                         ) : null}
                       </div>
                     ))}
@@ -785,6 +849,7 @@ export function AdminEventScreen() {
                             {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                           </p>
                           <p className="text-xs text-slate-400">입금자: {p.depositorName}</p>
+                          <p className="text-xs text-slate-400 flex items-center gap-1"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
                         <button onClick={() => handlePromoteParticipant(p)} className="text-xs font-semibold text-green-600 hover:text-green-800 transition">참가 승격</button>
                         <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>

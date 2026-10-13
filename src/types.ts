@@ -94,7 +94,7 @@ export interface EventParticipant {
   playerName2: string | null; // 복식 파트너
   depositorName: string;
   depositorPhone: string | null;
-  status: '참가' | '대기' | '취소';
+  status: '입금대기' | '참가' | '대기' | '취소';
   createdAt: number;
 }
 
@@ -121,6 +121,7 @@ export interface GameDayEvent {
   minTeams: number;
   fee: number; // team fee
   feePerPlayer: number; // per-person fee
+  refundAccount: string; // 환불 계좌
   description: string;
   status: EventStatus;
   bracketGeneratedAt: number | null;
