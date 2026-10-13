@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Edit3,
   ClipboardList,
+  XCircle,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { Calendar, todayYMD, addDaysToYMD } from '../../components/Calendar';
@@ -29,6 +30,7 @@ const GAME_TYPE_LABEL: Record<EventGameType, string> = {
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   모집중: { label: '모집중', cls: 'bg-green-100 text-green-700' },
   대기모집: { label: '대기신청', cls: 'bg-amber-100 text-amber-700' },
+  모집마감: { label: '모집마감', cls: 'bg-slate-200 text-slate-600' },
   대진완료: { label: '대진완료', cls: 'bg-sky-100 text-sky-700' },
   진행중: { label: '진행중', cls: 'bg-volt-100 text-volt-800' },
   종료: { label: '종료', cls: 'bg-navy-100 text-navy-700' },
@@ -263,7 +265,7 @@ export function AdminEventScreen() {
           date,
           start_time: formatHour(startHour),
           end_time: formatHour(endHour),
-          court: courts.join(','),
+          court: [...courts].sort().join(','),
           max_teams: maxTeams,
           min_teams: minTeams,
           fee,
@@ -283,7 +285,7 @@ export function AdminEventScreen() {
         date,
         start_time: formatHour(startHour),
         end_time: formatHour(endHour),
-        court: courts.join(','),
+        court: [...courts].sort().join(','),
         max_teams: maxTeams,
         min_teams: minTeams,
         fee,
@@ -305,6 +307,16 @@ export function AdminEventScreen() {
   const handleDelete = async (ev: GameDayEvent) => {
     if (!confirm(`"${ev.title}" 이벤트를 삭제하시겠습니까?`)) return;
     await supabase.from('game_day_events').delete().eq('id', ev.id);
+    void loadEvents();
+  };
+
+  const handleCloseRecruitment = async (ev: GameDayEvent) => {
+    if (!confirm(`"${ev.title}" 모집을 마감하시겠습니까?\n마감 후 추가 신청이 불가능합니다.`)) return;
+    await supabase.from('game_day_events').update({ status: '모집마감' }).eq('id', ev.id);
+    if (detailEvent) {
+      setDetailEvent({ ...detailEvent, status: '모집마감' });
+      void loadDetail(detailEvent.id);
+    }
     void loadEvents();
   };
 
@@ -356,63 +368,92 @@ export function AdminEventScreen() {
     // Delete existing matches
     await supabase.from('game_day_matches').delete().eq('event_id', ev.id);
 
-    // Generate 4 rounds of round-robin matches
-    // For N teams, we need to create matches so each team plays exactly 4 games
-    // Simple approach: create all unique pairs, then select 4 per team
     const teamIds = confirmed.map((p) => p.id);
-    const allPairs: [string, string][] = [];
-    for (let i = 0; i < teamIds.length; i++) {
-      for (let j = i + 1; j < teamIds.length; j++) {
-        allPairs.push([teamIds[i], teamIds[j]]);
-      }
+    const n = teamIds.length;
+    const targetGames = 4;
+
+    // Track games per team and opponent frequency for balanced scheduling
+    const gamesPerTeam = new Map<string, number>();
+    const opponentsPerTeam = new Map<string, Map<string, number>>();
+    for (const id of teamIds) {
+      gamesPerTeam.set(id, 0);
+      opponentsPerTeam.set(id, new Map());
     }
 
-    // If 4 or fewer teams, use round-robin (each plays each other once or twice to get 4 games)
-    // If more than 5 teams, assign 4 random unique opponents per team
     const matchesToCreate: { teamA: string[]; teamB: string[]; round: number }[] = [];
-    const gamesPerTeam = new Map<string, number>();
-    for (const id of teamIds) gamesPerTeam.set(id, 0);
 
-    let round = 1;
-    const usedPairs = new Set<string>();
+    // Greedy: pick pairs where both teams still need games, prioritizing:
+    // 1) teams with fewest total games, 2) matchups that haven't happened yet
+    for (let safety = 0; safety < n * targetGames; safety++) {
+      const needGames = teamIds.filter((id) => gamesPerTeam.get(id)! < targetGames);
+      if (needGames.length < 2) break;
 
-    // Keep creating matches until every team has 4 games or we run out of pairs
-    while (Array.from(gamesPerTeam.values()).some((v) => v < 4) && allPairs.length > usedPairs.size) {
       let bestPair: [string, string] | null = null;
       let bestScore = Infinity;
 
-      for (const [a, b] of allPairs) {
-        const key = `${a}|${b}`;
-        if (usedPairs.has(key)) continue;
-        const ga = gamesPerTeam.get(a) || 0;
-        const gb = gamesPerTeam.get(b) || 0;
-        if (ga >= 4 && gb >= 4) continue;
-        const score = Math.max(ga, gb);
-        if (score < bestScore) {
-          bestScore = score;
-          bestPair = [a, b];
+      for (let i = 0; i < needGames.length; i++) {
+        for (let j = i + 1; j < needGames.length; j++) {
+          const a = needGames[i];
+          const b = needGames[j];
+          const ga = gamesPerTeam.get(a)!;
+          const gb = gamesPerTeam.get(b)!;
+          const matchupCount = opponentsPerTeam.get(a)!.get(b) || 0;
+          // Prioritize: lowest combined game count, then fewest prior meetings
+          const score = (ga + gb) * 100 + matchupCount;
+          if (score < bestScore) {
+            bestScore = score;
+            bestPair = [a, b];
+          }
         }
       }
 
       if (!bestPair) break;
-      const key = `${bestPair[0]}|${bestPair[1]}`;
-      usedPairs.add(key);
-      matchesToCreate.push({ teamA: [bestPair[0]], teamB: [bestPair[1]], round });
-      gamesPerTeam.set(bestPair[0], (gamesPerTeam.get(bestPair[0]) || 0) + 1);
-      gamesPerTeam.set(bestPair[1], (gamesPerTeam.get(bestPair[1]) || 0) + 1);
-      round = Math.floor(matchesToCreate.length / Math.ceil(teamIds.length / 2)) + 1;
+
+      const [a, b] = bestPair;
+      matchesToCreate.push({ teamA: [a], teamB: [b], round: 0 });
+      gamesPerTeam.set(a, gamesPerTeam.get(a)! + 1);
+      gamesPerTeam.set(b, gamesPerTeam.get(b)! + 1);
+      opponentsPerTeam.get(a)!.set(b, (opponentsPerTeam.get(a)!.get(b) || 0) + 1);
+      opponentsPerTeam.get(b)!.set(a, (opponentsPerTeam.get(b)!.get(a) || 0) + 1);
     }
 
-    // Assign rounds sequentially, max 1 game per team per round
-    const teamLastRound = new Map<string, number>();
-    let currentRound = 1;
+    // If any team couldn't reach targetGames (too few unique opponents),
+    // allow rematches to top them up
+    const stillNeed = teamIds.filter((id) => gamesPerTeam.get(id)! < targetGames);
+    for (const id of stillNeed) {
+      while (gamesPerTeam.get(id)! < targetGames) {
+        // Find the opponent with the fewest games (excluding self)
+        let bestOpp = null;
+        let bestOppGames = Infinity;
+        for (const other of teamIds) {
+          if (other === id) continue;
+          const g = gamesPerTeam.get(other)!;
+          if (g < bestOppGames) {
+            bestOppGames = g;
+            bestOpp = other;
+          }
+        }
+        if (!bestOpp) break;
+        matchesToCreate.push({ teamA: [id], teamB: [bestOpp], round: 0 });
+        gamesPerTeam.set(id, gamesPerTeam.get(id)! + 1);
+        gamesPerTeam.set(bestOpp, gamesPerTeam.get(bestOpp)! + 1);
+        opponentsPerTeam.get(id)!.set(bestOpp, (opponentsPerTeam.get(id)!.get(bestOpp) || 0) + 1);
+        opponentsPerTeam.get(bestOpp)!.set(id, (opponentsPerTeam.get(bestOpp)!.get(id) || 0) + 1);
+      }
+    }
+
+    // Assign rounds: no team plays twice in the same round
+    const teamRounds = new Map<string, Set<number>>();
+    for (const id of teamIds) teamRounds.set(id, new Set());
+
     for (const m of matchesToCreate) {
-      const lastA = teamLastRound.get(m.teamA[0]) || 0;
-      const lastB = teamLastRound.get(m.teamB[0]) || 0;
-      const minRound = Math.max(lastA, lastB) + 1;
-      m.round = minRound;
-      teamLastRound.set(m.teamA[0], minRound);
-      teamLastRound.set(m.teamB[0], minRound);
+      let round = 1;
+      while (teamRounds.get(m.teamA[0])!.has(round) || teamRounds.get(m.teamB[0])!.has(round)) {
+        round++;
+      }
+      m.round = round;
+      teamRounds.get(m.teamA[0])!.add(round);
+      teamRounds.get(m.teamB[0])!.add(round);
     }
 
     for (const m of matchesToCreate) {
@@ -518,7 +559,7 @@ export function AdminEventScreen() {
                     <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
                       <span className="flex items-center gap-1"><CalendarIcon size={13} />{formatDate(ev.date)}</span>
                       <span className="flex items-center gap-1"><Clock size={13} />{ev.startTime}~{ev.endTime}</span>
-                      <span className="flex items-center gap-1">{ev.court}</span>
+                      <span className="flex items-center gap-1">{ev.court.split(',').filter(Boolean).sort().join(', ')}</span>
                       <span className="flex items-center gap-1"><Users size={13} />{ev.participantCount}/{ev.maxTeams}팀{ev.pendingCount > 0 && ` (입금대기${ev.pendingCount})`}{ev.waitingCount > 0 && ` (대기${ev.waitingCount})`}</span>
                       {ev.fee > 0 && <span>팀 {ev.fee.toLocaleString()}원</span>}
                       {ev.feePerPlayer > 0 && <span>1인 {ev.feePerPlayer.toLocaleString()}원</span>}
@@ -754,6 +795,24 @@ export function AdminEventScreen() {
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-bold text-navy-900 text-sm">참가 현황 ({(detailEventWithCounts?.participantCount ?? 0) + (detailEventWithCounts?.pendingCount ?? 0)}/{detailEvent.maxTeams}팀)</h4>
                     {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleCloseRecruitment(detailEvent)}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-600 text-white text-xs font-bold hover:bg-slate-700 transition"
+                        >
+                          <XCircle size={14} />
+                          모집 마감
+                        </button>
+                        <button
+                          onClick={() => generateBracket(detailEvent)}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 transition"
+                        >
+                          <ClipboardList size={14} />
+                          대진표 생성
+                        </button>
+                      </div>
+                    ) : null}
+                    {detailEvent.status === '모집마감' && (
                       <button
                         onClick={() => generateBracket(detailEvent)}
                         className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 transition"
@@ -761,7 +820,7 @@ export function AdminEventScreen() {
                         <ClipboardList size={14} />
                         대진표 생성
                       </button>
-                    ) : null}
+                    )}
                     {detailEvent.status === '대진완료' && (
                       <button
                         onClick={() => handleFinishEvent(detailEvent)}
@@ -785,7 +844,7 @@ export function AdminEventScreen() {
                           {p.refundAccount && <p className="text-xs text-slate-400">환불계좌: {p.refundAccount}</p>}
                           <p className="text-xs text-slate-400 flex items-center gap-1"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
-                        {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
+                        {detailEvent.status === '모집중' || detailEvent.status === '대기모집' || detailEvent.status === '모집마감' ? (
                           <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>
                         ) : null}
                       </div>
@@ -802,7 +861,7 @@ export function AdminEventScreen() {
                           {p.refundAccount && <p className="text-xs text-slate-400">환불계좌: {p.refundAccount}</p>}
                           <p className="text-xs text-sky-600 flex items-center gap-1 font-semibold"><Clock size={11} />{formatElapsed(p.createdAt, now)}</p>
                         </div>
-                        {detailEvent.status === '모집중' || detailEvent.status === '대기모집' ? (
+                        {detailEvent.status === '모집중' || detailEvent.status === '대기모집' || detailEvent.status === '모집마감' ? (
                           <>
                             <button onClick={() => handleConfirmDeposit(p)} className="text-xs font-semibold text-green-600 hover:text-green-800 transition">입금확정</button>
                             <button onClick={() => handleRemoveParticipant(p)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition">제외</button>

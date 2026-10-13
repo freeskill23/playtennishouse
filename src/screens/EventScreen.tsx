@@ -26,6 +26,7 @@ const GAME_TYPE_LABEL: Record<EventGameType, string> = {
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   모집중: { label: '모집중', cls: 'bg-green-100 text-green-700' },
   대기모집: { label: '대기신청', cls: 'bg-amber-100 text-amber-700' },
+  모집마감: { label: '모집마감', cls: 'bg-slate-200 text-slate-600' },
   대진완료: { label: '대진완료', cls: 'bg-sky-100 text-sky-700' },
   진행중: { label: '진행중', cls: 'bg-volt-100 text-volt-800' },
   종료: { label: '종료', cls: 'bg-navy-100 text-navy-700' },
@@ -365,7 +366,7 @@ export function EventScreen() {
                     </div>
                     <div>
                       <p className="font-bold text-navy-900 text-lg">{ev.title}</p>
-                      <p className="text-xs text-slate-500">{GAME_TYPE_LABEL[ev.gameType]} · {ev.court}</p>
+                      <p className="text-xs text-slate-500">{GAME_TYPE_LABEL[ev.gameType]} · {ev.court.split(',').filter(Boolean).sort().join(', ')}</p>
                     </div>
                   </div>
                   <span className={`chip ${st.cls}`}>{st.label}</span>
@@ -418,6 +419,8 @@ export function EventScreen() {
                         <ChevronRight size={14} />
                       </span>
                     )
+                  ) : ev.status === '모집마감' ? (
+                    <span className="text-xs text-slate-500 font-semibold">모집 마감</span>
                   ) : (
                     <span className="text-xs text-slate-400">신청 불가</span>
                   )}
@@ -450,7 +453,7 @@ export function EventScreen() {
                   </div>
                   <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                     <p className="text-xs text-slate-400">코트</p>
-                    <p className="font-bold text-navy-900">{selectedEvent.court}</p>
+                    <p className="font-bold text-navy-900">{selectedEvent.court.split(',').filter(Boolean).sort().join(', ')}</p>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-3 py-2.5">
                     <p className="text-xs text-slate-400">날짜</p>
@@ -606,6 +609,13 @@ export function EventScreen() {
                 {(() => {
                   const canApply = selectedEvent.status === '모집중' || selectedEvent.status === '대기모집';
                   const alreadyApplied = appliedEventIds.has(selectedEvent.id);
+                  if (selectedEvent.status === '모집마감' && !alreadyApplied) {
+                    return (
+                      <div className="rounded-xl bg-slate-100 border border-slate-200 px-4 py-3 text-center">
+                        <p className="text-sm font-semibold text-slate-600">모집이 마감되었습니다</p>
+                      </div>
+                    );
+                  }
                   if (!canApply || alreadyApplied) return null;
                   if (isGuest) {
                     return (

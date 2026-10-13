@@ -17,6 +17,7 @@ export function PensionScreen() {
     getPensionStatusForDate,
     createPensionReservation,
     isPensionBlockedByCourt,
+    isPensionBlockedByGameDay,
     currentUser,
     getPensionPrice,
     pensionWeekdayPrice,
@@ -41,7 +42,7 @@ export function PensionScreen() {
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
 
-  const roomBlocked = (name: RoomName) => isPensionBlockedByCourt(date, name);
+  const roomBlocked = (name: RoomName) => isPensionBlockedByCourt(date, name) || isPensionBlockedByGameDay(date, name);
   const roomStatus = selectedRoom
     ? getPensionStatusForDate(date, selectedRoom)
     : null;
@@ -105,8 +106,8 @@ export function PensionScreen() {
         dayRender={(d) => {
           const a = getPensionStatusForDate(d, 'A동');
           const b = getPensionStatusForDate(d, 'B동');
-          const aBooked = a.status === 'booked' || isPensionBlockedByCourt(d, 'A동');
-          const bBooked = b.status === 'booked' || isPensionBlockedByCourt(d, 'B동');
+          const aBooked = a.status === 'booked' || isPensionBlockedByCourt(d, 'A동') || isPensionBlockedByGameDay(d, 'A동');
+          const bBooked = b.status === 'booked' || isPensionBlockedByCourt(d, 'B동') || isPensionBlockedByGameDay(d, 'B동');
           if (aBooked && bBooked)
             return <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />;
           if (aBooked || bBooked)

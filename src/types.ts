@@ -84,7 +84,7 @@ export const MATCHING_MAX_PLAYERS = 8;
 
 // ===== Game Day (게임데이) =====
 export type EventGameType = 'singles' | 'doubles';
-export type EventStatus = '모집중' | '대기모집' | '대진완료' | '진행중' | '종료' | '취소';
+export type EventStatus = '모집중' | '대기모집' | '모집마감' | '대진완료' | '진행중' | '종료' | '취소';
 
 export interface EventParticipant {
   id: string;
