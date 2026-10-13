@@ -11,7 +11,7 @@ import {
   Medal,
   Loader2,
 } from 'lucide-react';
-import { supabase, supabaseConfigured } from '../lib/supabase';
+import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { useApp } from '../store';
 import { todayYMD } from '../components/Calendar';
@@ -41,7 +41,7 @@ interface EventWithCounts extends GameDayEvent {
 
 export function EventScreen() {
   const { isGuest, user } = useAuth();
-  const { gameDayBannerImageUrl } = useApp();
+  const { bankAccount } = useApp();
   const [events, setEvents] = useState<EventWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<GameDayEvent | null>(null);
@@ -253,6 +253,27 @@ export function EventScreen() {
     setAppliedEventIds((prev) => new Set([...prev, selectedEvent.id]));
     void openDetail(selectedEvent);
     void loadEvents();
+
+    // Send Telegram notification to admin
+    const applicantLabel = playerName2
+      ? `${playerName} / ${playerName2}`
+      : playerName;
+    const statusLabel = status === '대기' ? '대기 신청' : '참가 신청';
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/telegram-notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          title: `게임데이 신청`,
+          body: `이벤트: ${selectedEvent.title}\n신청자: ${applicantLabel}\n상태: ${statusLabel}`,
+        }),
+      });
+    } catch {
+      // silent fail — Telegram is a best-effort notification channel
+    }
   };
 
   const handleCancel = async (participantId: string) => {
@@ -318,23 +339,14 @@ export function EventScreen() {
 
   return (
     <div className="space-y-5 pb-4">
-      {/* Hero banner */}
-      <div className="relative rounded-2xl overflow-hidden h-32 sm:h-40 mb-3">
-        {gameDayBannerImageUrl ? (
-          <img src={gameDayBannerImageUrl} alt="게임데이 배너" className="absolute inset-0 w-full h-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="relative h-full flex flex-col justify-end p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Trophy size={24} className="text-amber-300 drop-shadow" />
-            <h2 className="text-2xl font-extrabold text-white drop-shadow-lg">게임데이</h2>
-          </div>
-          <p className="text-sm text-white/90 drop-shadow">
-            단식·복식 게임데이에 참가하세요. 각 팀은 4게임을 진행합니다.
-          </p>
-        </div>
+      <div className="mb-3">
+        <h2 className="text-xl font-bold text-navy-900 flex items-center gap-1.5">
+          <Trophy size={22} className="text-amber-500" />
+          게임데이 신청
+        </h2>
+        <p className="text-xs text-slate-500 mt-1">
+          단식·복식 게임데이에 참가하세요. 각 팀은 4게임을 진행합니다.
+        </p>
       </div>
 
       {loading ? (
@@ -510,14 +522,6 @@ export function EventScreen() {
                           {p.playerName}
                           {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
                         </span>
-                        {p.userId === user?.id && (
-                          <button
-                            onClick={() => handleCancel(p.id)}
-                            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition"
-                          >
-                            취소
-                          </button>
-                        )}
                       </div>
                     ))}
                     {participants.filter((p) => p.status === '입금대기').map((p, idx) => (
@@ -697,10 +701,17 @@ export function EventScreen() {
           <p className="font-bold text-navy-900 mb-2">신청이 완료되었습니다!</p>
           <p className="text-sm text-slate-500">
             입금하시면 관리자 확인 후 참가가 확정됩니다. 아래 계좌로 참가비를 입금해주세요.
-            {selectedEvent?.refundAccount && (
-              <span className="block mt-2 text-xs text-slate-400">환불 계좌: {selectedEvent.refundAccount}</span>
-            )}
           </p>
+          {bankAccount.bank && bankAccount.number && (
+            <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-left">
+              <p className="text-xs text-slate-400 mb-1">입금 계좌</p>
+              <p className="font-bold text-navy-900">{bankAccount.bank} {bankAccount.number}</p>
+              <p className="text-sm text-navy-700 mt-0.5">예금주: {bankAccount.holder}</p>
+            </div>
+          )}
+          {selectedEvent?.refundAccount && (
+            <p className="mt-3 text-xs text-slate-400">환불 계좌: {selectedEvent.refundAccount}</p>
+          )}
         </div>
       </Modal>
     </div>

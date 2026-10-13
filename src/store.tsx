@@ -271,10 +271,6 @@ interface AppState {
   bannerGradientColors: { from: string; via: string; to: string } | null;
   updateBannerGradientColors: (colors: { from: string; via: string; to: string } | null) => void;
 
-  // game day banner
-  gameDayBannerImageUrl: string | null;
-  updateGameDayBannerImage: (url: string | null) => void;
-
   // logo
   logoImageUrl: string | null;
   updateLogoImage: (url: string | null) => void;
@@ -896,7 +892,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [courtPricing, setCourtPricing] = useState<CourtPricing>(DEFAULT_COURT_PRICING);
   const [bbqPricing, setBbqPricing] = useState<BBQPricing>(DEFAULT_BBQ_PRICING);
   const [bannerImageUrl, setBannerImageUrl] = useState<string | null>(null);
-  const [gameDayBannerImageUrl, setGameDayBannerImageUrl] = useState<string | null>(null);
   const [bannerGradientColors, setBannerGradientColors] = useState<{ from: string; via: string; to: string } | null>(null);
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
@@ -913,7 +908,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data, error } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, game_day_banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
       .eq('id', 1)
       .maybeSingle();
     if (error) {
@@ -923,7 +918,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (data) {
       setBannerImageUrl(data.banner_image_url);
       if (data.banner_gradient_colors) setBannerGradientColors(data.banner_gradient_colors as { from: string; via: string; to: string });
-      setGameDayBannerImageUrl(data.game_day_banner_image_url);
       setLogoImageUrl(data.logo_image_url);
       if (data.bank_name || data.bank_account_number || data.bank_account_holder) {
         setBankAccount({
@@ -970,7 +964,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const load = async () => {
       const { data, error } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, game_day_banner_image_url, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
         .eq('id', 1)
         .maybeSingle();
       if (cancelled) return;
@@ -984,7 +978,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (data) {
         setBannerImageUrl(data.banner_image_url);
         if (data.banner_gradient_colors) setBannerGradientColors(data.banner_gradient_colors as { from: string; via: string; to: string });
-        setGameDayBannerImageUrl(data.game_day_banner_image_url);
         setLogoImageUrl(data.logo_image_url);
         if (data.bank_name || data.bank_account_number || data.bank_account_holder) {
           setBankAccount({
@@ -1290,26 +1283,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           });
       }
       pushToast(url ? '배너 이미지가 변경되었습니다.' : '배너 이미지가 초기화되었습니다.');
-    },
-    [pushToast],
-  );
-
-  const updateGameDayBannerImage = useCallback(
-    (url: string | null) => {
-      setGameDayBannerImageUrl(url);
-      if (supabaseConfigured) {
-        supabase
-          .from('settings')
-          .upsert({
-            id: 1,
-            game_day_banner_image_url: url,
-            updated_at: new Date().toISOString(),
-          })
-          .then(({ error }) => {
-            if (error) pushToast('게임데이 배너 저장 실패', 'error');
-          });
-      }
-      pushToast(url ? '게임데이 배너가 변경되었습니다.' : '게임데이 배너가 초기화되었습니다.');
     },
     [pushToast],
   );
@@ -3200,8 +3173,6 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     createBBQReservation,
     bannerImageUrl,
     updateBannerImage,
-    gameDayBannerImageUrl,
-    updateGameDayBannerImage,
     bannerGradientColors,
     updateBannerGradientColors,
     logoImageUrl,

@@ -20,7 +20,6 @@ import {
   Send,
   CalendarClock,
   Flame,
-  Trophy,
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
@@ -49,8 +48,6 @@ export function AdminDashboardScreen() {
     updateBannerImage,
     bannerGradientColors,
     updateBannerGradientColors,
-    gameDayBannerImageUrl,
-    updateGameDayBannerImage,
     logoImageUrl,
     updateLogoImage,
     bankAccount,
@@ -87,7 +84,6 @@ export function AdminDashboardScreen() {
   const [baseCapacityEdit, setBaseCapacityEdit] = useState({ weekday: pensionWeekdayBaseCapacity, weekend: pensionWeekendBaseCapacity });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
   const [bannerUrlInput, setBannerUrlInput] = useState('');
-  const [gameDayBannerUrlInput, setGameDayBannerUrlInput] = useState('');
   const [logoUrlInput, setLogoUrlInput] = useState('');
   const [bankEdit, setBankEdit] = useState({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });
   const [telegramEdit, setTelegramEdit] = useState({ botToken: telegramConfig.botToken, chatId: telegramConfig.chatId });
@@ -1117,76 +1113,6 @@ export function AdminDashboardScreen() {
               </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Game Day banner image control */}
-      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-            <Trophy size={16} className="text-amber-600" />
-          </div>
-          <div>
-            <h3 className="font-bold text-navy-900 text-sm">게임데이 배너 이미지</h3>
-            <p className="text-xs text-slate-400">게임데이 신청 페이지 상단에 표시될 배너 이미지 URL</p>
-          </div>
-        </div>
-
-        {/* Preview */}
-        <div className="relative overflow-hidden rounded-xl h-28 mb-3">
-          {gameDayBannerImageUrl ? (
-            <>
-              <img src={gameDayBannerImageUrl} alt="게임데이 배너 미리보기" className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-              <div className="relative h-full flex flex-col justify-end p-3">
-                <div className="flex items-center gap-1.5">
-                  <Trophy size={18} className="text-amber-300" />
-                  <span className="text-lg font-extrabold text-white drop-shadow">게임데이</span>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center">
-              <div className="flex items-center gap-1.5">
-                <Trophy size={18} className="text-amber-200" />
-                <span className="text-lg font-extrabold text-white">기본 배너 (Amber)</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            type="url"
-            placeholder="https://images.pexels.com/..."
-            value={gameDayBannerUrlInput}
-            onChange={(e) => setGameDayBannerUrlInput(e.target.value)}
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
-          />
-          <button
-            onClick={() => {
-              if (!gameDayBannerUrlInput.trim()) return;
-              updateGameDayBannerImage(gameDayBannerUrlInput.trim());
-              setGameDayBannerUrlInput('');
-            }}
-            disabled={!gameDayBannerUrlInput.trim()}
-            className="px-4 py-2 rounded-lg text-sm font-bold bg-navy-900 text-white hover:bg-navy-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            적용
-          </button>
-          {gameDayBannerImageUrl && (
-            <button
-              onClick={() => updateGameDayBannerImage(null)}
-              className="px-3 py-2 rounded-lg text-sm font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition"
-            >
-              초기화
-            </button>
-          )}
-        </div>
-        {gameDayBannerImageUrl && (
-          <p className="text-xs text-slate-400 mt-2 truncate">
-            현재: <span className="text-navy-600">{gameDayBannerImageUrl}</span>
-          </p>
         )}
       </div>
 
