@@ -205,7 +205,7 @@ export function CourtScreen() {
           <div>
             <p className="font-bold text-amber-800">해당 날짜 펜션 예약 완료</p>
             <p className="text-sm text-amber-700 mt-0.5">
-              이 날짜에는 펜션 예약이 완료되어 당일 15:00 ~ 익일 11:00 코트 이용이 불가합니다. (그 외 시간대 예약 가능)
+              펜션 예약으로 인해 당일 15:00 ~ 익일 11:00 코트 이용이 불가합니다. 오전 11:00 이후 시간대는 예약 가능합니다.
             </p>
           </div>
         </div>
@@ -286,7 +286,7 @@ export function CourtScreen() {
           </div>
         )}
 
-        {sortedSlots.length > 0 && !blockedByPension && (
+        {sortedSlots.length > 0 && (
           <div className="mt-4 space-y-2 animate-slide-up">
             <div className="rounded-xl bg-navy-50 p-3.5 space-y-2">
               <div className="flex items-center justify-between">
@@ -339,7 +339,7 @@ export function CourtScreen() {
         )}
 
         {/* Waiting for booked/pending slot */}
-        {selectedSlots.length === 1 && (getCourtSlotStatus(date, court, selectedSlots[0]) === 'booked' || getCourtSlotStatus(date, court, selectedSlots[0]) === 'pending') && !blockedByPension && (
+        {selectedSlots.length === 1 && (getCourtSlotStatus(date, court, selectedSlots[0]) === 'booked' || getCourtSlotStatus(date, court, selectedSlots[0]) === 'pending') && (
           <div className="mt-4 space-y-2 animate-slide-up">
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 flex items-start gap-2">
               <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
