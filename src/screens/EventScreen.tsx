@@ -52,7 +52,10 @@ export function EventScreen() {
   const [successModal, setSuccessModal] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [playerName2, setPlayerName2] = useState('');
+  const [soloApply, setSoloApply] = useState(false);
   const [depositorName, setDepositorName] = useState('');
+  const [editPartnerId, setEditPartnerId] = useState<string | null>(null);
+  const [editPartnerName, setEditPartnerName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
   const [refundAccount, setRefundAccount] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -198,8 +201,8 @@ export function EventScreen() {
       setError('참가자 이름을 입력해주세요.');
       return;
     }
-    if (selectedEvent.gameType === 'doubles' && !playerName2.trim()) {
-      setError('복식 파트너 이름을 입력해주세요.');
+    if (selectedEvent.gameType === 'doubles' && !soloApply && !playerName2.trim()) {
+      setError('파트너 이름을 입력하거나 혼자 신청을 체크해주세요.');
       return;
     }
     if (!depositorName.trim()) {
@@ -238,7 +241,7 @@ export function EventScreen() {
       event_id: selectedEvent.id,
       user_id: user.id,
       player_name: playerName.trim(),
-      player_name2: selectedEvent.gameType === 'doubles' ? playerName2.trim() : null,
+      player_name2: selectedEvent.gameType === 'doubles' && !soloApply ? playerName2.trim() : null,
       depositor_name: depositorName.trim(),
       depositor_phone: isGuest ? depositorPhone.trim() : null,
       refund_account: refundAccount.trim(),
@@ -256,6 +259,7 @@ export function EventScreen() {
     setSuccessModal(true);
     setPlayerName('');
     setPlayerName2('');
+    setSoloApply(false);
     setDepositorName('');
     setDepositorPhone('');
     setRefundAccount('');
@@ -264,7 +268,7 @@ export function EventScreen() {
     void loadEvents();
 
     // Send Telegram notification to admin
-    const applicantLabel = playerName2
+    const applicantLabel = (playerName2.trim() && !soloApply)
       ? `${playerName} / ${playerName2}`
       : playerName;
     const statusLabel = status === '대기' ? '대기 신청' : '참가 신청';
@@ -303,6 +307,21 @@ export function EventScreen() {
     }
     void openDetail(selectedEvent);
     void loadEvents();
+  };
+
+  const handleEditPartner = async (participantId: string) => {
+    if (!selectedEvent) return;
+    const { error: updateError } = await supabase
+      .from('game_day_participants')
+      .update({ player_name2: editPartnerName.trim() || null })
+      .eq('id', participantId);
+    if (updateError) {
+      alert('파트너 수정에 실패했습니다: ' + updateError.message);
+      return;
+    }
+    setEditPartnerId(null);
+    setEditPartnerName('');
+    void openDetail(selectedEvent);
   };
 
   const formatDate = (dateStr: string) => {
@@ -505,61 +524,151 @@ export function EventScreen() {
                   <h4 className="font-bold text-navy-900 mb-2 text-sm">참가 현황</h4>
                   <div className="space-y-1">
                     {participants.filter((p) => p.status === '참가').map((p, idx) => (
-                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-green-50/50">
-                        <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-navy-900">
-                            {p.playerName}
-                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
-                          </span>
-                          {p.userId === user?.id && p.refundAccount && (
-                            <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
-                          )}
-                        </div>
+                      <div key={p.id} className={`py-2 px-3 rounded-lg bg-green-50/50 ${editPartnerId === p.id ? 'space-y-2' : 'flex items-center gap-3'}`}>
+                        {editPartnerId === p.id ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-navy-900">{p.playerName}</span>
+                              <span className="text-xs text-slate-400">파트너 수정</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={editPartnerName}
+                                onChange={(e) => setEditPartnerName(e.target.value)}
+                                placeholder="새 파트너 이름 (비우면 혼자 신청)"
+                                className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-navy-900 outline-none focus:border-volt-400"
+                              />
+                              <button onClick={() => handleEditPartner(p.id)} className="text-xs font-bold text-volt-700 hover:text-volt-800">저장</button>
+                              <button onClick={() => { setEditPartnerId(null); setEditPartnerName(''); }} className="text-xs font-semibold text-slate-500">취소</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-semibold text-navy-900">
+                                {p.playerName}
+                                {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                                {!p.playerName2 && selectedEvent?.gameType === 'doubles' && <span className="text-volt-600 text-xs ml-1">(혼자 신청)</span>}
+                              </span>
+                              {p.userId === user?.id && p.refundAccount && (
+                                <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
+                              )}
+                            </div>
+                            {p.userId === user?.id && selectedEvent?.gameType === 'doubles' && (
+                              <button
+                                onClick={() => { setEditPartnerId(p.id); setEditPartnerName(p.playerName2 || ''); }}
+                                className="text-xs font-semibold text-navy-600 hover:text-navy-800 transition"
+                              >
+                                파트너 수정
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     ))}
                     {participants.filter((p) => p.status === '입금대기').map((p, idx) => (
-                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-sky-50/50">
-                        <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">입{idx + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-navy-900">
-                            {p.playerName}
-                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
-                          </span>
-                          {p.userId === user?.id && p.refundAccount && (
-                            <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
-                          )}
-                        </div>
-                        <span className="text-xs text-sky-600 font-semibold">입금대기</span>
-                        {p.userId === user?.id && (
-                          <button
-                            onClick={() => handleCancel(p.id)}
-                            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition"
-                          >
-                            취소
-                          </button>
+                      <div key={p.id} className={`py-2 px-3 rounded-lg bg-sky-50/50 ${editPartnerId === p.id ? 'space-y-2' : 'flex items-center gap-3'}`}>
+                        {editPartnerId === p.id ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-navy-900">{p.playerName}</span>
+                              <span className="text-xs text-slate-400">파트너 수정</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={editPartnerName}
+                                onChange={(e) => setEditPartnerName(e.target.value)}
+                                placeholder="새 파트너 이름 (비우면 혼자 신청)"
+                                className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-navy-900 outline-none focus:border-volt-400"
+                              />
+                              <button onClick={() => handleEditPartner(p.id)} className="text-xs font-bold text-volt-700 hover:text-volt-800">저장</button>
+                              <button onClick={() => { setEditPartnerId(null); setEditPartnerName(''); }} className="text-xs font-semibold text-slate-500">취소</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center">입{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-semibold text-navy-900">
+                                {p.playerName}
+                                {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                                {!p.playerName2 && selectedEvent?.gameType === 'doubles' && <span className="text-volt-600 text-xs ml-1">(혼자 신청)</span>}
+                              </span>
+                              {p.userId === user?.id && p.refundAccount && (
+                                <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
+                              )}
+                            </div>
+                            <span className="text-xs text-sky-600 font-semibold">입금대기</span>
+                            {p.userId === user?.id && selectedEvent?.gameType === 'doubles' && (
+                              <button
+                                onClick={() => { setEditPartnerId(p.id); setEditPartnerName(p.playerName2 || ''); }}
+                                className="text-xs font-semibold text-navy-600 hover:text-navy-800 transition"
+                              >
+                                파트너 수정
+                              </button>
+                            )}
+                            {p.userId === user?.id && (
+                              <button
+                                onClick={() => handleCancel(p.id)}
+                                className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition"
+                              >
+                                취소
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     ))}
                     {participants.filter((p) => p.status === '대기').map((p, idx) => (
-                      <div key={p.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-amber-50/50">
-                        <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">대{idx + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-semibold text-navy-900">
-                            {p.playerName}
-                            {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
-                          </span>
-                          {p.userId === user?.id && p.refundAccount && (
-                            <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
-                          )}
-                        </div>
-                        {p.userId === user?.id && (
-                          <button
-                            onClick={() => handleCancel(p.id)}
-                            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition"
-                          >
-                            취소
-                          </button>
+                      <div key={p.id} className={`py-2 px-3 rounded-lg bg-amber-50/50 ${editPartnerId === p.id ? 'space-y-2' : 'flex items-center gap-3'}`}>
+                        {editPartnerId === p.id ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-navy-900">{p.playerName}</span>
+                              <span className="text-xs text-slate-400">파트너 수정</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={editPartnerName}
+                                onChange={(e) => setEditPartnerName(e.target.value)}
+                                placeholder="새 파트너 이름 (비우면 혼자 신청)"
+                                className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-navy-900 outline-none focus:border-volt-400"
+                              />
+                              <button onClick={() => handleEditPartner(p.id)} className="text-xs font-bold text-volt-700 hover:text-volt-800">저장</button>
+                              <button onClick={() => { setEditPartnerId(null); setEditPartnerName(''); }} className="text-xs font-semibold text-slate-500">취소</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">대{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-semibold text-navy-900">
+                                {p.playerName}
+                                {p.playerName2 && <span className="text-slate-500"> · {p.playerName2}</span>}
+                                {!p.playerName2 && selectedEvent?.gameType === 'doubles' && <span className="text-volt-600 text-xs ml-1">(혼자 신청)</span>}
+                              </span>
+                              {p.userId === user?.id && p.refundAccount && (
+                                <span className="block text-xs text-slate-400 mt-0.5">환불계좌: {p.refundAccount}</span>
+                              )}
+                            </div>
+                            {p.userId === user?.id && selectedEvent?.gameType === 'doubles' && (
+                              <button
+                                onClick={() => { setEditPartnerId(p.id); setEditPartnerName(p.playerName2 || ''); }}
+                                className="text-xs font-semibold text-navy-600 hover:text-navy-800 transition"
+                              >
+                                파트너 수정
+                              </button>
+                            )}
+                            {p.userId === user?.id && (
+                              <button
+                                onClick={() => handleCancel(p.id)}
+                                className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition"
+                              >
+                                취소
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     ))}
@@ -674,13 +783,30 @@ export function EventScreen() {
           </div>
           {selectedEvent?.gameType === 'doubles' && (
             <div>
-              <label className="text-sm font-semibold text-navy-800 block mb-1">파트너 이름</label>
-              <input
-                value={playerName2}
-                onChange={(e) => setPlayerName2(e.target.value)}
-                placeholder="파트너 이름"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-semibold text-navy-800">파트너 이름</label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={soloApply}
+                    onChange={(e) => setSoloApply(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-volt-600 focus:ring-volt-400"
+                  />
+                  <span className="text-xs font-semibold text-navy-700">혼자 신청하기</span>
+                </label>
+              </div>
+              {soloApply ? (
+                <div className="rounded-xl bg-volt-50 border border-volt-200 px-3 py-2.5 text-xs text-volt-800 leading-relaxed">
+                  혼자 신청하면 혼자 신청한 플레이어끼리 게임데이날 랜덤 매칭으로 게임이 진행됩니다.
+                </div>
+              ) : (
+                <input
+                  value={playerName2}
+                  onChange={(e) => setPlayerName2(e.target.value)}
+                  placeholder="파트너 이름"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-navy-900 outline-none focus:border-volt-400 focus:ring-2 focus:ring-volt-100"
+                />
+              )}
             </div>
           )}
           <div>
