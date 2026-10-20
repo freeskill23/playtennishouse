@@ -58,6 +58,7 @@ export function AdminDashboardScreen() {
     updateRoom,
     cancelReservation,
     createAdminCourtReservation,
+    createAdminPensionReservation,
     pushToast,
     tempHolidays,
     toggleHoliday,
@@ -77,6 +78,10 @@ export function AdminDashboardScreen() {
   const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
   const [adminReserveTarget, setAdminReserveTarget] = useState<{ court: CourtName; slot: string } | null>(null);
   const [adminReserveLabel, setAdminReserveLabel] = useState('');
+  const [adminPensionTarget, setAdminPensionTarget] = useState<string | null>(null);
+  const [adminPensionLabel, setAdminPensionLabel] = useState('');
+  const [adminPensionPhone, setAdminPensionPhone] = useState('');
+  const [adminPensionCapacity, setAdminPensionCapacity] = useState(2);
   const [date, setDate] = useState(todayYMD());
   const [courtPricingEdit, setCourtPricingEdit] = useState<CourtPricing>(courtPricing);
   const [limitsEdit, setLimitsEdit] = useState({ court: courtOpenDays, pension: pensionOpenMonths });
@@ -247,7 +252,15 @@ export function AdminDashboardScreen() {
               </div>
               <div className="space-y-1.5">
                 {roomReservations.length === 0 && waitings.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-2">예약 내역 없음</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-400 py-2">예약 내역 없음</p>
+                    <button
+                      onClick={() => { setAdminPensionTarget(room.id); setAdminPensionLabel(''); setAdminPensionPhone(''); setAdminPensionCapacity(2); }}
+                      className="flex items-center gap-1 text-xs font-bold text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg px-2.5 py-1.5 transition"
+                    >
+                      <CalendarPlus size={12} /> 관리자예약
+                    </button>
+                  </div>
                 ) : (
                   <>
                     {roomReservations.map((r) => {
@@ -1402,6 +1415,85 @@ export function AdminDashboardScreen() {
                 className="flex-1 rounded-lg bg-navy-900 py-2.5 text-sm font-bold text-white hover:bg-navy-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <CalendarPlus size={16} /> 예약하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin direct pension reservation modal */}
+      {adminPensionTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-10 h-10 rounded-full bg-volt-100 flex items-center justify-center">
+                <BedDouble size={20} className="text-volt-700" />
+              </div>
+              <div>
+                <h3 className="font-bold text-navy-900">관리자 펜션 예약</h3>
+                <p className="text-xs text-slate-400">{rooms.find((r) => r.id === adminPensionTarget)?.name} · {date}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">입금·승인 절차 없이 즉시 예약완료로 등록합니다. 전화 문의 등으로 관리자가 직접 예약할 때 사용합니다.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-navy-700 mb-1 block">예약자명</label>
+                <input
+                  type="text"
+                  value={adminPensionLabel}
+                  onChange={(e) => setAdminPensionLabel(e.target.value.slice(0, 20))}
+                  placeholder="예약자명"
+                  className="input py-2.5"
+                  maxLength={20}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-navy-700 mb-1 block">연락처 (선택)</label>
+                <input
+                  type="tel"
+                  value={adminPensionPhone}
+                  onChange={(e) => setAdminPensionPhone(e.target.value.slice(0, 20))}
+                  placeholder="010-1234-5678"
+                  className="input py-2.5"
+                  maxLength={20}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-navy-700 mb-1 block">인원 (최대 {rooms.find((r) => r.id === adminPensionTarget)?.maxCapacity}명)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={rooms.find((r) => r.id === adminPensionTarget)?.maxCapacity}
+                  value={adminPensionCapacity}
+                  onChange={(e) => setAdminPensionCapacity(Math.max(1, Number(e.target.value)))}
+                  className="input py-2.5"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setAdminPensionTarget(null)}
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  const res = createAdminPensionReservation({
+                    roomId: adminPensionTarget,
+                    date,
+                    capacity: adminPensionCapacity,
+                    label: adminPensionLabel.trim(),
+                    phone: adminPensionPhone.trim() || undefined,
+                  });
+                  if (res.ok) setAdminPensionTarget(null);
+                  else pushToast(res.reason || '예약 실패', 'error');
+                }}
+                disabled={!adminPensionLabel.trim()}
+                className="flex-1 rounded-lg bg-volt-500 py-2.5 text-sm font-bold text-navy-950 hover:bg-volt-400 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <BedDouble size={16} /> 예약하기
               </button>
             </div>
           </div>

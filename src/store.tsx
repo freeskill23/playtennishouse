@@ -166,6 +166,13 @@ interface AppState {
     timeSlot: string;
     label: string;
   }) => { ok: boolean; reason?: string; reservation?: Reservation };
+  createAdminPensionReservation: (input: {
+    roomId: string;
+    date: string;
+    capacity: number;
+    label: string;
+    phone?: string;
+  }) => { ok: boolean; reason?: string; reservation?: Reservation };
   requestWaiting: (reservationId: string) => { ok: boolean; sequence?: number };
   cancelReservation: (id: string) => void;
   approveReservation: (id: string) => void;
@@ -1967,6 +1974,57 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [getCourtSlotStatus, currentUserId, pushToast, upsertReservationToSupabase],
   );
 
+  // ===== Admin direct pension reservation (bypass deposit/approval) =====
+  const createAdminPensionReservation = useCallback(
+    (input: { roomId: string; date: string; capacity: number; label: string; phone?: string }) => {
+      const room = rooms.find((r) => r.id === input.roomId);
+      if (!room) return { ok: false, reason: '존재하지 않는 객실입니다.' };
+      if (!input.label.trim()) return { ok: false, reason: '예약자명을 입력해주세요.' };
+      if (input.capacity < 1 || input.capacity > room.maxCapacity) {
+        return { ok: false, reason: `인원은 1~${room.maxCapacity}명이어야 합니다.` };
+      }
+      if (isPensionBlockedByCourt(input.date, room.name)) {
+        return { ok: false, reason: '해당 날짜에 코트 예약이 완료되어 펜션 예약이 불가합니다.' };
+      }
+      if (isPensionBlockedByGameDay(input.date, room.name)) {
+        return { ok: false, reason: '해당 날짜에 게임데이 일정이 있어 펜션 예약이 불가합니다.' };
+      }
+      const existing = reservations.filter(
+        (r) =>
+          r.type === 'pension' &&
+          r.date === input.date &&
+          r.targetId === input.roomId &&
+          r.waitingSequence === null &&
+          r.status !== '취소',
+      );
+      const hasCompleted = existing.some((r) => r.status === '예약완료');
+      if (hasCompleted) {
+        return { ok: false, reason: '해당 객실에 이미 예약완료된 예약이 있습니다.' };
+      }
+
+      const reservation: Reservation = {
+        id: uid('r'),
+        type: 'pension',
+        userId: currentUserId,
+        targetId: input.roomId,
+        targetLabel: room.name,
+        date: input.date,
+        capacity: input.capacity,
+        status: '예약완료',
+        waitingSequence: null,
+        amount: getPensionPrice(input.date) + Math.max(0, input.capacity - getBaseCapacityForDate(input.date)) * EXTRA_PERSON_FEE,
+        createdAt: Date.now(),
+        depositorName: input.label.trim(),
+        depositorPhone: input.phone,
+      };
+      setReservations((prev) => [...prev, reservation]);
+      upsertReservationToSupabase(reservation);
+      pushToast(`관리자 펜션 예약 완료: ${room.name} ${input.capacity}명`);
+      return { ok: true, reservation };
+    },
+    [rooms, reservations, currentUserId, isPensionBlockedByCourt, isPensionBlockedByGameDay, getPensionPrice, getBaseCapacityForDate, pushToast, upsertReservationToSupabase],
+  );
+
   const createBBQReservation = useCallback(
     (input: {
       venue: BBQVenue;
@@ -3240,6 +3298,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     createPensionReservation,
     createCourtReservation,
     createAdminCourtReservation,
+    createAdminPensionReservation,
     requestWaiting,
     cancelReservation,
     approveReservation,
