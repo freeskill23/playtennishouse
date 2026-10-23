@@ -55,6 +55,38 @@ const PENSION_BLOCK_START_HOUR = 15;
 export const EXTRA_PERSON_FEE = 100000;
 const PENSION_BLOCK_END_HOUR = 11;
 
+export type TelegramTemplateKey =
+  | 'pensionRequest'
+  | 'courtRequest'
+  | 'bbqRequest'
+  | 'pensionApproved'
+  | 'courtApproved';
+
+export type TelegramMessageTemplates = Partial<Record<TelegramTemplateKey, string>>;
+
+const DEFAULT_TELEGRAM_TEMPLATES: Record<TelegramTemplateKey, string> = {
+  pensionRequest:
+    '안녕하세요, 플테하(플레이 테니스 하우스) 입니다.\n {userName}님 {month}월 {day}일 {roomName} {capacity}명 예약 되셨습니다.\n이용 금액은 예약일로부터 48시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~\n                                 - 플테하 -',
+  courtRequest:
+    '안녕하세요, 플테하(플레이 테니스 하우스) 입니다.\n {userName}님 {month}월 {day}일 {court} {timeSlot} 예약 되셨습니다.\n이용 금액은 예약일로부터 24시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~\n                                 - 플테하 -',
+  bbqRequest:
+    '{userName}님 {venue} {month}월 {day}일 {timeSlot} {capacity}명 바베큐패키지 예약 신청이 접수되었습니다.',
+  pensionApproved:
+    '예약완료 안내\n {userName}님 {month}월 {day}일 {roomName} {capacity}명 예약완료 되셨습니다.\n-입실시간: 예약일 PM3:00\n-퇴실시간: 다음 날 AM 11:00\n-코트이용시간: PM3:00-AM12:00/ 퇴실 시간전까지\n바베큐장은 실내 바베큐장으로 숯불 이용 불가 한 점 양해 부탁드립니다.\n(고기불판, 그릇, 가스 등의 기본 시설은 제공됩니다.)\n추가 인원이 있을 시 반드시 미리 공지해 주시기 바랍니다.\n즐거운 하루 보내시고 예약날에 뵙겠습니다.\n            - 플테하(PLAY TENNIS HOUSE) -',
+  courtApproved:
+    ' {userName}님  {month}월  {day}일  {targetLabel} {timeSlot} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~',
+};
+
+function renderTelegramTemplate(
+  template: string,
+  vars: Record<string, string | number>,
+): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
+    const v = vars[key];
+    return v != null ? String(v) : `{${key}}`;
+  });
+}
+
 type ReservationRow = {
   id: string;
   type: ReservationType;
@@ -300,6 +332,11 @@ interface AppState {
   telegramConfig: { botToken: string; chatId: string };
   updateTelegramConfig: (cfg: { botToken: string; chatId: string }) => void;
   sendTelegramTest: (cfg?: { botToken: string; chatId: string }) => Promise<{ ok: boolean; error?: string }>;
+
+  // telegram message templates
+  telegramMessageTemplates: TelegramMessageTemplates;
+  updateTelegramMessageTemplates: (templates: TelegramMessageTemplates) => void;
+  getTelegramMessage: (key: TelegramTemplateKey, vars: Record<string, string | number>) => string;
 
   // temporary holidays
   tempHolidays: string[];
@@ -967,6 +1004,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionOpenMonths, setPensionOpenMonths] = useState(3);
   const [bbqOpenDays, setBbqOpenDays] = useState(30);
   const [telegramConfig, setTelegramConfig] = useState({ botToken: '', chatId: '' });
+  const [telegramMessageTemplates, setTelegramMessageTemplates] = useState<TelegramMessageTemplates>({});
   const [tempHolidays, setTempHolidays] = useState<string[]>([]);
   const [dateMemos, setDateMemos] = useState<Record<string, string>>({});
   const [focusMatchingPostId, setFocusMatchingPostId] = useState<string | null>(null);
@@ -976,7 +1014,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data, error } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
       .eq('id', 1)
       .maybeSingle();
     if (error) {
@@ -1005,6 +1043,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         botToken: (data.telegram_bot_token as string) || '',
         chatId: (data.telegram_chat_id as string) || '',
       });
+      if (data.telegram_message_templates) setTelegramMessageTemplates(data.telegram_message_templates as TelegramMessageTemplates);
       if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
       if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
       if (data.bbq_day_start_hour != null || data.bbq_night_start_hour != null) {
@@ -1032,7 +1071,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const load = async () => {
       const { data, error } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
         .eq('id', 1)
         .maybeSingle();
       if (cancelled) return;
@@ -1065,6 +1104,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           botToken: (data.telegram_bot_token as string) || '',
           chatId: (data.telegram_chat_id as string) || '',
         });
+        if (data.telegram_message_templates) setTelegramMessageTemplates(data.telegram_message_templates as TelegramMessageTemplates);
         if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
         if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
         if (data.bbq_day_start_hour != null || data.bbq_night_start_hour != null) {
@@ -1438,6 +1478,26 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     [pushToast],
   );
 
+  const updateTelegramMessageTemplates = useCallback(
+    (templates: TelegramMessageTemplates) => {
+      setTelegramMessageTemplates(templates);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            telegram_message_templates: templates,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('텔레그램 메시지 템플릿 저장 실패', 'error');
+          });
+      }
+      pushToast('텔레그램 메시지 템플릿이 저장되었습니다.');
+    },
+    [pushToast],
+  );
+
   const updateReservationLimits = useCallback(
     (courtDays: number, pensionMonths: number) => {
       setCourtOpenDays(courtDays);
@@ -1486,6 +1546,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       return { ok: false, error: (err as Error).message };
     }
   }, [telegramConfig]);
+
+  const getTelegramMessage = useCallback(
+    (key: TelegramTemplateKey, vars: Record<string, string | number>): string => {
+      const template = telegramMessageTemplates[key] ?? DEFAULT_TELEGRAM_TEMPLATES[key];
+      return renderTelegramTemplate(template, vars);
+    },
+    [telegramMessageTemplates],
+  );
 
   const toggleHoliday = useCallback(
     (dateStr: string) => {
@@ -1867,7 +1935,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
       void sendTelegramNotification(
         '펜션 예약 안내',
-        `안녕하세요, 플테하(플레이 테니스 하우스) 입니다.\n ${userName}님 ${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일 ${room.name} ${input.capacity}명 예약 되셨습니다.😊\n이용 금액은 예약일로부터 48시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                                 - 플테하 -`,
+        getTelegramMessage('pensionRequest', { userName, month: parseInt(mm, 10), day: parseInt(dd, 10), roomName: room.name, capacity: input.capacity }),
       );
       pushToast(
         reservation.waitingSequence
@@ -1931,7 +1999,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const slotLabel = mergeTimeSlots(input.timeSlots);
       void sendTelegramNotification(
         '코트 예약 안내',
-        `안녕하세요, 플테하(플레이 테니스 하우스) 입니다.\n ${userName}님 ${parseInt(mm, 10)}월 ${parseInt(dd, 10)}일 ${input.court} ${slotLabel} 예약 되셨습니다.😊\n이용 금액은 예약일로부터 24시간 안에 결제해 주셔야합니다. \n결제 확인이 안 될 경우, 취소 될 수 있는 점 양해 부탁드립니다.\n오늘도 즐거운 하루 되세요~♡\n                                 - 플테하 -`,
+        getTelegramMessage('courtRequest', { userName, month: parseInt(mm, 10), day: parseInt(dd, 10), court: input.court, timeSlot: slotLabel }),
       );
       pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
       return { ok: true, reservations: newReservations };
@@ -2118,7 +2186,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
       void sendTelegramNotification(
         '바베큐패키지 예약 신청',
-        `${userName}님 ${input.venue} ${input.date} ${timeSlot} ${input.capacity}명 바베큐패키지 예약 신청이 접수되었습니다.`,
+        getTelegramMessage('bbqRequest', { userName, venue: input.venue, month: parseInt(input.date.slice(5, 7), 10), day: parseInt(input.date.slice(8, 10), 10), timeSlot, capacity: input.capacity }),
       );
 
       pushToast('바베큐패키지 예약 신청이 완료되었습니다.');
@@ -2263,12 +2331,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (target.type === 'pension') {
         void sendTelegramNotification(
           '예약완료 안내',
-          `예약완료 안내\n ${aUserName}님 ${parseInt(aMM, 10)}월 ${parseInt(aDD, 10)}일 ${target.targetLabel}${capacityLabel} 예약완료 되셨습니다.\n-입실시간: 예약일 PM3:00\n-퇴실시간: 다음 날 AM 11:00\n-코트이용시간: PM3:00-AM12:00/ 퇴실 시간전까지\n바베큐장은 실내 바베큐장으로 숯불 이용 불가 한 점 양해 부탁드립니다.\n(고기불판, 그릇, 가스 등의 기본 시설은 제공됩니다.)\n추가 인원이 있을 시 반드시 미리 공지해 주시기 바랍니다.\n즐거운 하루 보내시고 예약날에 뵙겠습니다.^ㅡ^\n            - 플테하(PLAY TENNIS HOUSE) -`,
+          getTelegramMessage('pensionApproved', { userName: aUserName, month: parseInt(aMM, 10), day: parseInt(aDD, 10), roomName: target.targetLabel, capacity: capacityLabel.trim() }),
         );
       } else {
         void sendTelegramNotification(
           '예약 완료 안내',
-          ` ${aUserName}님  ${parseInt(aMM, 10)}월  ${parseInt(aDD, 10)}일  ${target.targetLabel}${capacityLabel}${timeLabel ? ` ${timeLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
+          getTelegramMessage('courtApproved', { userName: aUserName, month: parseInt(aMM, 10), day: parseInt(aDD, 10), targetLabel: target.targetLabel, timeSlot: timeLabel }),
         );
       }
 
@@ -2311,12 +2379,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         if (r.type === 'pension') {
           void sendTelegramNotification(
             '예약완료 안내',
-            `예약완료 안내\n ${bUserName}님 ${parseInt(bMM, 10)}월 ${parseInt(bDD, 10)}일 ${r.targetLabel}${capLabel} 예약완료 되셨습니다.\n-입실시간: 예약일 PM3:00\n-퇴실시간: 다음 날 AM 11:00\n-코트이용시간: PM3:00-AM12:00/ 퇴실 시간전까지\n바베큐장은 실내 바베큐장으로 숯불 이용 불가 한 점 양해 부탁드립니다.\n(고기불판, 그릇, 가스 등의 기본 시설은 제공됩니다.)\n추가 인원이 있을 시 반드시 미리 공지해 주시기 바랍니다.\n즐거운 하루 보내시고 예약날에 뵙겠습니다.^ㅡ^\n            - 플테하(PLAY TENNIS HOUSE) -`,
+            getTelegramMessage('pensionApproved', { userName: bUserName, month: parseInt(bMM, 10), day: parseInt(bDD, 10), roomName: r.targetLabel, capacity: capLabel.trim() }),
           );
         } else {
           void sendTelegramNotification(
             '예약 완료 안내',
-            ` ${bUserName}님  ${parseInt(bMM, 10)}월  ${parseInt(bDD, 10)}일  ${r.targetLabel}${capLabel}${tLabel ? ` ${tLabel}` : ''} 예약 완료 되셨습니다.\n저희 플테하(플레이 테니스 하우스) 예약해 주셔서 감사합니다. 오늘도 즐거운 하루 보내시고 예약 날에 뵙겠습니다~🤗`,
+            getTelegramMessage('courtApproved', { userName: bUserName, month: parseInt(bMM, 10), day: parseInt(bDD, 10), targetLabel: r.targetLabel, timeSlot: tLabel }),
           );
         }
       }
@@ -3371,6 +3439,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     telegramConfig,
     updateTelegramConfig,
     sendTelegramTest,
+    telegramMessageTemplates,
+    updateTelegramMessageTemplates,
+    getTelegramMessage,
     tempHolidays,
     toggleHoliday,
     isHoliday,

@@ -55,6 +55,9 @@ export function AdminDashboardScreen() {
     telegramConfig,
     updateTelegramConfig,
     sendTelegramTest,
+    telegramMessageTemplates,
+    updateTelegramMessageTemplates,
+    getTelegramMessage,
     updateRoom,
     cancelReservation,
     createAdminCourtReservation,
@@ -93,6 +96,8 @@ export function AdminDashboardScreen() {
   const [bankEdit, setBankEdit] = useState({ bank: bankAccount.bank, number: bankAccount.number, holder: bankAccount.holder });
   const [telegramEdit, setTelegramEdit] = useState({ botToken: telegramConfig.botToken, chatId: telegramConfig.chatId });
   const [telegramTesting, setTelegramTesting] = useState(false);
+  const [tgTemplateEdit, setTgTemplateEdit] = useState<Record<string, string>>({});
+  const [tgTemplateExpanded, setTgTemplateExpanded] = useState(false);
   const [roomEdits, setRoomEdits] = useState(() =>
     Object.fromEntries(rooms.map((r) => [r.id, { maxCapacity: r.maxCapacity, description: r.description }])),
   );
@@ -114,6 +119,16 @@ export function AdminDashboardScreen() {
   useEffect(() => {
     setTelegramEdit({ botToken: telegramConfig.botToken, chatId: telegramConfig.chatId });
   }, [telegramConfig]);
+
+  useEffect(() => {
+    setTgTemplateEdit({
+      pensionRequest: telegramMessageTemplates.pensionRequest ?? '',
+      courtRequest: telegramMessageTemplates.courtRequest ?? '',
+      bbqRequest: telegramMessageTemplates.bbqRequest ?? '',
+      pensionApproved: telegramMessageTemplates.pensionApproved ?? '',
+      courtApproved: telegramMessageTemplates.courtApproved ?? '',
+    });
+  }, [telegramMessageTemplates]);
 
   // Sync roomEdits when rooms load/update from Supabase
   useEffect(() => {
@@ -987,6 +1002,71 @@ export function AdminDashboardScreen() {
             <Save size={14} /> 저장
           </button>
         </div>
+      </div>
+
+      {/* Telegram message templates */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <button
+          onClick={() => setTgTemplateExpanded(!tgTemplateExpanded)}
+          className="flex items-center justify-between w-full mb-3"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center">
+              <Send size={16} className="text-sky-600" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-bold text-navy-900 text-sm">텔레그램 메시지 템플릿</h3>
+              <p className="text-xs text-slate-400">예약 신청/완료 시 고객에게 발송되는 메시지 내용을 수정할 수 있습니다</p>
+            </div>
+          </div>
+          <span className="text-xs text-slate-400">{tgTemplateExpanded ? '닫기' : '열기'}</span>
+        </button>
+
+        {tgTemplateExpanded && (
+          <div className="space-y-4">
+            <div className="rounded-lg bg-amber-50 border border-amber-100 p-3 text-xs text-amber-800">
+              <p className="font-bold mb-1">사용 가능한 변수 (중괄호로 감싸서 사용):</p>
+              <p>{'{userName}'} 예약자명 · {'{month}'} 월 · {'{day}'} 일 · {'{roomName}'} 객실명 · {'{capacity}'} 인원 · {'{court}'} 코트 · {'{timeSlot}'} 시간 · {'{venue}'} 바베큐장소 · {'{targetLabel}'} 예약대상</p>
+              <p className="mt-1 text-amber-600">비워두면 기본 메시지가 사용됩니다.</p>
+            </div>
+
+            {([
+              { key: 'pensionRequest', label: '펜션 예약 신청', hint: '고객이 펜션 예약 신청 시 발송' },
+              { key: 'courtRequest', label: '코트 예약 신청', hint: '고객이 코트 예약 신청 시 발송' },
+              { key: 'bbqRequest', label: '바베큐패키지 예약 신청', hint: '고객이 바베큐패키지 예약 신청 시 발송' },
+              { key: 'pensionApproved', label: '펜션 예약완료 안내', hint: '관리자 승인(예약완료) 시 발송' },
+              { key: 'courtApproved', label: '코트/BBQ 예약완료 안내', hint: '관리자 승인(예약완료) 시 발송' },
+            ] as const).map((item) => (
+              <div key={item.key}>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-navy-700">{item.label}</label>
+                  <span className="text-[11px] text-slate-400">{item.hint}</span>
+                </div>
+                <textarea
+                  value={tgTemplateEdit[item.key] ?? ''}
+                  onChange={(e) => setTgTemplateEdit((s) => ({ ...s, [item.key]: e.target.value }))}
+                  placeholder={getTelegramMessage(item.key, { userName: '홍길동', month: 10, day: 23, roomName: 'A동', capacity: 4, court: 'A코트', timeSlot: '14:00-16:00', venue: 'A동', targetLabel: 'A코트' })}
+                  className="input min-h-[80px] text-xs whitespace-pre-wrap"
+                />
+              </div>
+            ))}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  const templates: Record<string, string> = {};
+                  for (const [k, v] of Object.entries(tgTemplateEdit)) {
+                    if (v.trim()) templates[k] = v;
+                  }
+                  updateTelegramMessageTemplates(templates);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold bg-volt-500 text-navy-950 hover:bg-volt-400 transition"
+              >
+                <Save size={14} /> 템플릿 저장
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Banner image control */}
