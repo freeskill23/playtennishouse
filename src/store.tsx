@@ -1014,7 +1014,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data, error } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays')
       .eq('id', 1)
       .maybeSingle();
     if (error) {
@@ -1058,6 +1058,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           extraPersonFee: data.bbq_extra_person_fee ?? prev.extraPersonFee,
           extraHourFee: data.bbq_extra_hour_fee ?? prev.extraHourFee,
           openDays: data.bbq_open_days ?? prev.openDays,
+          openWeekdays: Array.isArray(data.bbq_open_weekdays) ? data.bbq_open_weekdays as number[] : prev.openWeekdays,
         }));
         if (data.bbq_open_days != null) setBbqOpenDays(data.bbq_open_days as number);
       }
@@ -1071,7 +1072,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const load = async () => {
       const { data, error } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays')
         .eq('id', 1)
         .maybeSingle();
       if (cancelled) return;
@@ -1119,6 +1120,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             extraPersonFee: data.bbq_extra_person_fee ?? prev.extraPersonFee,
             extraHourFee: data.bbq_extra_hour_fee ?? prev.extraHourFee,
             openDays: data.bbq_open_days ?? prev.openDays,
+            openWeekdays: Array.isArray(data.bbq_open_weekdays) ? data.bbq_open_weekdays as number[] : prev.openWeekdays,
           }));
           if (data.bbq_open_days != null) setBbqOpenDays(data.bbq_open_days as number);
         }
@@ -1364,6 +1366,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
             bbq_extra_person_fee: pricing.extraPersonFee,
             bbq_extra_hour_fee: pricing.extraHourFee,
             bbq_open_days: pricing.openDays,
+            bbq_open_weekdays: pricing.openWeekdays,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {

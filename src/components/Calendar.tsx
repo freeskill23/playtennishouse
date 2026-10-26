@@ -43,6 +43,7 @@ export function Calendar({
   minDate,
   maxDate,
   dayRender,
+  dayDisabled,
   selected,
   onMonthChange,
   compact,
@@ -52,6 +53,7 @@ export function Calendar({
   minDate?: string;
   maxDate?: string;
   dayRender?: (ymd: string) => React.ReactNode;
+  dayDisabled?: (ymd: string) => boolean;
   selected?: string;
   onMonthChange?: (ymd: string) => void;
   compact?: boolean;
@@ -137,7 +139,7 @@ export function Calendar({
           if (!d) return <div key={i} />;
           const isToday = d === today;
           const isSelected = selected !== undefined ? d === selected : d === value;
-          const disabled = (minDate ? d < minDate : false) || (maxDate ? d > maxDate : false);
+          const disabled = (minDate ? d < minDate : false) || (maxDate ? d > maxDate : false) || (dayDisabled ? dayDisabled(d) : false);
           return (
             <button
               key={i}

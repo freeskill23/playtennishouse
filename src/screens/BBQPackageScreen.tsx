@@ -221,6 +221,11 @@ export function BBQPackageScreen() {
         onChange={(d) => { setDate(d); setStartHour(null); setEndHour(null); setErrorReason(null); }}
         minDate={todayYMD()}
         maxDate={addDaysYMD(bbqOpenDays)}
+        dayDisabled={(d) => {
+          const weekdays = bbqPricing.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6];
+          const dow = new Date(d + 'T00:00:00').getDay();
+          return !weekdays.includes(dow);
+        }}
         dayRender={(d) => {
           const bbqRes = reservations.filter(
             (r) => r.type === 'bbq' && r.date === d && r.waitingSequence === null && r.status !== '취소',

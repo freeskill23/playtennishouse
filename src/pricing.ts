@@ -139,6 +139,7 @@ export interface BBQPricing {
   extraPersonFee: number;
   extraHourFee: number;
   openDays: number;
+  openWeekdays: number[];
 }
 
 export const DEFAULT_BBQ_PRICING: BBQPricing = {
@@ -151,6 +152,7 @@ export const DEFAULT_BBQ_PRICING: BBQPricing = {
   extraPersonFee: 30000,
   extraHourFee: 10000,
   openDays: 30,
+  openWeekdays: [0, 1, 2, 3, 4, 5, 6],
 };
 
 export function getBBQSlotTier(

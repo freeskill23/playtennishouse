@@ -48,8 +48,19 @@ export function AdminBBQScreen() {
     { key: 'nightPrice', label: '나이트타임 기본 가격', icon: Wallet, suffix: '원', step: 10000, min: 0, max: 1000000 },
     { key: 'extraPersonFee', label: '추가 인원 1인당 금액', icon: Users, suffix: '원', step: 5000, min: 0, max: 100000 },
     { key: 'extraHourFee', label: '시간 초과 1인당 금액 (시간당)', icon: Clock, suffix: '원', step: 1000, min: 0, max: 50000 },
-    { key: 'openDays', label: '예약 오픈 기간', icon: Settings, suffix: '일', step: 1, min: 1, max: 365 },
   ];
+
+  const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const toggleWeekday = (day: number) => {
+    setEdit((prev) => {
+      const current = prev.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6];
+      const next = current.includes(day)
+        ? current.filter((d) => d !== day)
+        : [...current, day].sort();
+      return { ...prev, openWeekdays: next.length > 0 ? next : current };
+    });
+  };
 
   return (
     <div className="space-y-5 pb-4">
@@ -144,6 +155,57 @@ export function AdminBBQScreen() {
           })}
         </div>
 
+        {/* Open days & weekdays */}
+        <div className="mt-4 border-t border-slate-100 pt-4 space-y-3">
+          <label className="block">
+            <span className="text-xs font-semibold text-navy-600 mb-1 flex items-center gap-1">
+              <Settings size={12} /> 예약 오픈 기간
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step={1}
+                min={1}
+                max={365}
+                value={edit.openDays}
+                onChange={(e) => {
+                  const v = Math.max(1, Math.min(365, Number(e.target.value)));
+                  setEdit((prev) => ({ ...prev, openDays: v }));
+                }}
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none"
+              />
+              <span className="text-xs text-slate-400 shrink-0">일 (오늘부터 N일 후까지)</span>
+            </div>
+          </label>
+
+          <div>
+            <span className="text-xs font-semibold text-navy-600 mb-1.5 block">예약 오픈 요일</span>
+            <div className="flex flex-wrap gap-1.5">
+              {WEEKDAY_LABELS.map((label, idx) => {
+                const active = (edit.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(idx);
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => toggleWeekday(idx)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      active
+                        ? idx === 0
+                          ? 'bg-rose-500 text-white hover:bg-rose-400'
+                          : idx === 6
+                            ? 'bg-sky-500 text-white hover:bg-sky-400'
+                            : 'bg-amber-500 text-white hover:bg-amber-400'
+                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">선택한 요일만 바베큐패키지 예약이 가능합니다 (최소 1개)</p>
+          </div>
+        </div>
+
         <div className="flex justify-end mt-3">
           <button
             onClick={handleSave}
@@ -194,6 +256,9 @@ export function AdminBBQScreen() {
         <div className="mt-3 rounded-lg bg-white border border-amber-100 p-3">
           <p className="text-xs text-slate-500">예약 오픈 기간</p>
           <p className="font-bold text-navy-900">오늘부터 {edit.openDays}일 후까지 예약 가능</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            오픈 요일: {(edit.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).sort().map((d) => WEEKDAY_LABELS[d]).join(', ')}
+          </p>
         </div>
       </div>
     </div>
