@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react';
 import { Flame, Clock, Users, Wallet, AlertTriangle, CheckCircle2, Calendar as CalendarIcon, Plus, Minus } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
-import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
+import { Calendar, todayYMD, addDaysYMD, addDaysToYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { GallerySlideshow } from '../components/GallerySlideshow';
-import { computeBBQPrice, getBBQSlotTier, formatWon } from '../pricing';
+import { computeBBQPrice, getBBQSlotTier, formatWon, getWeekdaySchedule } from '../pricing';
 import type { BBQVenue, CourtName } from '../types';
 
 const VENUES: { name: BBQVenue; court: CourtName; desc: string; color: string }[] = [
@@ -80,6 +80,16 @@ export function BBQPackageScreen() {
   const hasPensionOtherVenue = reservations.some(
     (r) => r.type === 'pension' && r.date === date && r.targetLabel !== venue && r.waitingSequence === null && r.status !== '취소',
   );
+
+  // Previous day pension on same venue: checkout is 11:00 next day, so block hours < 11
+  const prevDayYMD = addDaysToYMD(date, -1);
+  const hasPrevDayPensionSameVenue = reservations.some(
+    (r) => r.type === 'pension' && r.date === prevDayYMD && r.targetLabel === venue && r.waitingSequence === null && r.status !== '취소',
+  );
+
+  // Weekday schedule for the selected date
+  const selectedDow = new Date(date + 'T00:00:00').getDay();
+  const selectedSchedule = getWeekdaySchedule(bbqPricing, selectedDow);
 
   // Court reservations: only block specific hours, only for the matching court
   const courtBlockedHours = useMemo(() => {
@@ -222,9 +232,8 @@ export function BBQPackageScreen() {
         minDate={todayYMD()}
         maxDate={addDaysYMD(bbqOpenDays)}
         dayDisabled={(d) => {
-          const weekdays = bbqPricing.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6];
           const dow = new Date(d + 'T00:00:00').getDay();
-          return !weekdays.includes(dow);
+          return !getWeekdaySchedule(bbqPricing, dow).enabled;
         }}
         dayRender={(d) => {
           const bbqRes = reservations.filter(
@@ -317,6 +326,17 @@ export function BBQPackageScreen() {
           </div>
         </div>
       )}
+      {!existingBBQSameVenue && !hasPensionSameVenue && hasPrevDayPensionSameVenue && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-amber-800">전날 {venue} 펜션 투숙객이 있습니다</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              펜션 체크아웃이 오전 11시이므로, 11:00 이후부터 예약 가능합니다.
+            </p>
+          </div>
+        </div>
+      )}
       {!existingBBQSameVenue && !hasPensionSameVenue && hasAnyCourtOnDate && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
           <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
@@ -356,7 +376,10 @@ export function BBQPackageScreen() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-navy-900">시작 시간 선택</h3>
           <span className="text-xs text-slate-500">
-            {bbqPricing.dayStartHour}:00~{bbqPricing.nightStartHour}:00 데이 / {bbqPricing.nightStartHour}:00~24:00 나이트
+            {selectedSchedule.enabled
+              ? `오픈: ${String(selectedSchedule.startHour).padStart(2, '0')}:00~${String(selectedSchedule.endHour).padStart(2, '0')}:00 · `
+              : ''
+            }{bbqPricing.dayStartHour}:00~{bbqPricing.nightStartHour}:00 데이 / {bbqPricing.nightStartHour}:00~24:00 나이트
           </span>
         </div>
         <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
@@ -365,7 +388,9 @@ export function BBQPackageScreen() {
             const tier = getBBQSlotTier(hour, bbqPricing);
             const passed = isHourPassed(hour);
             const courtBlocked = courtBlockedHours.has(hour);
-            const disabled = passed || isVenueFullyBlocked || courtBlocked;
+            const outsideSchedule = hour < selectedSchedule.startHour || hour >= selectedSchedule.endHour;
+            const pensionCheckoutBlock = hasPrevDayPensionSameVenue && hour < 11;
+            const disabled = passed || isVenueFullyBlocked || courtBlocked || outsideSchedule || pensionCheckoutBlock;
             return (
               <button
                 key={hour}
@@ -383,7 +408,7 @@ export function BBQPackageScreen() {
               >
                 <span>{String(hour).padStart(2, '0')}:00</span>
                 <p className="text-[9px] font-medium mt-0.5 opacity-70">
-                  {isSel ? '선택됨' : courtBlocked ? '코트' : passed ? '지남' : tier === 'night' ? '나이트' : '데이'}
+                  {isSel ? '선택됨' : courtBlocked ? '코트' : pensionCheckoutBlock ? '펜션' : outsideSchedule ? '시간외' : passed ? '지남' : tier === 'night' ? '나이트' : '데이'}
                 </p>
               </button>
             );

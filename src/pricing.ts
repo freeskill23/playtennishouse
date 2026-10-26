@@ -129,6 +129,26 @@ export function formatWon(n: number): string {
 }
 
 // ===== BBQ Package Pricing =====
+export type BBQWeekdaySchedule = {
+  enabled: boolean;
+  startHour: number;
+  endHour: number;
+};
+
+export const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+export function getWeekdaySchedule(pricing: BBQPricing, dow: number): BBQWeekdaySchedule {
+  const schedules = pricing.openWeekdaySchedules;
+  if (schedules && schedules[dow]) {
+    return schedules[dow];
+  }
+  const weekdays = pricing.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6];
+  if (weekdays.includes(dow)) {
+    return { enabled: true, startHour: 5, endHour: 24 };
+  }
+  return { enabled: false, startHour: 5, endHour: 24 };
+}
+
 export interface BBQPricing {
   dayStartHour: number;
   nightStartHour: number;
@@ -140,6 +160,7 @@ export interface BBQPricing {
   extraHourFee: number;
   openDays: number;
   openWeekdays: number[];
+  openWeekdaySchedules: BBQWeekdaySchedule[];
 }
 
 export const DEFAULT_BBQ_PRICING: BBQPricing = {
@@ -153,6 +174,7 @@ export const DEFAULT_BBQ_PRICING: BBQPricing = {
   extraHourFee: 10000,
   openDays: 30,
   openWeekdays: [0, 1, 2, 3, 4, 5, 6],
+  openWeekdaySchedules: Array.from({ length: 7 }, () => ({ enabled: true, startHour: 5, endHour: 24 })),
 };
 
 export function getBBQSlotTier(

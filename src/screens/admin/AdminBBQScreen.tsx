@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Flame, Save, Clock, Users, Wallet, Settings } from 'lucide-react';
+import { Flame, Save, Clock, Users, Wallet, Settings, Sunrise, Sunset } from 'lucide-react';
 import { useApp } from '../../store';
 import { SectionTitle } from '../../components/ui';
-import { formatWon } from '../../pricing';
-import type { BBQPricing } from '../../pricing';
+import { formatWon, WEEKDAY_LABELS } from '../../pricing';
+import type { BBQPricing, BBQWeekdaySchedule } from '../../pricing';
+
+const DEFAULT_SCHEDULE: BBQWeekdaySchedule = { enabled: true, startHour: 5, endHour: 24 };
 
 export function AdminBBQScreen() {
   const { bbqPricing, updateBBQPricing, pushToast } = useApp();
@@ -28,7 +30,15 @@ export function AdminBBQScreen() {
       pushToast('기본 인원은 1명 이상이어야 합니다.', 'error');
       return;
     }
-    updateBBQPricing(edit);
+    const enabledCount = (edit.openWeekdaySchedules ?? []).filter((s) => s.enabled).length;
+    if (enabledCount === 0) {
+      pushToast('최소 1개 이상의 요일을 활성화해야 합니다.', 'error');
+      return;
+    }
+    const syncedWeekdays = (edit.openWeekdaySchedules ?? Array.from({ length: 7 }, () => ({ ...DEFAULT_SCHEDULE })))
+      .map((s, i) => (s.enabled ? i : -1))
+      .filter((i) => i >= 0);
+    updateBBQPricing({ ...edit, openWeekdays: syncedWeekdays });
   };
 
   const fields: {
@@ -50,16 +60,20 @@ export function AdminBBQScreen() {
     { key: 'extraHourFee', label: '시간 초과 1인당 금액 (시간당)', icon: Clock, suffix: '원', step: 1000, min: 0, max: 50000 },
   ];
 
-  const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+  const schedules = edit.openWeekdaySchedules ?? Array.from({ length: 7 }, () => ({ ...DEFAULT_SCHEDULE }));
 
-  const toggleWeekday = (day: number) => {
+  const updateSchedule = (idx: number, patch: Partial<BBQWeekdaySchedule>) => {
     setEdit((prev) => {
-      const current = prev.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6];
-      const next = current.includes(day)
-        ? current.filter((d) => d !== day)
-        : [...current, day].sort();
-      return { ...prev, openWeekdays: next.length > 0 ? next : current };
+      const current = prev.openWeekdaySchedules ?? Array.from({ length: 7 }, () => ({ ...DEFAULT_SCHEDULE }));
+      const next = current.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+      return { ...prev, openWeekdaySchedules: next };
     });
+  };
+
+  const toggleAllDay = (idx: number) => {
+    const s = schedules[idx];
+    updateSchedule(idx, { startHour: 5, endHour: 24, enabled: true });
+    void s;
   };
 
   return (
@@ -155,8 +169,8 @@ export function AdminBBQScreen() {
           })}
         </div>
 
-        {/* Open days & weekdays */}
-        <div className="mt-4 border-t border-slate-100 pt-4 space-y-3">
+        {/* Open days */}
+        <div className="mt-4 border-t border-slate-100 pt-4">
           <label className="block">
             <span className="text-xs font-semibold text-navy-600 mb-1 flex items-center gap-1">
               <Settings size={12} /> 예약 오픈 기간
@@ -177,33 +191,120 @@ export function AdminBBQScreen() {
               <span className="text-xs text-slate-400 shrink-0">일 (오늘부터 N일 후까지)</span>
             </div>
           </label>
+        </div>
 
-          <div>
-            <span className="text-xs font-semibold text-navy-600 mb-1.5 block">예약 오픈 요일</span>
-            <div className="flex flex-wrap gap-1.5">
-              {WEEKDAY_LABELS.map((label, idx) => {
-                const active = (edit.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).includes(idx);
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => toggleWeekday(idx)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                      active
-                        ? idx === 0
-                          ? 'bg-rose-500 text-white hover:bg-rose-400'
-                          : idx === 6
-                            ? 'bg-sky-500 text-white hover:bg-sky-400'
-                            : 'bg-amber-500 text-white hover:bg-amber-400'
-                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">선택한 요일만 바베큐패키지 예약이 가능합니다 (최소 1개)</p>
+        <div className="flex justify-end mt-3">
+          <button
+            onClick={handleSave}
+            disabled={!dirty}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
+              dirty
+                ? 'bg-amber-500 text-white hover:bg-amber-400 shadow-amber'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            <Save size={14} /> 바베큐패키지 설정 저장
+          </button>
+        </div>
+      </div>
+
+      {/* Per-weekday schedule */}
+      <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+            <Clock size={16} className="text-amber-600" />
           </div>
+          <div>
+            <h3 className="font-bold text-navy-900 text-sm">요일별 예약 오픈 설정</h3>
+            <p className="text-xs text-slate-400">각 요일을 활성화하고, 종일 또는 특정 시간대만 오픈할 수 있습니다</p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg bg-sky-50 border border-sky-100 p-3 text-xs text-sky-800">
+          <p className="font-bold mb-0.5">펜션 체크아웃 안내</p>
+          <p>펜션은 익일 오전 11시까지 이용 가능합니다. 예: 월요일을 오픈하면 일요일 밤 펜션 투숙객이 있을 수 있으므로, 월요일 시작 시간을 11시 이후로 설정하면 충돌을 피할 수 있습니다.</p>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {WEEKDAY_LABELS.map((label, idx) => {
+            const s = schedules[idx] ?? { ...DEFAULT_SCHEDULE };
+            const isAllDay = s.startHour === 5 && s.endHour === 24;
+            return (
+              <div
+                key={idx}
+                className={`rounded-xl border p-3 transition ${
+                  s.enabled ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100 bg-slate-50/50'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => updateSchedule(idx, { enabled: !s.enabled })}
+                    className={`flex items-center gap-2 ${s.enabled ? '' : 'opacity-50'}`}
+                  >
+                    <span
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold transition ${
+                        s.enabled
+                          ? idx === 0
+                            ? 'bg-rose-500 text-white'
+                            : idx === 6
+                              ? 'bg-sky-500 text-white'
+                              : 'bg-amber-500 text-white'
+                          : 'bg-slate-200 text-slate-400'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                    <span className={`text-sm font-bold ${s.enabled ? 'text-navy-900' : 'text-slate-400'}`}>
+                      {s.enabled ? '오픈' : '닫힘'}
+                    </span>
+                  </button>
+
+                  {s.enabled && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => toggleAllDay(idx)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                          isAllDay ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        종일
+                      </button>
+                      <div className="flex items-center gap-1">
+                        <Sunrise size={14} className="text-amber-500" />
+                        <select
+                          value={s.startHour}
+                          onChange={(e) => updateSchedule(idx, { startHour: Number(e.target.value) })}
+                          className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold text-navy-900 focus:border-amber-400 outline-none"
+                        >
+                          {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                            <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                      <span className="text-xs text-slate-400">~</span>
+                      <div className="flex items-center gap-1">
+                        <Sunset size={14} className="text-navy-500" />
+                        <select
+                          value={s.endHour}
+                          onChange={(e) => updateSchedule(idx, { endHour: Number(e.target.value) })}
+                          className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold text-navy-900 focus:border-amber-400 outline-none"
+                        >
+                          {Array.from({ length: 20 }, (_, h) => h + 5).map((h) => (
+                            <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {s.enabled && !isAllDay && (
+                  <p className="text-[11px] text-slate-400 mt-1.5 ml-11">
+                    {WEEKDAY_LABELS[idx]}요일 {String(s.startHour).padStart(2, '0')}:00 ~ {String(s.endHour).padStart(2, '0')}:00만 예약 가능
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex justify-end mt-3">
@@ -256,9 +357,15 @@ export function AdminBBQScreen() {
         <div className="mt-3 rounded-lg bg-white border border-amber-100 p-3">
           <p className="text-xs text-slate-500">예약 오픈 기간</p>
           <p className="font-bold text-navy-900">오늘부터 {edit.openDays}일 후까지 예약 가능</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            오픈 요일: {(edit.openWeekdays ?? [0, 1, 2, 3, 4, 5, 6]).sort().map((d) => WEEKDAY_LABELS[d]).join(', ')}
-          </p>
+          <div className="mt-1.5 space-y-0.5">
+            {schedules.map((s, idx) => (
+              <p key={idx} className={`text-xs ${s.enabled ? 'text-navy-700' : 'text-slate-300'}`}>
+                {WEEKDAY_LABELS[idx]}: {s.enabled
+                  ? (s.startHour === 5 && s.endHour === 24 ? '종일 (05:00~24:00)' : `${String(s.startHour).padStart(2, '0')}:00~${String(s.endHour).padStart(2, '0')}:00`)
+                  : '닫힘'}
+              </p>
+            ))}
+          </div>
         </div>
       </div>
     </div>
