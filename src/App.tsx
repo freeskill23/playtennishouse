@@ -1,431 +1,597 @@
-import { useState, useCallback, useEffect } from 'react';
-import { LogOut, User, ShoppingCart } from 'lucide-react';
-import { AuthProvider, useAuth } from './lib/auth';
+import { useState, useEffect } from 'react';
 import {
-  useProducts, useCategories, useOrders, useUserOrderItems, useProfiles, usePosts,
-  useSubscriptionPlans, useCart, useAddresses, useSettings, useInquiries, useReviews,
-  useTrialApplications,
-} from './lib/data';
-import { Profile, Post, Setting, Product, SelectedOption, Inquiry, TrialApplication } from './lib/types';
-import Gatekeeper from './components/Gatekeeper';
-import SubscriptionGate from './components/SubscriptionGate';
-import LandingPage from './components/LandingPage';
-import BoardList from './components/BoardList';
-import BoardDetail from './components/BoardDetail';
-import ShopMain from './components/ShopMain';
-import ProductDetail from './components/ProductDetail';
-import Cart from './components/Cart';
-import Checkout from './components/Checkout';
-import MyPage from './components/MyPage';
-import MyTrials from './components/MyTrials';
-import AdminApp from './components/AdminApp';
-import ErrorBoundary from './components/ErrorBoundary';
-import { logPageView } from './lib/analytics';
+  Home as HomeIcon,
+  BedDouble,
+  CalendarRange,
+  Users,
+  Megaphone,
+  Ticket,
+  LayoutDashboard,
+  CheckSquare,
+  StickyNote,
+  Menu,
+  X,
+  Lock,
+  LogOut,
+  Loader2,
+  Star,
+  BarChart3,
+  Flame,
+  Trophy,
+} from 'lucide-react';
+import { AppProvider, useApp } from './store';
+import { AuthProvider, useAuth } from './lib/auth';
+import { useClickSound } from './lib/useClickSound';
+import { logVisit } from './lib/visitorLog';
+import type { LucideIcon } from 'lucide-react';
+import { Logo } from './components/Logo';
+import { ToastStack } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { AlertTriangle, Images } from 'lucide-react';
+import { HomeScreen } from './screens/HomeScreen';
+import { PensionScreen } from './screens/PensionScreen';
+import { CourtScreen } from './screens/CourtScreen';
+import { MatchingScreen } from './screens/MatchingScreen';
+import { MyPageScreen } from './screens/MyPageScreen';
+import { NoticesScreen } from './screens/NoticesScreen';
+import { GalleryScreen } from './screens/GalleryScreen';
+import { AdminDashboardScreen } from './screens/admin/AdminDashboardScreen';
+import { AdminApprovalScreen } from './screens/admin/AdminApprovalScreen';
+import { AdminNoticeScreen } from './screens/admin/AdminNoticeScreen';
+import { AdminMemoScreen } from './screens/admin/AdminMemoScreen';
+import { AdminMembersScreen } from './screens/admin/AdminMembersScreen';
+import { AdminMatchingScreen } from './screens/admin/AdminMatchingScreen';
+import { AdminGalleryScreen } from './screens/admin/AdminGalleryScreen';
+import { AuthScreen } from './screens/AuthScreen';
+import { ReviewScreen } from './screens/ReviewScreen';
+import { AdminReviewScreen } from './screens/admin/AdminReviewScreen';
+import { AdminAnalyticsScreen } from './screens/admin/AdminAnalyticsScreen';
+import { AdminBBQScreen } from './screens/admin/AdminBBQScreen';
+import { AdminEventScreen } from './screens/admin/AdminEventScreen';
+import { EventScreen } from './screens/EventScreen';
+import { BBQPackageScreen } from './screens/BBQPackageScreen';
+import { SharedReservationScreen } from './screens/SharedReservationScreen';
+import type { AuthUser } from './lib/auth';
 
-type Route =
-  | { name: 'landing' }
-  | { name: 'board' }
-  | { name: 'post'; postId: string }
-  | { name: 'shop'; categoryId?: string | null }
-  | { name: 'product'; productId: string }
-  | { name: 'cart' }
-  | { name: 'checkout' }
-  | { name: 'trials' }
-  | { name: 'subscribe' }
-  | { name: 'mypage' };
+const ADMIN_AUTH_USER: AuthUser = {
+  id: 'admin',
+  email: 'admin@playtennishouse.kr',
+  name: '관리자',
+  nickname: '관리자',
+  phone: '010-0000-0000',
+  profileImg:
+    'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
+  career: '10년',
+  ntrp: '4.5',
+  hand: 'right',
+  gamePreference: 'any',
+  bio: '플테하 운영진',
+};
 
-function routeToHash(r: Route): string {
-  switch (r.name) {
-    case 'landing': return '';
-    case 'board': return '#board';
-    case 'post': return `#post/${r.postId}`;
-    case 'shop': return r.categoryId ? `#shop/${r.categoryId}` : '#shop';
-    case 'product': return `#product/${r.productId}`;
-    case 'cart': return '#cart';
-    case 'trials': return '#trials';
-    case 'subscribe': return '#subscribe';
-    case 'checkout': return '#checkout';
-    case 'mypage': return '#mypage';
-  }
+type UserTab = 'home' | 'pension' | 'court' | 'bbq' | 'matching' | 'event' | 'notices' | 'gallery' | 'reviews' | 'mypage';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'event' | 'notice' | 'gallery' | 'reviews' | 'analytics' | 'memo' | 'bbq';
+
+const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
+  { key: 'home', label: '홈', icon: HomeIcon },
+  { key: 'pension', label: '펜션예약', icon: BedDouble },
+  { key: 'court', label: '코트예약', icon: CalendarRange },
+  { key: 'bbq', label: '바베큐패키지', icon: Flame },
+  { key: 'event', label: '게임데이', icon: Trophy },
+  { key: 'notices', label: '공지', icon: Megaphone },
+  { key: 'gallery', label: '갤러리', icon: Images },
+  { key: 'reviews', label: '이용후기', icon: Star },
+  { key: 'mypage', label: '내예약', icon: Ticket },
+];
+
+const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
+  { key: 'dashboard', label: '캘린더', icon: LayoutDashboard },
+  { key: 'approval', label: '승인관리', icon: CheckSquare },
+  { key: 'members', label: '회원', icon: Users },
+  { key: 'event', label: '게임데이', icon: Trophy },
+  { key: 'notice', label: '공지', icon: Megaphone },
+  { key: 'gallery', label: '갤러리', icon: Images },
+  { key: 'bbq', label: 'BBQ설정', icon: Flame },
+  { key: 'reviews', label: '이용후기', icon: Star },
+  { key: 'analytics', label: '방문자분석', icon: BarChart3 },
+  { key: 'memo', label: '메모', icon: StickyNote },
+];
+
+const ADMIN_PASSWORD = 'admin123';
+const AUTH_KEY = 'pth-admin-authed';
+
+function useRoute(): 'admin' | 'share' | null {
+  const [route, setRoute] = useState<'admin' | 'share' | null>(() => {
+    const h = window.location.hash.replace('#', '');
+    if (h === 'admin') return 'admin';
+    if (h === 'share') return 'share';
+    return null;
+  });
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash.replace('#', '');
+      setRoute(h === 'admin' ? 'admin' : h === 'share' ? 'share' : null);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return route;
 }
 
-function hashToRoute(hash: string): Route {
-  const h = hash.replace('#', '');
-  if (h === 'board') return { name: 'board' };
-  if (h.startsWith('post/')) return { name: 'post', postId: h.slice(5) };
-  if (h.startsWith('shop/')) return { name: 'shop', categoryId: h.slice(5) };
-  if (h === 'shop') return { name: 'shop' };
-  if (h.startsWith('product/')) return { name: 'product', productId: h.slice(8) };
-  if (h === 'cart') return { name: 'cart' };
-  if (h === 'checkout') return { name: 'checkout' };
-  if (h === 'trials') return { name: 'trials' };
-  if (h === 'subscribe') return { name: 'subscribe' };
-  if (h === 'mypage') return { name: 'mypage' };
-  return { name: 'landing' };
+function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
+  const { logoImageUrl } = useApp();
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw === ADMIN_PASSWORD) {
+      sessionStorage.setItem(AUTH_KEY, '1');
+      onSuccess();
+    } else {
+      setErr(true);
+      setPw('');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col items-center mb-8">
+          <Logo size={56} imageUrl={logoImageUrl} />
+        </div>
+        <form onSubmit={submit} className="rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-navy-900 flex items-center justify-center">
+              <Lock size={18} className="text-volt-400" />
+            </div>
+            <div>
+              <h1 className="font-bold text-navy-900">관리자 로그인</h1>
+              <p className="text-xs text-slate-400">비밀번호를 입력하세요</p>
+            </div>
+          </div>
+          <input
+            type="password"
+            value={pw}
+            onChange={(e) => {
+              setPw(e.target.value);
+              setErr(false);
+            }}
+            placeholder="관리자 비밀번호"
+            autoFocus
+            className={`w-full rounded-xl border px-4 py-3 text-navy-900 outline-none transition ${
+              err ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200 focus:border-volt-400 focus:ring-2 focus:ring-volt-100'
+            }`}
+          />
+          {err && <p className="text-rose-500 text-xs mt-2">비밀번호가 올바르지 않습니다.</p>}
+          <button
+            type="submit"
+            className="w-full mt-4 py-3 rounded-xl bg-navy-900 text-white font-bold hover:bg-navy-800 transition"
+          >
+            로그인
+          </button>
+          <a
+            href={`${import.meta.env.BASE_URL}`}
+            className="block text-center mt-3 text-xs text-slate-400 hover:text-navy-600"
+          >
+            ← 일반 화면으로
+          </a>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function useTabHistory<T extends string>(initial: T, storageKey: string) {
+  const [tab, setTab] = useState<T>(() => {
+    const saved = sessionStorage.getItem(storageKey);
+    return (saved as T) || initial;
+  });
+
+  useEffect(() => {
+    window.history.replaceState({ tab, idx: 0 }, '');
+    const onPop = (e: PopStateEvent) => {
+      const st = e.state as { tab?: T } | null;
+      if (st?.tab) {
+        setTab(st.tab);
+        sessionStorage.setItem(storageKey, st.tab);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [tab, storageKey]);
+
+  const go = (k: T) => {
+    setTab(k);
+    sessionStorage.setItem(storageKey, k);
+    window.history.pushState({ tab: k }, '');
+  };
+
+  return { tab, go };
+}
+
+const TAB_SEO: Record<string, { title: string; description: string }> = {
+  home: {
+    title: '플테하 PLAY TENNIS HOUSE | 테니스펜션 · 테니스코트대관 · 테니스 매칭',
+    description: '플테하(PLAY TENNIS HOUSE) - 예쁜 테니스펜션과 테니스코트 대관, 테니스 매칭 서비스를 한곳에서! 테니스펜션, 테니스코트, 테니스코트대관, 테니스장, 예쁜테니스장, 예쁜테니스펜션',
+  },
+  pension: {
+    title: '테니스펜션 예약 | 플테하 PLAY TENNIS HOUSE - 예쁜 테니스펜션 숙박',
+    description: '예쁜 테니스펜션 A동·B동 숙박 예약. 테니스코트와 함께하는 테니스펜션 여행을 플테하에서 편리하게 예약하세요. 테니스펜션, 예쁜테니스펜션, 테니스 숙박 예약',
+  },
+  court: {
+    title: '테니스코트 대관 예약 | 플테하 PLAY TENNIS HOUSE - 테니스장 대관',
+    description: '테니스코트 1시간 단위 대관 예약. 테니스코트대관, 테니스장, 테니스 예약을 온라인으로 간편하게. 플테하에서 테니스코트 대관하세요',
+  },
+  bbq: {
+    title: '바베큐패키지 예약 | 플테하 PLAY TENNIS HOUSE - 테니스코트+바베큐장 패키지',
+    description: '테니스코트, 라운지, 바베큐장을 모두 이용하는 바베큐패키지 예약. 데이타임/나이트타임 선택, 추가 인원·시간 자동 계산.',
+  },
+  event: {
+    title: '게임데이 | 플테하 PLAY TENNIS HOUSE - 테니스 단식·복식 게임데이',
+    description: '남자복식데이, 여자단식데이, 혼성복식데이 등 다양한 게임데이에 참가하세요. 4게임 보장, 대기신청 가능.',
+  },
+  matching: {
+    title: '테니스 매칭 | 플테하 PLAY TENNIS HOUSE - 테니스 메이트 모집',
+    description: '테니스 매칭 서비스 - 단식·복식·혼복 테니스 메이트를 모집하고 참여하세요. 테니스매칭, 테니스동호회, 테니스 메이트 찾기',
+  },
+  notices: {
+    title: '공지사항 | 플테하 PLAY TENNIS HOUSE - 테니스 이벤트·안내',
+    description: '플테하 테니스펜션·테니스코트 이벤트 및 공지사항을 확인하세요. 테니스 이벤트, 테니스 대회 안내',
+  },
+  gallery: {
+    title: '갤러리 | 플테하 PLAY TENNIS HOUSE - 예쁜 테니스장 사진',
+    description: '플테하 예쁜 테니스장, 테니스펜션 현장 사진 갤러리. 테니스장, 예쁜테니스장, 테니스펜션 사진',
+  },
+  mypage: {
+    title: '내 예약 | 플테하 PLAY TENNIS HOUSE - 테니스 예약 내역',
+    description: '나의 테니스코트 대관, 테니스펜션 예약, 테니스 매칭 참여 내역을 확인하세요',
+  },
+};
+
+function useTabSEO(tab: string) {
+  useEffect(() => {
+    const seo = TAB_SEO[tab];
+    if (seo) {
+      document.title = seo.title;
+      const descMeta = document.querySelector('meta[name="description"]');
+      if (descMeta) descMeta.setAttribute('content', seo.description);
+      const ogTitle = document.querySelector('meta[property="og:title"]');
+      if (ogTitle) ogTitle.setAttribute('content', seo.title);
+      const ogDesc = document.querySelector('meta[property="og:description"]');
+      if (ogDesc) ogDesc.setAttribute('content', seo.description);
+    }
+  }, [tab]);
+}
+
+const GUEST_AUTH_USER: AuthUser = {
+  id: 'guest',
+  email: '',
+  name: '비회원',
+  nickname: '비회원',
+  phone: '',
+  profileImg:
+    'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
+  career: '',
+  ntrp: '',
+  hand: 'right',
+  gamePreference: 'any',
+  bio: '',
+};
+
+function UserShell() {
+  const { currentUser, logoImageUrl } = useApp();
+  const { signOut, isGuest } = useAuth();
+  const { tab, go: goRaw } = useTabHistory<UserTab>('home', 'user_tab');
+  useTabSEO(tab);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    logVisit(tab, !isGuest, currentUser.name);
+  }, [tab, isGuest, currentUser.name]);
+
+  const go = (k: string) => {
+    if (isGuest && k === 'matching') {
+      setGuestBlockMsg('회원 전용 메뉴입니다. 회원가입 후 이용해주시기 바랍니다.');
+      setMobileMenu(false);
+      return;
+    }
+    goRaw(k as UserTab);
+    setMobileMenu(false);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+          <button onClick={() => go('home')} className="shrink-0 flex items-center gap-2">
+            <Logo size={36} imageUrl={logoImageUrl} />
+            <span className="text-lg font-extrabold tracking-tight text-black">PLAY TENNIS HOUSE</span>
+          </button>
+          <nav className="hidden md:flex items-center gap-1">
+            {USER_NAV.map((n) => {
+              const Icon = n.icon;
+              const active = tab === n.key;
+              const disabled = isGuest && n.key === 'matching';
+              return (
+                <button
+                  key={n.key}
+                  onClick={() => go(n.key)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition ${
+                    active ? 'bg-navy-900 text-white' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {n.label}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="flex items-center gap-2">
+            <img
+              src={currentUser.profileImg}
+              alt={currentUser.name}
+              className="w-9 h-9 rounded-full object-cover border-2 border-volt-300 hidden sm:block"
+            />
+            <button
+              onClick={() => signOut()}
+              className="rounded-lg p-2 text-navy-800 hover:bg-slate-100 transition"
+              aria-label="로그아웃"
+              title="로그아웃"
+            >
+              <LogOut size={18} />
+            </button>
+            <button
+              onClick={() => setMobileMenu((s) => !s)}
+              className="md:hidden rounded-lg p-2 text-navy-800 hover:bg-slate-100"
+              aria-label="메뉴"
+            >
+              {mobileMenu ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+        {mobileMenu && (
+          <nav className="md:hidden border-t border-slate-100 bg-white animate-slide-up">
+            <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-3 gap-1">
+              {USER_NAV.map((n) => {
+                const Icon = n.icon;
+                const active = tab === n.key;
+                const disabled = isGuest && n.key === 'matching';
+                return (
+                  <button
+                    key={n.key}
+                    onClick={() => go(n.key)}
+                    className={`flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-semibold transition ${
+                      active ? 'bg-navy-900 text-white' : disabled ? 'text-slate-300 cursor-not-allowed' : 'text-navy-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {n.label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+      </header>
+
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+        {tab === 'home' && <HomeScreen go={go} />}
+        {tab === 'pension' && <PensionScreen />}
+        {tab === 'court' && <CourtScreen />}
+        {tab === 'bbq' && <BBQPackageScreen />}
+        {tab === 'event' && <EventScreen />}
+        {tab === 'matching' && (isGuest ? null : <MatchingScreen />)}
+        {tab === 'notices' && <NoticesScreen />}
+        {tab === 'gallery' && <GalleryScreen />}
+        {tab === 'reviews' && <ReviewScreen />}
+        {tab === 'mypage' && <MyPageScreen go={go} />}
+      </main>
+
+      <footer className="border-t border-slate-100 bg-white">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <Logo size={28} imageUrl={logoImageUrl} />
+          <p className="text-xs text-slate-400">
+            PLAY TENNIS HOUSE 테니스 펜션 예약 & 코트 대관 & 매칭만들기
+          </p>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-4">
+          <p className="text-[11px] text-slate-300 text-center leading-relaxed">
+            제이피지(132-18-80228) 대표 : 김진수 권세미 · 경기도 포천시 금강로 2480-47
+          </p>
+          <p className="text-[11px] text-slate-300 text-center leading-relaxed mt-1">
+            테니스펜션 · 테니스 · 테니스코트 · 테니스코트대관 · 테니스장 · 예쁜테니스장 · 예쁜테니스펜션 · 테니스매칭 · 테니스동호회 · 테니스예약 · 테니스펜션예약 · 테니스 숙박 · 테니스 여행
+          </p>
+        </div>
+      </footer>
+
+      <ToastStack />
+      {guestBlockMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setGuestBlockMsg(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center animate-slide-up">
+            <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+              <Lock size={28} className="text-amber-500" />
+            </div>
+            <p className="text-sm font-bold text-navy-900 leading-relaxed">{guestBlockMsg}</p>
+            <button
+              onClick={() => setGuestBlockMsg(null)}
+              className="mt-5 w-full py-2.5 rounded-xl bg-navy-900 text-white font-bold hover:bg-navy-800 transition"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminShell() {
+  const { logoImageUrl } = useApp();
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === '1');
+  const { tab, go: goRaw } = useTabHistory<AdminTab>('dashboard', 'admin_tab');
+  const [mobileMenu, setMobileMenu] = useState(false);
+
+  // Idle logout disabled for admin — session persists until manual logout
+
+  if (!authed) return <AdminLogin onSuccess={() => setAuthed(true)} />;
+
+  const go = (k: string) => {
+    goRaw(k as AdminTab);
+    setMobileMenu(false);
+  };
+
+  const logout = () => {
+    sessionStorage.removeItem(AUTH_KEY);
+    setAuthed(false);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
+      <header className="sticky top-0 z-40 bg-green-800/95 backdrop-blur-md text-white shadow-lg shadow-green-900/20">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+          <button onClick={() => go('dashboard')} className="shrink-0">
+            <Logo size={36} imageUrl={logoImageUrl} />
+          </button>
+          <span className="hidden sm:inline text-xs font-bold text-volt-400 tracking-widest">
+            ADMIN
+          </span>
+          <nav className="hidden lg:flex items-center gap-0.5 flex-1 justify-center min-w-0 overflow-x-auto scrollbar-none">
+            {ADMIN_NAV.map((n) => {
+              const Icon = n.icon;
+              const active = tab === n.key;
+              return (
+                <button
+                  key={n.key}
+                  onClick={() => go(n.key)}
+                  className={`relative flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap shrink-0 ${
+                    active ? 'bg-volt-500 text-navy-950' : 'text-white/80 hover:bg-white/10'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {n.label}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={logout}
+              className="text-xs font-bold text-white/60 hover:text-white transition px-3 py-1.5"
+            >
+              로그아웃
+            </button>
+            <button
+              onClick={() => setMobileMenu((s) => !s)}
+              className="lg:hidden rounded-lg p-2 text-white hover:bg-white/10"
+              aria-label="메뉴"
+            >
+              {mobileMenu ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+        {mobileMenu && (
+          <nav className="lg:hidden border-t border-white/10 bg-green-800 animate-slide-up">
+            <div className="max-w-6xl mx-auto px-4 py-2 grid grid-cols-3 gap-1">
+              {ADMIN_NAV.map((n) => {
+                const Icon = n.icon;
+                const active = tab === n.key;
+                return (
+                  <button
+                    key={n.key}
+                    onClick={() => go(n.key)}
+                    className={`flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-semibold transition ${
+                      active ? 'bg-volt-500 text-navy-950' : 'text-white/80 hover:bg-white/10'
+                    }`}
+                  >
+                    <Icon size={18} />
+                    {n.label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+      </header>
+
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+        {tab === 'dashboard' && <AdminDashboardScreen />}
+        {tab === 'approval' && <AdminApprovalScreen />}
+        {tab === 'members' && <AdminMembersScreen />}
+        {tab === 'matching' && <AdminMatchingScreen />}
+        {tab === 'notice' && <AdminNoticeScreen />}
+        {tab === 'gallery' && <AdminGalleryScreen />}
+        {tab === 'reviews' && <AdminReviewScreen />}
+        {tab === 'analytics' && <AdminAnalyticsScreen />}
+        {tab === 'memo' && <AdminMemoScreen />}
+        {tab === 'bbq' && <AdminBBQScreen />}
+        {tab === 'event' && <AdminEventScreen />}
+      </main>
+
+      <ToastStack />
+    </div>
+  );
 }
 
 function Shell() {
-  const { profile, loading, signOut, refresh: refreshAuth } = useAuth();
-  const [route, setRoute] = useState<Route>(() => hashToRoute(window.location.hash));
-  const [showAuth, setShowAuth] = useState(false);
-  const [buyNowItem, setBuyNowItem] = useState<{ product: Product; quantity: number; selected_options?: SelectedOption[] } | null>(null);
+  const route = useRoute();
+  const { user, loading, configError, isGuest, guestId } = useAuth();
+  useClickSound();
 
-  const authReady = !loading && !!profile;
-
-  const productsHook = useProducts(authReady);
-  const categoriesHook = useCategories(authReady);
-  const ordersHook = useOrders(authReady);
-  const orderItemsHook = useUserOrderItems(profile?.id, authReady);
-  const profilesHook = useProfiles(authReady && profile?.role === 'admin');
-  const postsHook = usePosts(true);
-  const plansHook = useSubscriptionPlans(true);
-  const settingsHook = useSettings(true);
-  const cartHook = useCart(profile?.id);
-  const addressesHook = useAddresses(profile?.id);
-  const inquiriesHook = useInquiries(profile?.id, authReady);
-  const reviewsHook = useReviews(true);
-  const trialsHook = useTrialApplications(profile?.id, authReady);
-
-  const refreshAll = useCallback(() => {
-    refreshAuth();
-    productsHook.refresh();
-    categoriesHook.refresh();
-    ordersHook.refresh();
-    orderItemsHook.refresh();
-    profilesHook.refresh();
-    postsHook.refresh();
-    plansHook.refresh();
-    settingsHook.refresh();
-    cartHook.refresh();
-    addressesHook.refresh();
-    inquiriesHook.refresh();
-    reviewsHook.refresh();
-    trialsHook.refresh();
-  }, [productsHook, categoriesHook, ordersHook, orderItemsHook, profilesHook, postsHook, plansHook, settingsHook, cartHook, addressesHook, inquiriesHook, reviewsHook, trialsHook, refreshAuth]);
-
-  const navigate = useCallback((r: Route) => {
-    setRoute(r);
-    setShowAuth(false);
-    const hash = routeToHash(r);
-    if (window.location.hash !== hash) {
-      window.history.pushState({}, '', hash || '#');
-    }
-  }, []);
-
-  useEffect(() => {
-    const onPopState = () => {
-      setRoute(hashToRoute(window.location.hash));
-      setShowAuth(false);
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, []);
-
-  useEffect(() => {
-    const path = routeToHash(route).replace('#', '/') || '/';
-    logPageView(path);
-  }, [route]);
-
-  useEffect(() => {
-    if (loading) return;
-    if (profile) return;
-    if (showAuth) return;
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'board') setRoute({ name: 'board' });
-    else if (hash.startsWith('post/')) setRoute({ name: 'post', postId: hash.slice(5) });
-    else setRoute({ name: 'landing' });
-  }, [profile, showAuth, loading]);
-
-  if (loading) {
+  if (route === 'admin') {
     return (
-      <div className="grid min-h-screen place-items-center bg-navy-950">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan border-t-transparent" />
-          <p className="text-sm">로딩 중...</p>
+      <AppProvider authUser={ADMIN_AUTH_USER}>
+        <AdminShell />
+      </AppProvider>
+    );
+  }
+
+  if (route === 'share') {
+    return <SharedReservationScreen />;
+  }
+
+  if (configError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 px-4">
+        <div className="max-w-sm w-full rounded-2xl bg-white p-6 shadow-2xl text-center">
+          <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+            <AlertTriangle size={28} className="text-amber-500" />
+          </div>
+          <h1 className="text-lg font-extrabold text-navy-900 mb-2">설정 오류</h1>
+          <p className="text-sm text-slate-500">{configError}</p>
         </div>
       </div>
     );
   }
 
-  if (showAuth && !profile) {
-    return <Gatekeeper />;
-  }
-
-  if (!profile) {
-    if (route.name === 'board') {
-      logPageView('/board');
-      return (
-        <BoardList
-          posts={postsHook.items}
-          onSelectPost={(id) => navigate({ name: 'post', postId: id })}
-          onBack={() => navigate({ name: 'landing' })}
-          isAuthenticated={false}
-        />
-      );
-    }
-    if (route.name === 'post') {
-      const post = postsHook.items.find((p) => p.id === route.postId) ?? null;
-      logPageView(`/post/${route.postId}`);
-      return (
-        <BoardDetail
-          post={post}
-          onBack={() => navigate({ name: 'board' })}
-          onEnter={() => setShowAuth(true)}
-          isAuthenticated={false}
-        />
-      );
-    }
-    logPageView('/');
+  if (loading && !isGuest) {
     return (
-      <LandingPage
-        onEnter={() => setShowAuth(true)}
-        onViewBoard={() => navigate({ name: 'board' })}
-        onViewPost={(id) => navigate({ name: 'post', postId: id })}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
+        <Loader2 size={32} className="animate-spin text-volt-400" />
+      </div>
     );
   }
 
+  if (!user && !isGuest) return <AuthScreen />;
+
+  const authUser = user || {
+    ...GUEST_AUTH_USER,
+    id: guestId || GUEST_AUTH_USER.id,
+  };
   return (
-    <ErrorBoundary>
-      <ShellContent
-        profile={profile}
-        route={route}
-        navigate={navigate}
-        signOut={signOut}
-        refreshAll={refreshAll}
-        products={productsHook.items}
-        categories={categoriesHook.items}
-        orders={ordersHook.items}
-        orderItems={orderItemsHook.items}
-        profiles={profilesHook.items}
-        posts={postsHook.items}
-        plans={plansHook.items}
-        settings={settingsHook.items}
-        cartItems={cartHook.items}
-        addresses={addressesHook.items}
-        inquiries={inquiriesHook.items}
-        reviews={reviewsHook.items}
-        trials={trialsHook.items}
-        onRefreshCart={cartHook.refresh}
-        cartCount={cartHook.items.length}
-        buyNowItem={buyNowItem}
-        onBuyNow={(item) => { setBuyNowItem(item); navigate({ name: 'checkout' }); }}
-      />
-    </ErrorBoundary>
-  );
-}
-
-function ShellContent({
-  profile, route, navigate, signOut, refreshAll,
-  products, categories, orders, orderItems, profiles, posts, plans, settings,
-  cartItems, addresses, inquiries, reviews, trials, onRefreshCart, cartCount,
-  buyNowItem, onBuyNow,
-}: {
-  profile: Profile;
-  route: Route;
-  navigate: (r: Route) => void;
-  signOut: () => Promise<void>;
-  refreshAll: () => void;
-  products: any[];
-  categories: any[];
-  orders: any[];
-  orderItems: any[];
-  profiles: any[];
-  posts: Post[];
-  plans: any[];
-  settings: Setting[];
-  cartItems: any[];
-  addresses: any[];
-  inquiries: Inquiry[];
-  reviews: any[];
-  trials: TrialApplication[];
-  onRefreshCart: () => void;
-  cartCount: number;
-  buyNowItem: { product: Product; quantity: number; selected_options?: SelectedOption[] } | null;
-  onBuyNow: (item: { product: Product; quantity: number; selected_options?: SelectedOption[] }) => void;
-}) {
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
-    route.name === 'shop' ? (route.categoryId ?? null) : null,
-  );
-
-  useEffect(() => {
-    if (route.name === 'shop') {
-      setSelectedCategoryId(route.categoryId ?? null);
-    } else {
-      setSelectedCategoryId(null);
-    }
-  }, [route]);
-
-  return (
-    <div className="min-h-screen bg-navy-950">
-      <header className="sticky top-0 z-40 border-b border-navy-700 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 md:px-8">
-          <button
-            onClick={() => navigate({ name: 'shop' })}            className="text-left transition hover:text-cyan"
-          >
-            <div className="text-[9px] font-medium uppercase tracking-[0.3em] text-slate-500">HYPERSHIELD</div>
-            <div className="font-gothic text-base font-bold tracking-tight text-slate-800">하이퍼쉴드 멤버쉽</div>
-          </button>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate({ name: 'cart' })}
-              className={`relative flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition ${
-                route.name === 'cart' || route.name === 'checkout' ? 'text-cyan' : 'text-slate-400 hover:text-slate-700'
-              }`}
-            >
-              <ShoppingCart className="h-4 w-4" />
-              {cartCount > 0 && (
-                <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-cyan px-1 text-[10px] font-bold text-white">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => navigate({ name: 'mypage' })}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition ${
-                route.name === 'mypage' ? 'text-cyan' : 'text-slate-400 hover:text-slate-700'
-              }`}
-            >
-              <User className="h-4 w-4" /> 마이
-            </button>
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-cyan-sheen text-sm font-bold text-white">
-              {profile.full_name.slice(0, 1)}
-            </div>
-            <button onClick={async () => { await signOut(); }} className="btn-ghost px-3 py-2" title="로그아웃">
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-5 py-6 md:px-8 md:py-8">
-        {route.name === 'board' ? (
-          <BoardList
-            posts={posts}
-            onSelectPost={(id) => navigate({ name: 'post', postId: id })}
-            onBack={() => navigate({ name: 'shop' })}
-            isAuthenticated={true}
-          />
-        ) : route.name === 'post' ? (
-          <BoardDetail
-            post={posts.find((p) => p.id === route.postId) ?? null}
-            onBack={() => navigate({ name: 'board' })}
-            isAuthenticated={true}
-          />
-        ) : route.name === 'product' ? (
-          <ProductDetail
-            product={products.find((p) => p.id === route.productId) ?? null}
-            settings={settings}
-            reviews={reviews.filter((r: any) => r.product_id === route.productId)}
-            hasActiveSubscription={profile.subscription_status === 'active'}
-            onBack={() => navigate({ name: 'shop' })}
-            onBuyNow={onBuyNow}
-            onAddedToCart={onRefreshCart}
-          />
-        ) : route.name === 'cart' ? (
-          <Cart
-            cartItems={cartItems}
-            onBack={() => navigate({ name: 'shop' })}
-            onCheckout={() => navigate({ name: 'checkout' })}
-            onRefresh={onRefreshCart}
-          />
-        ) : route.name === 'checkout' ? (
-          <Checkout
-            cartItems={cartItems}
-            buyNowItem={buyNowItem}
-            addresses={addresses}
-            userId={profile.id}
-            settings={settings}
-            onBack={() => navigate({ name: 'cart' })}
-            onComplete={() => {
-              refreshAll();
-              navigate({ name: 'mypage' });
-            }}
-          />
-        ) : route.name === 'trials' ? (
-          <MyTrials
-            trials={trials}
-            products={products}
-            userId={profile.id}
-            onRefresh={refreshAll}
-          />
-        ) : route.name === 'subscribe' ? (
-          <SubscriptionGate
-            profile={profile}
-            plans={plans}
-            settings={settings}
-            onSignOut={signOut}
-            onActivated={refreshAll}
-          />
-        ) : route.name === 'mypage' ? (
-          <MyPage
-            profile={profile}
-            orders={orders}
-            orderItems={orderItems}
-            addresses={addresses}
-            plans={plans}
-            inquiries={inquiries}
-            reviews={reviews}
-            products={products}
-            onRefresh={refreshAll}
-          />
-        ) : (
-          <ShopMain
-            products={products}
-            categories={categories}
-            userTier={profile.subscription_tier}
-            hasActiveSubscription={profile.subscription_status === 'active'}
-            billingPeriod={profile.subscription_billing_period}
-            onSelectProduct={(id) => navigate({ name: 'product', productId: id })}
-            onSelectCategory={(id) => { setSelectedCategoryId(id); navigate({ name: 'shop', categoryId: id }); }}
-            selectedCategoryId={selectedCategoryId}
-            onGoBoard={() => navigate({ name: 'board' })}
-            onGoTrials={() => navigate({ name: 'trials' })}
-            onSubscribe={() => navigate({ name: 'subscribe' })}
-          />
-        )}
-      </main>
-
-      <footer className="border-t border-navy-700 px-5 py-6 text-center text-xs text-slate-600 md:px-8">
-        <div className="mx-auto max-w-3xl space-y-2 leading-relaxed">
-          <p>제이피지 대표자 : 김진수</p>
-          <p>사업자등록번호 : 132-18-80228</p>
-          <p>주소 : 경기도 포천시 내촌면 금강로 2480-47</p>
-          <p>연락처 : 031-535-1799</p>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <span>© {new Date().getFullYear()} Hypershield · 하이퍼쉴드 멤버쉽</span>
-          <a href="#admin" className="text-slate-500 transition hover:text-slate-400">관리자</a>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
-function AppRouter() {
-  const [isAdminRoute, setIsAdminRoute] = useState(
-    () => window.location.hash.replace('#', '').startsWith('admin'),
-  );
-
-  useEffect(() => {
-    const onHashChange = () => {
-      setIsAdminRoute(window.location.hash.replace('#', '').startsWith('admin'));
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
-
-  if (isAdminRoute) {
-    return <AdminApp onBackToSite={() => { window.location.replace(window.location.pathname + window.location.search); }} />;
-  }
-  return (
-    <AuthProvider>
-      <Shell />
-    </AuthProvider>
+    <AppProvider authUser={authUser}>
+      <UserShell />
+    </AppProvider>
   );
 }
 
 export default function App() {
-  return <AppRouter />;
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <Shell />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
 }

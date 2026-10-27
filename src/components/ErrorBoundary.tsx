@@ -1,44 +1,45 @@
-import { Component, ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
 }
-
 interface State {
   hasError: boolean;
-  error: Error | null;
+  message: string;
 }
 
-export default class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null };
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, message: '' };
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  static getDerivedStateFromError(err: unknown): State {
+    const message = err instanceof Error ? err.message : String(err);
+    return { hasError: true, message };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('Render crash:', error, info.componentStack);
-  }
+  handleReload = () => {
+    window.location.reload();
+  };
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="grid min-h-screen place-items-center bg-navy-950 p-6">
-          <div className="card-surface max-w-lg p-6">
-            <h2 className="font-display text-lg font-bold text-red-400">렌더링 오류 발생</h2>
-            <p className="mt-2 text-sm text-slate-400">
-              페이지를 표시하는 중 오류가 발생했습니다.
+        <div className="min-h-screen flex items-center justify-center bg-navy-950 px-4">
+          <div className="max-w-sm w-full rounded-2xl bg-white p-6 shadow-2xl text-center">
+            <div className="mx-auto w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center mb-4">
+              <AlertTriangle size={28} className="text-rose-500" />
+            </div>
+            <h1 className="text-lg font-extrabold text-navy-900 mb-2">
+              문제가 발생했습니다
+            </h1>
+            <p className="text-sm text-slate-500 mb-5 break-words">
+              {this.state.message || '알 수 없는 오류가 발생했습니다.'}
             </p>
-            <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-navy-950 p-3 text-xs text-slate-600">
-              {this.state.error?.message}
-              {'\n'}
-              {this.state.error?.stack}
-            </pre>
             <button
-              onClick={() => window.location.reload()}
-              className="btn-primary mt-4"
+              onClick={this.handleReload}
+              className="w-full py-3 rounded-xl bg-volt-500 text-navy-950 font-bold hover:bg-volt-400 active:scale-[0.98] transition flex items-center justify-center gap-2"
             >
-              새로고침
+              <RefreshCw size={18} /> 새로고침
             </button>
           </div>
         </div>

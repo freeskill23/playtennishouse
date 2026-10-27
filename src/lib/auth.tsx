@@ -1,168 +1,369 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { supabase, isSupabaseConfigured } from './supabase';
-import { Profile, SubscriptionStatus, CafeMembership } from './types';
-import { translateAuthError } from './format';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import { supabase, supabaseConfigured } from '../lib/supabase';
+import type { NTRP, Hand, GamePreference } from '../types';
+import { useIdleLogout } from './useIdleLogout';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  nickname: string;
+  phone: string;
+  profileImg: string;
+  career: string;
+  ntrp: NTRP;
+  hand: Hand;
+  gamePreference: GamePreference;
+  bio: string;
+  referralSource: string;
+}
 
 interface AuthState {
-  profile: Profile | null;
+  user: AuthUser | null;
+  isGuest: boolean;
+  guestId: string | null;
+  session: Session | null;
   loading: boolean;
-  error: string | null;
-}
-
-interface AuthContextValue extends AuthState {
-  signUp: (input: { email: string; password: string; full_name: string; cafe_nickname?: string; cafe_membership: CafeMembership }) => Promise<void>;
-  signIn: (input: { email: string; password: string }) => Promise<void>;
+  configError: string | null;
+  signInAsGuest: () => void;
+  signUp: (input: {
+    email: string;
+    password: string;
+    name: string;
+    phone: string;
+    marketingConsent: boolean;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  signIn: (
+    email: string,
+    password: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
-  refresh: () => Promise<void>;
-  hasActiveSubscription: boolean;
+  updateProfile: (
+    patch: Partial<Pick<AuthUser, 'name' | 'nickname' | 'phone' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio' | 'profileImg'>>,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  uploadProfileImage: (
+    file: File,
+  ) => Promise<{ ok: boolean; error?: string; url?: string }>;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const Ctx = createContext<AuthState | null>(null);
+
+export function useAuth() {
+  const v = useContext(Ctx);
+  if (!v) throw new Error('useAuth must be used within AuthProvider');
+  return v;
+}
+
+function detectReferralSource(): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const utm = params.get('utm_source');
+    if (utm) return utm;
+    const referrer = document.referrer || '';
+    if (!referrer) return 'direct';
+    const host = new URL(referrer).hostname;
+    if (host.includes('naver')) return 'naver';
+    if (host.includes('google')) return 'google';
+    if (host.includes('daum')) return 'daum';
+    if (host.includes('instagram')) return 'instagram';
+    if (host.includes('facebook')) return 'facebook';
+    if (host.includes('blog')) return 'blog';
+    return host;
+  } catch {
+    return 'direct';
+  }
+}
+
+const DEFAULT_PROFILE_IMG = '/logo_png.png';
+
+function withTimeout<T>(promise: PromiseLike<T>, milliseconds: number): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('요청 시간이 초과되었습니다.')), milliseconds);
+    }),
+  ]);
+}
+
+function mapProfile(row: Record<string, unknown>, email: string): AuthUser {
+  return {
+    id: row.id as string,
+    email: (row.email as string) || email,
+    name: (row.name as string) || '사용자',
+    nickname: (row.nickname as string) || '',
+    phone: (row.phone as string) || '',
+    profileImg: (row.profile_img as string) || DEFAULT_PROFILE_IMG,
+    career: (row.career as string) || '0년',
+    ntrp: (row.ntrp as NTRP) || '2.0',
+    hand: (row.hand as Hand) || 'right',
+    gamePreference: (row.game_preference as GamePreference) || 'any',
+    bio: (row.bio as string) || '',
+    referralSource: (row.referral_source as string) || '',
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ profile: null, loading: true, error: null });
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isGuest, setIsGuest] = useState<boolean>(() => localStorage.getItem('pth-guest') === '1');
+  const [guestId, setGuestId] = useState<string | null>(() => localStorage.getItem('pth-guest-id'));
+  const [loading, setLoading] = useState(true);
+  const signingOutRef = useRef(false);
+  const configError = supabaseConfigured
+    ? null
+    : 'Supabase 환경변수가 설정되지 않았습니다. 관리자에게 문의하세요.';
 
-  const loadProfile = useCallback(async (userId: string): Promise<Profile | null> => {
-    if (!isSupabaseConfigured || !supabase) return null;
+  const fetchProfile = useCallback(async (su: SupabaseUser) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', su.id)
       .maybeSingle();
     if (error) {
-      console.error('profile load error', error);
+      console.error('Profile fetch error:', error);
       return null;
     }
-    return data as Profile | null;
+    if (data) {
+      return mapProfile(data as Record<string, unknown>, su.email || '');
+    }
+    return null;
   }, []);
-
-  const refresh = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      setState({ profile: null, loading: false, error: null });
-      return;
-    }
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) {
-      setState({ profile: null, loading: false, error: null });
-      return;
-    }
-    const profile = await loadProfile(data.session.user.id);
-    setState({ profile, loading: false, error: null });
-  }, [loadProfile]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setState({ profile: null, loading: false, error: null });
+    if (!supabaseConfigured) {
+      setLoading(false);
       return;
     }
-    let mounted = true;
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
-        if (!data.session) {
-          setState({ profile: null, loading: false, error: null });
-          return;
-        }
-        const profile = await loadProfile(data.session.user.id);
-        if (!mounted) return;
-        setState({ profile, loading: false, error: null });
-      } catch (e) {
-        console.error('auth init error', e);
-        if (mounted) setState({ profile: null, loading: false, error: null });
+    const sessionTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      clearTimeout(sessionTimeout);
+      if (signingOutRef.current && event !== 'SIGNED_OUT') return;
+      setSession(sess);
+      if (event === 'SIGNED_OUT' || !sess) {
+        setUser(null);
+        setLoading(false);
+        return;
       }
-    })();
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      (async () => {
-        try {
-          if (!session) {
-            setState({ profile: null, loading: false, error: null });
-            return;
-          }
-          const profile = await loadProfile(session.user.id);
-          setState({ profile, loading: false, error: null });
-        } catch (e) {
-          console.error('auth state change error', e);
-          setState({ profile: null, loading: false, error: null });
-        }
-      })();
+      if (sess?.user) {
+        void withTimeout(fetchProfile(sess.user), 8000)
+          .then((p) => {
+            setUser(p || mapProfile({ id: sess.user.id, email: sess.user.email }, sess.user.email || ''));
+            setLoading(false);
+          })
+          .catch(() => {
+            setUser(mapProfile({ id: sess.user.id, email: sess.user.email }, sess.user.email || ''));
+            setLoading(false);
+          });
+      }
     });
+
     return () => {
-      mounted = false;
+      clearTimeout(sessionTimeout);
       sub.subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [fetchProfile]);
 
   const signUp = useCallback(
-    async (input: { email: string; password: string; full_name: string; cafe_nickname?: string; cafe_membership: CafeMembership }) => {
-      setState((s) => ({ ...s, error: null }));
-      try {
-        if (!isSupabaseConfigured || !supabase) throw new Error('Supabase가 설정되지 않았습니다.');
-        const { data, error } = await supabase.auth.signUp({
-          email: input.email,
-          password: input.password,
-          options: { data: { full_name: input.full_name, cafe_nickname: input.cafe_nickname ?? '', cafe_membership: input.cafe_membership } },
-        });
-        if (error) throw error;
-        if (!data.user) throw new Error('가입에 실패했습니다.');
-        if (!data.session) {
-          setState({ profile: null, loading: false, error: null });
-          throw new Error('가입이 완료되었습니다. 이메일함에서 인증 메일을 확인한 후 로그인해 주세요.');
-        }
-        const profile = await loadProfile(data.user.id);
-        setState({ profile, loading: false, error: null });
-      } catch (e: any) {
-        setState({ profile: null, loading: false, error: translateAuthError(e.message) || '가입 실패' });
-        throw e;
+    async (input: { email: string; password: string; name: string; phone: string; marketingConsent: boolean }) => {
+      const { data, error } = await supabase.auth.signUp({
+        email: input.email,
+        password: input.password,
+      });
+      if (error) return { ok: false, error: error.message };
+      if (!data.user) return { ok: false, error: '회원가입에 실패했습니다.' };
+
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        email: input.email,
+        name: input.name,
+        nickname: input.name,
+        phone: input.phone,
+        profile_img: DEFAULT_PROFILE_IMG,
+        career: '0년',
+        ntrp: '2.0',
+        hand: 'right',
+        game_preference: 'any',
+        bio: '',
+        marketing_consent: input.marketingConsent,
+        referral_source: detectReferralSource(),
+      });
+      if (profileError) {
+        return { ok: false, error: '프로필 생성에 실패했습니다: ' + profileError.message };
       }
+
+      const p = await fetchProfile(data.user);
+      if (p) setUser(p);
+      return { ok: true };
     },
-    [loadProfile],
+    [fetchProfile],
   );
 
-  const signIn = useCallback(
-    async (input: { email: string; password: string }) => {
-      setState((s) => ({ ...s, error: null }));
-      try {
-        if (!isSupabaseConfigured || !supabase) throw new Error('Supabase가 설정되지 않았습니다.');
-        const { data, error } = await supabase.auth.signInWithPassword(input);
-        if (error) throw error;
-        const profile = await loadProfile(data.user.id);
-        setState({ profile, loading: false, error: null });
-      } catch (e: any) {
-        setState({ profile: null, loading: false, error: translateAuthError(e.message) || '로그인 실패' });
-        throw e;
-      }
-    },
-    [loadProfile],
-  );
-
-  const signOut = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      setState({ profile: null, loading: false, error: null });
-      return;
+  const signInAsGuest = useCallback(() => {
+    let id = localStorage.getItem('pth-guest-id');
+    if (!id) {
+      id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem('pth-guest-id', id);
     }
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (e) {
-      console.error('signOut error', e);
-    } finally {
-      setState({ profile: null, loading: false, error: null });
-    }
+    localStorage.setItem('pth-guest', '1');
+    setGuestId(id);
+    setIsGuest(true);
   }, []);
 
-  const hasActiveSubscription = state.profile?.subscription_status === 'active';
+  const signIn = useCallback(async (email: string, password: string) => {
+    signingOutRef.current = false;
+    let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data'];
+    let error: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error'];
+    try {
+      ({ data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        10000,
+      ));
+    } catch {
+      return { ok: false, error: '로그인 요청 시간이 초과되었습니다. 잠시 후 다시 시도하세요.' };
+    }
+    if (error) return { ok: false, error: error.message };
+    if (!data.user) return { ok: false, error: '로그인에 실패했습니다.' };
+    setSession(data.session);
+    void withTimeout(fetchProfile(data.user), 8000)
+      .then((p) => {
+        if (p) setUser(p);
+        else setUser(mapProfile({ id: data.user.id, email: data.user.email }, data.user.email || email));
+        setLoading(false);
+      })
+      .catch(() => {
+        setUser(mapProfile({ id: data.user.id, email: data.user.email }, data.user.email || email));
+        setLoading(false);
+      });
+    void supabase.rpc('increment_login_count', {
+      user_id: data.user.id,
+    }).then(({ error: rpcError }) => {
+      if (rpcError) console.error('login_count increment failed:', rpcError.message);
+    });
+    return { ok: true };
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ ...state, signUp, signIn, signOut, refresh, hasActiveSubscription }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const signOut = useCallback(async () => {
+    signingOutRef.current = true;
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore — clear local state regardless
+    }
+    setUser(null);
+    setSession(null);
+    localStorage.removeItem('pth-guest');
+    localStorage.removeItem('pth-guest-id');
+    setIsGuest(false);
+    setGuestId(null);
+  }, []);
+
+  useIdleLogout(() => { void signOut(); }, Boolean(session) || isGuest);
+
+  const updateProfile = useCallback(
+    async (
+      patch: Partial<Pick<AuthUser, 'name' | 'nickname' | 'phone' | 'career' | 'ntrp' | 'hand' | 'gamePreference' | 'bio' | 'profileImg'>>,
+    ) => {
+      if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+      const row: Record<string, unknown> = {};
+      if (patch.name !== undefined) row.name = patch.name;
+      if (patch.nickname !== undefined) row.nickname = patch.nickname;
+      if (patch.phone !== undefined) row.phone = patch.phone;
+      if (patch.career !== undefined) row.career = patch.career;
+      if (patch.ntrp !== undefined) row.ntrp = patch.ntrp;
+      if (patch.hand !== undefined) row.hand = patch.hand;
+      if (patch.gamePreference !== undefined) row.game_preference = patch.gamePreference;
+      if (patch.bio !== undefined) row.bio = patch.bio;
+      if (patch.profileImg !== undefined) row.profile_img = patch.profileImg;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(row)
+        .eq('id', user.id);
+      if (error) return { ok: false, error: error.message };
+      setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+      return { ok: true };
+    },
+    [user],
   );
-}
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+      // Verify current password by re-authenticating
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) return { ok: false, error: '현재 비밀번호가 올바르지 않습니다.' };
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    },
+    [user],
+  );
+
+  const uploadProfileImage = useCallback(
+    async (file: File) => {
+      if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+      const MAX_SIZE = 512;
+      const QUALITY = 0.85;
+      const resized = await new Promise<File | null>((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let { width, height } = img;
+          if (width > height && width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => resolve(blob ? new File([blob], 'avatar.jpg', { type: 'image/jpeg' }) : null),
+            'image/jpeg',
+            QUALITY,
+          );
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+      });
+      const finalFile = resized || file;
+      const ext = finalFile.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('profile-images')
+        .upload(path, finalFile, { cacheControl: '3600', upsert: true });
+      if (upErr) return { ok: false, error: upErr.message };
+      const { data } = supabase.storage.from('profile-images').getPublicUrl(path);
+      return { ok: true, url: data.publicUrl };
+    },
+    [user],
+  );
+
+  const value: AuthState = { user, isGuest, guestId, session, loading, configError, signInAsGuest, signUp, signIn, signOut, updateProfile, changePassword, uploadProfileImage };
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
