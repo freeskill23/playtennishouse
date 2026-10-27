@@ -1,20 +1,8 @@
-[functions.fetch-product-info]
-verify_jwt = true
-
-[functions.admin-reset-password]
-verify_jwt = true
-
-[functions.admin-delete-user]
-verify_jwt = true
-
-[functions.charge-subscription]
-verify_jwt = true
-
-[functions.confirm-subscription-payment]
-verify_jwt = true
-
-[functions.portone-webhook]
+[functions.admin-notice-reply]
 verify_jwt = false
 
-[functions.verify-payment]
-verify_jwt = true
+[functions.admin-users]
+verify_jwt = false
+
+[functions.telegram-notify]
+verify_jwt = false
