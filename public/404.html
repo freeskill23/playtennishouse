@@ -2,20 +2,26 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>코코스퍼니쳐 | COCOS FURNITURE</title>
+    <title>Hypershield Private Club</title>
     <script>
-      // 404 fallback: redirect to index.html preserving the route as hash
-      (function () {
-        var l = window.location;
-        var path = l.pathname;
-
-        var dir = path.substring(0, path.lastIndexOf('/') + 1);
-        var route = path.substring(dir.length);
-        if (route && !route.startsWith('/')) route = '/' + route;
-        if (!route) route = '/';
-
-        l.replace(dir + '#' + route + l.search);
-      })();
+      // GitHub Pages SPA redirect: convert deep-link path to query param
+      // so the app can restore the route on load.
+      var pathSegmentsToKeep = 1;
+      var l = window.location;
+      l.replace(
+        l.protocol +
+          '//' +
+          l.hostname +
+          (l.port ? ':' + l.port : '') +
+          l.pathname
+            .split('/')
+            .slice(0, 1 + pathSegmentsToKeep)
+            .join('/') +
+          '/?/' +
+          l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash
+      );
     </script>
   </head>
   <body></body>
