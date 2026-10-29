@@ -249,11 +249,12 @@ export function AdminAnalyticsScreen() {
     guest: 0,
   });
   const [range, setRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('week');
-  const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | 'todayVisitors' | null>(null);
+  const [detailModal, setDetailModal] = useState<'memberVisits' | 'todaySignups' | 'visitors' | null>(null);
+  const [visitorDay, setVisitorDay] = useState<'today' | 'yesterday'>('today');
   const [memberVisitLogs, setMemberVisitLogs] = useState<RawLog[]>([]);
   const [memberResCounts, setMemberResCounts] = useState<Map<string, { pension: number; court: number }>>(new Map());
   const [todaySignupList, setTodaySignupList] = useState<ProfileRow[]>([]);
-  const [todayVisitorLogs, setTodayVisitorLogs] = useState<RawLog[]>([]);
+  const [dayVisitorLogs, setDayVisitorLogs] = useState<RawLog[]>([]);
   const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedVisitorKey, setSelectedVisitorKey] = useState<string | null>(null);
@@ -400,18 +401,24 @@ export function AdminAnalyticsScreen() {
     setDetailLoading(false);
   }, []);
 
-  const openTodayVisitors = useCallback(async () => {
-    setDetailModal('todayVisitors');
+  const openVisitors = useCallback(async (day: 'today' | 'yesterday') => {
+    setVisitorDay(day);
+    setDetailModal('visitors');
+    setSelectedVisitorKey(null);
     setDetailLoading(true);
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    const { data } = await supabase
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    let query = supabase
       .from('visitor_logs')
       .select('*')
-      .gte('created_at', startOfToday.toISOString())
+      .gte('created_at', (day === 'today' ? startOfToday : startOfYesterday).toISOString());
+    if (day === 'yesterday') query = query.lt('created_at', startOfToday.toISOString());
+    const { data } = await query
       .order('created_at', { ascending: false })
       .limit(1000);
-    setTodayVisitorLogs((data as RawLog[]) || []);
+    setDayVisitorLogs((data as RawLog[]) || []);
 
     // Fetch last 7 days of logs to compute per-visitor visit counts
     // Order by created_at desc so newest sessions are prioritized if limit is hit
@@ -640,7 +647,7 @@ export function AdminAnalyticsScreen() {
           value={stats.todayUniqueVisitors}
           sub={`방문 ${stats.todayVisits}회`}
           accent="green"
-          onClick={openTodayVisitors}
+          onClick={() => openVisitors('today')}
         />
         <StatCard
           icon={<TrendingUp size={20} />}
@@ -648,6 +655,7 @@ export function AdminAnalyticsScreen() {
           value={stats.yesterdayUniqueVisitors}
           sub={`방문 ${stats.yesterdayVisits}회`}
           accent="sky"
+          onClick={() => openVisitors('yesterday')}
         />
         <StatCard
           icon={<Calendar size={20} />}
@@ -916,21 +924,21 @@ export function AdminAnalyticsScreen() {
         />
       )}
 
-      {/* Today visitors detail modal */}
+      {/* Visitors detail modal (today or yesterday) */}
       <Modal
-        open={detailModal === 'todayVisitors'}
+        open={detailModal === 'visitors'}
         onClose={() => { setDetailModal(null); setSelectedVisitorKey(null); }}
-        title="오늘 방문자 내역"
+        title={`${visitorDay === 'today' ? '오늘' : '어제'} 방문자 내역`}
         size="lg"
       >
         {detailLoading ? (
           <div className="flex items-center justify-center py-12">
             <RefreshCw size={24} className="animate-spin text-slate-300" />
           </div>
-        ) : todayVisitorLogs.length === 0 ? (
+        ) : dayVisitorLogs.length === 0 ? (
           <EmptyState
             icon={<Users size={24} />}
-            title="오늘 방문 내역이 없습니다"
+            title={`${visitorDay === 'today' ? '오늘' : '어제'} 방문 내역이 없습니다`}
             description="방문 기록이 여기에 표시됩니다."
           />
         ) : (
@@ -941,7 +949,7 @@ export function AdminAnalyticsScreen() {
             };
             const visitorKey = (log: RawLog) => log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`;
             if (selectedVisitorKey) {
-              const visitorLogs = todayVisitorLogs.filter((l) => visitorKey(l) === selectedVisitorKey);
+              const visitorLogs = dayVisitorLogs.filter((l) => visitorKey(l) === selectedVisitorKey);
               const firstName = visitorLogs[0]?.is_member && visitorLogs[0]?.user_name ? visitorLogs[0].user_name : '비회원';
               const isMember = visitorLogs[0]?.is_member ?? false;
               return (
@@ -963,10 +971,10 @@ export function AdminAnalyticsScreen() {
                           {isMember ? '회원' : '비회원'}
                         </span>
                       </p>
-                      <p className="text-[11px] text-slate-400">오늘 방문 {visitorLogs.length}회 · 7일 {visitorWeekCounts.get(selectedVisitorKey) || 0}회</p>
+                      <p className="text-[11px] text-slate-400">{dayLabel} 방문 {visitorLogs.length}회 · 7일 {visitorWeekCounts.get(selectedVisitorKey) || 0}회</p>
                     </div>
                     <button
-                      onClick={openTodayVisitors}
+                      onClick={() => openVisitors(visitorDay)}
                       className="ml-auto rounded-lg p-1.5 bg-white border border-slate-200 text-navy-700 hover:bg-slate-50 transition"
                       aria-label="새로고침"
                     >
@@ -999,7 +1007,7 @@ export function AdminAnalyticsScreen() {
               );
             }
             const grouped = new Map<string, { logs: RawLog[]; isMember: boolean; name: string }>();
-            for (const log of todayVisitorLogs) {
+            for (const log of dayVisitorLogs) {
               const key = visitorKey(log);
               if (!grouped.has(key)) grouped.set(key, { logs: [], isMember: log.is_member, name: log.is_member && log.user_name ? log.user_name : '비회원' });
               grouped.get(key)!.logs.push(log);
@@ -1012,9 +1020,9 @@ export function AdminAnalyticsScreen() {
             return (
               <div className="space-y-1">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs text-slate-400">오늘 방문자 {visitors.length}명 · 총 {todayVisitorLogs.length}건 (최대 1000건)</p>
+                  <p className="text-xs text-slate-400">{dayLabel} 방문자 {visitors.length}명 · 총 {dayVisitorLogs.length}건 (최대 1000건)</p>
                   <button
-                    onClick={openTodayVisitors}
+                    onClick={() => openVisitors(visitorDay)}
                     className="rounded-lg p-1.5 bg-white border border-slate-200 text-navy-700 hover:bg-slate-50 transition"
                     aria-label="새로고침"
                   >
@@ -1041,7 +1049,7 @@ export function AdminAnalyticsScreen() {
                         </span>
                       </p>
                       <p className="text-xs text-slate-400 truncate">
-                        오늘 {v.logs.length}회 · {pageLabelMap[v.logs[0].page] || v.logs[0].page}
+                        {dayLabel} {v.logs.length}회 · {pageLabelMap[v.logs[0].page] || v.logs[0].page}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
