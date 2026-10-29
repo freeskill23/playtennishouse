@@ -152,8 +152,13 @@ function getCampaignData(): CampaignData {
   };
 }
 
+function isPreviewEnvironment(): boolean {
+  return window.self !== window.top || window.location.hostname.includes('webcontainer');
+}
+
 export function logVisit(page: string, isMember: boolean, userName?: string): void {
   if (!supabaseConfigured) return;
+  if (isPreviewEnvironment()) return;
   if (!shouldLogPage(page)) return;
 
   const referrer = document.referrer || '';
