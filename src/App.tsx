@@ -18,6 +18,7 @@ import {
   BarChart3,
   Flame,
   Trophy,
+  Lightbulb,
 } from 'lucide-react';
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -51,6 +52,8 @@ import { AdminEventScreen } from './screens/admin/AdminEventScreen';
 import { EventScreen } from './screens/EventScreen';
 import { BBQPackageScreen } from './screens/BBQPackageScreen';
 import { SharedReservationScreen } from './screens/SharedReservationScreen';
+import { SuggestionScreen } from './screens/SuggestionScreen';
+import { AdminSuggestionScreen } from './screens/admin/AdminSuggestionScreen';
 import type { AuthUser } from './lib/auth';
 
 const ADMIN_AUTH_USER: AuthUser = {
@@ -68,10 +71,10 @@ const ADMIN_AUTH_USER: AuthUser = {
   bio: '플테하 운영진',
 };
 
-type UserTab = 'home' | 'pension' | 'court' | 'bbq' | 'matching' | 'event' | 'notices' | 'gallery' | 'reviews' | 'mypage';
-type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'event' | 'notice' | 'gallery' | 'reviews' | 'analytics' | 'memo' | 'bbq';
+type UserTab = 'home' | 'pension' | 'court' | 'bbq' | 'matching' | 'event' | 'notices' | 'gallery' | 'reviews' | 'suggestions' | 'mypage';
+type AdminTab = 'dashboard' | 'approval' | 'members' | 'matching' | 'event' | 'notice' | 'gallery' | 'reviews' | 'suggestions' | 'analytics' | 'memo' | 'bbq';
 
-const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
+const USER_NAV: { key: UserTab; label: string; icon: LucideIcon; mobileOnly?: boolean }[] = [
   { key: 'home', label: '홈', icon: HomeIcon },
   { key: 'pension', label: '펜션예약', icon: BedDouble },
   { key: 'court', label: '코트예약', icon: CalendarRange },
@@ -80,6 +83,7 @@ const USER_NAV: { key: UserTab; label: string; icon: LucideIcon }[] = [
   { key: 'notices', label: '공지', icon: Megaphone },
   { key: 'gallery', label: '갤러리', icon: Images },
   { key: 'reviews', label: '이용후기', icon: Star },
+  { key: 'suggestions', label: '플테하에 바라는 점', icon: Lightbulb, mobileOnly: true },
   { key: 'mypage', label: '내예약', icon: Ticket },
 ];
 
@@ -92,6 +96,7 @@ const ADMIN_NAV: { key: AdminTab; label: string; icon: LucideIcon }[] = [
   { key: 'gallery', label: '갤러리', icon: Images },
   { key: 'bbq', label: 'BBQ설정', icon: Flame },
   { key: 'reviews', label: '이용후기', icon: Star },
+  { key: 'suggestions', label: '건의함', icon: Lightbulb },
   { key: 'analytics', label: '방문자분석', icon: BarChart3 },
   { key: 'memo', label: '메모', icon: StickyNote },
 ];
@@ -309,7 +314,7 @@ function UserShell() {
             <span className="text-lg font-extrabold tracking-tight text-black">PLAY TENNIS HOUSE</span>
           </button>
           <nav className="hidden md:flex items-center gap-1">
-            {USER_NAV.map((n) => {
+            {USER_NAV.filter((n) => !n.mobileOnly).map((n) => {
               const Icon = n.icon;
               const active = tab === n.key;
               const disabled = isGuest && n.key === 'matching';
@@ -385,6 +390,7 @@ function UserShell() {
         {tab === 'notices' && <NoticesScreen />}
         {tab === 'gallery' && <GalleryScreen />}
         {tab === 'reviews' && <ReviewScreen />}
+        {tab === 'suggestions' && <SuggestionScreen />}
         {tab === 'mypage' && <MyPageScreen go={go} />}
       </main>
 
@@ -523,6 +529,7 @@ function AdminShell() {
         {tab === 'notice' && <AdminNoticeScreen />}
         {tab === 'gallery' && <AdminGalleryScreen />}
         {tab === 'reviews' && <AdminReviewScreen />}
+        {tab === 'suggestions' && <AdminSuggestionScreen />}
         {tab === 'analytics' && <AdminAnalyticsScreen />}
         {tab === 'memo' && <AdminMemoScreen />}
         {tab === 'bbq' && <AdminBBQScreen />}

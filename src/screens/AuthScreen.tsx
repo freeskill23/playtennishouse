@@ -295,7 +295,7 @@ export function AuthScreen() {
                 onClick={() => signInAsGuest()}
                 className="w-full py-2.5 rounded-xl bg-slate-100 text-navy-800 font-bold text-sm hover:bg-slate-200 active:scale-[0.98] transition"
               >
-                비회원 예약하기
+                비회원 입장하기
               </button>
               <p className="text-center text-[11px] text-slate-400 mt-2 leading-relaxed">
                 비회원은 코트·펜션 예약만 가능합니다.
