@@ -947,6 +947,7 @@ export function AdminAnalyticsScreen() {
               home: '홈', pension: '펜션', court: '코트대관', matching: '매칭', event: '게임데이',
               notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
             };
+            const dayLabel = visitorDay === 'today' ? '오늘' : '어제';
             const visitorKey = (log: RawLog) => log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`;
             if (selectedVisitorKey) {
               const visitorLogs = dayVisitorLogs.filter((l) => visitorKey(l) === selectedVisitorKey);
