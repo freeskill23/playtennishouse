@@ -945,7 +945,7 @@ export function AdminAnalyticsScreen() {
           (() => {
             const pageLabelMap: Record<string, string> = {
               home: '홈', pension: '펜션', court: '코트대관', matching: '매칭', event: '게임데이',
-              notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
+              notices: '공지사항', gallery: '갤러리', reviews: '후기', suggestions: '플테하에 바라는 점', mypage: '마이페이지',
             };
             const dayLabel = visitorDay === 'today' ? '오늘' : '어제';
             const visitorKey = (log: RawLog) => log.is_member && log.user_name ? `member:${log.user_name}` : `session:${log.session_id}`;
@@ -1098,7 +1098,7 @@ export function AdminAnalyticsScreen() {
             });
             const pageLabelMap: Record<string, string> = {
               home: '홈', pension: '펜션', court: '코트대관', matching: '매칭', event: '게임데이',
-              notices: '공지사항', gallery: '갤러리', reviews: '후기', mypage: '마이페이지',
+              notices: '공지사항', gallery: '갤러리', reviews: '후기', suggestions: '플테하에 바라는 점', mypage: '마이페이지',
             };
             return (
               <div className="space-y-3">
