@@ -6,7 +6,7 @@ import { Calendar, todayYMD, addDaysYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { SectionTitle } from '../components/ui';
 import { GallerySlideshow } from '../components/GallerySlideshow';
-import { getCourtSlotPriceWithConfig, formatWon } from '../pricing';
+import { getCourtSlotPriceWithConfig, formatWon, getCourtDaySchedule, isCourtSlotOpen } from '../pricing';
 import { COURT_TIME_SLOTS } from '../types';
 import type { CourtName } from '../types';
 
@@ -28,6 +28,7 @@ export function CourtScreen() {
     courtPricing,
     galleryItems,
     courtOpenDays,
+    courtWeekdaySchedules,
   } = useApp();
   const { isGuest } = useAuth();
   const courtSlides = galleryItems.filter((g) => g.showOnCourt);
@@ -42,6 +43,10 @@ export function CourtScreen() {
   const [depositorPhone, setDepositorPhone] = useState('');
 
   const blockedByPension = isCourtBlockedByPension(date, court);
+  const daySchedule = getCourtDaySchedule(courtWeekdaySchedules, date);
+  const courtHoursLabel = daySchedule.enabled
+    ? `${String(daySchedule.startHour).padStart(2, '0')}:00 ~ ${String(daySchedule.endHour).padStart(2, '0')}:00 · 1시간 단위로 예약 가능합니다`
+    : '선택하신 요일은 예약이 열려 있지 않습니다';
 
   const slotStartHour = (slot: string) => parseInt(slot.split(':')[0], 10);
   const isSlotPassed = (slot: string) => {
@@ -129,7 +134,7 @@ export function CourtScreen() {
       <div className="mb-3">
         <div className="flex items-baseline gap-2 flex-wrap">
           <h2 className="text-xl font-bold text-navy-900">코트 예약</h2>
-          <span className="text-xs font-medium text-slate-500">05:00 ~ 24:00 · 1시간 단위로 예약 가능합니다</span>
+          <span className="text-xs font-medium text-slate-500">{courtHoursLabel}</span>
         </div>
         <div className="mt-1.5 rounded-xl bg-volt-50 border border-volt-200 px-3.5 py-2 flex items-center gap-1.5">
           <CalendarRange size={14} className="text-volt-700" />
@@ -144,6 +149,7 @@ export function CourtScreen() {
         onChange={(d) => { setDate(d); setSelectedSlots([]); setErrorReason(null); }}
         minDate={todayYMD()}
         maxDate={addDaysYMD(courtOpenDays)}
+        dayDisabled={(d) => !getCourtDaySchedule(courtWeekdaySchedules, d).enabled}
         dayRender={(d) => {
           const aBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'A코트', s) === 'booked');
           const bBooked = COURT_TIME_SLOTS.some((s) => getCourtSlotStatus(d, 'B코트', s) === 'booked');
@@ -229,7 +235,8 @@ export function CourtScreen() {
             const status = getCourtSlotStatus(date, court, s);
             const isSel = selectedSlots.includes(s);
             const passed = isSlotPassed(s);
-            const disabled = status !== 'available' || passed;
+            const closed = !isCourtSlotOpen(courtWeekdaySchedules, date, s);
+            const disabled = status !== 'available' || passed || closed;
             return (
               <button
                 key={s}
@@ -238,7 +245,7 @@ export function CourtScreen() {
                 className={`relative rounded-xl p-3 text-sm font-bold transition-all border ${
                   isSel
                     ? 'bg-navy-900 text-white border-navy-900 shadow-navy'
-                    : passed
+                    : passed || closed
                       ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
                       : status === 'available'
                         ? 'bg-white text-navy-800 border-slate-200 hover:border-volt-400 hover:bg-volt-50'
@@ -251,7 +258,7 @@ export function CourtScreen() {
                   <span>{s}</span>
                   {isSel ? (
                     <Minus size={13} />
-                  ) : passed ? (
+                  ) : passed || closed ? (
                     <Clock size={13} />
                   ) : status === 'booked' ? (
                     <Lock size={13} />
@@ -266,7 +273,9 @@ export function CourtScreen() {
                     ? '선택됨'
                     : passed
                       ? '시간지남'
-                      : status === 'available'
+                      : closed
+                        ? '예약 불가'
+                        : status === 'available'
                         ? '예약가능'
                         : status === 'booked'
                           ? '예약완료'

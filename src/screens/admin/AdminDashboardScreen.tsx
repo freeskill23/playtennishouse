@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../store';
 import { Calendar, todayYMD } from '../../components/Calendar';
+import { AdminCourtScheduleEditor } from './AdminCourtScheduleEditor';
 import { SectionTitle, StatusBadge } from '../../components/ui';
 import { COURT_TIME_SLOTS } from '../../types';
 import { formatWon, getBuiltInHolidays } from '../../pricing';
@@ -779,6 +780,8 @@ export function AdminDashboardScreen() {
           </button>
         </div>
       </div>
+
+      <AdminCourtScheduleEditor />
 
       {/* Temporary holiday control */}
       <div className="rounded-2xl border border-navy-100 bg-white p-4 shadow-sm">

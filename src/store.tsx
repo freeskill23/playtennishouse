@@ -47,8 +47,8 @@ import {
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
-import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE, DEFAULT_BBQ_PRICING, computeBBQPrice } from './pricing';
-import type { CourtPricing, BBQPricing } from './pricing';
+import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE, DEFAULT_BBQ_PRICING, computeBBQPrice, isCourtSlotOpen } from './pricing';
+import type { CourtPricing, BBQPricing, CourtWeekdaySchedule } from './pricing';
 
 // Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
 const PENSION_BLOCK_START_HOUR = 15;
@@ -324,6 +324,8 @@ interface AppState {
 
   // reservation open window limits
   courtOpenDays: number;
+  courtWeekdaySchedules: CourtWeekdaySchedule[] | null;
+  updateCourtWeekdaySchedules: (schedules: CourtWeekdaySchedule[]) => void;
   pensionOpenMonths: number;
   bbqOpenDays: number;
   updateReservationLimits: (courtDays: number, pensionMonths: number) => void;
@@ -1001,6 +1003,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [logoImageUrl, setLogoImageUrl] = useState<string | null>(null);
   const [bankAccount, setBankAccount] = useState(BANK_ACCOUNT);
   const [courtOpenDays, setCourtOpenDays] = useState(10);
+  const [courtWeekdaySchedules, setCourtWeekdaySchedules] = useState<CourtWeekdaySchedule[] | null>(null);
   const [pensionOpenMonths, setPensionOpenMonths] = useState(3);
   const [bbqOpenDays, setBbqOpenDays] = useState(30);
   const [telegramConfig, setTelegramConfig] = useState({ botToken: '', chatId: '' });
@@ -1014,7 +1017,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data, error } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules, court_open_weekday_schedules')
       .eq('id', 1)
       .maybeSingle();
     if (error) {
@@ -1045,6 +1048,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       if (data.telegram_message_templates) setTelegramMessageTemplates(data.telegram_message_templates as TelegramMessageTemplates);
       if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
+      if (Array.isArray(data.court_open_weekday_schedules)) setCourtWeekdaySchedules(data.court_open_weekday_schedules as CourtWeekdaySchedule[]);
       if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
       if (data.bbq_day_start_hour != null || data.bbq_night_start_hour != null) {
         setBbqPricing(prev => ({
@@ -1073,7 +1077,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const load = async () => {
       const { data, error } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules, court_open_weekday_schedules')
         .eq('id', 1)
         .maybeSingle();
       if (cancelled) return;
@@ -1108,6 +1112,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         });
         if (data.telegram_message_templates) setTelegramMessageTemplates(data.telegram_message_templates as TelegramMessageTemplates);
         if (data.court_open_days != null) setCourtOpenDays(data.court_open_days as number);
+      if (Array.isArray(data.court_open_weekday_schedules)) setCourtWeekdaySchedules(data.court_open_weekday_schedules as CourtWeekdaySchedule[]);
         if (data.pension_open_months != null) setPensionOpenMonths(data.pension_open_months as number);
         if (data.bbq_day_start_hour != null || data.bbq_night_start_hour != null) {
           setBbqPricing(prev => ({
@@ -1377,6 +1382,26 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
           });
       }
       pushToast('바베큐패키지 설정이 변경되었습니다.');
+    },
+    [pushToast],
+  );
+
+  const updateCourtWeekdaySchedules = useCallback(
+    (schedules: CourtWeekdaySchedule[]) => {
+      setCourtWeekdaySchedules(schedules);
+      if (supabaseConfigured) {
+        supabase
+          .from('settings')
+          .upsert({
+            id: 1,
+            court_open_weekday_schedules: schedules,
+            updated_at: new Date().toISOString(),
+          })
+          .then(({ error }) => {
+            if (error) pushToast('코트 요일별 예약 설정 저장 실패', 'error');
+          });
+      }
+      pushToast('코트 요일별 예약 설정이 변경되었습니다.');
     },
     [pushToast],
   );
@@ -1965,6 +1990,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }
       }
       for (const slot of input.timeSlots) {
+        if (!isCourtSlotOpen(courtWeekdaySchedules, input.date, slot)) {
+          return { ok: false, reason: `${slot}은(는) 예약 오픈 시간이 아닙니다.` };
+        }
+      }
+      for (const slot of input.timeSlots) {
         const slotStatus = getCourtSlotStatus(input.date, input.court, slot);
         if (slotStatus === 'blocked') {
           return { ok: false, reason: `${slot}은(는) 펜션 예약(15:00~익일 11:00)으로 이용이 불가합니다.` };
@@ -2010,7 +2040,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(`${input.timeSlots.length}개 시간대 코트 예약 신청 완료! 입금 후 관리자 승인을 기다려주세요.`);
       return { ok: true, reservations: newReservations };
     },
-    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing, sendTelegramNotification],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing, courtWeekdaySchedules, sendTelegramNotification],
   );
 
   // ===== Admin direct court reservation (bypass deposit/approval) =====
@@ -2486,6 +2516,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
       // Check court slot availability (same as court reservation)
       for (const slot of input.timeSlots) {
+        if (!isCourtSlotOpen(courtWeekdaySchedules, input.date, slot)) {
+          return { ok: false, reason: `${slot}은(는) 예약 오픈 시간이 아닙니다.` };
+        }
+      }
+      for (const slot of input.timeSlots) {
         const slotStatus = getCourtSlotStatus(input.date, input.court, slot);
         if (slotStatus === 'blocked') {
           return { ok: false, reason: `${slot}은(는) 펜션 예약(15:00~익일 11:00)으로 이용이 불가합니다.` };
@@ -2548,7 +2583,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast('매칭글이 등록되었습니다. 코트 예약 신청도 함께 접수되었습니다.');
       return { ok: true, post };
     },
-    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing],
+    [getCourtSlotStatus, currentUserId, addNotification, getUser, pushToast, upsertReservationToSupabase, courtPricing, courtWeekdaySchedules],
   );
 
   const createMatchingPostFromReservation = useCallback(
@@ -3439,6 +3474,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     bankAccount,
     updateBankAccount,
     courtOpenDays,
+    courtWeekdaySchedules,
+    updateCourtWeekdaySchedules,
     pensionOpenMonths,
     bbqOpenDays,
     updateReservationLimits,

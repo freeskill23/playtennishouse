@@ -62,6 +62,31 @@ export function getCourtSlotPrice(dateStr: string, slot: string, extraHolidays?:
   return COURT_SLOT_PRICE;
 }
 
+export type CourtWeekdaySchedule = {
+  enabled: boolean;
+  startHour: number;
+  endHour: number;
+};
+
+export function getCourtDaySchedule(
+  schedules: CourtWeekdaySchedule[] | null,
+  dateStr: string,
+): CourtWeekdaySchedule {
+  const dow = new Date(dateStr + 'T00:00:00').getDay();
+  return schedules?.[dow] ?? { enabled: true, startHour: 5, endHour: 24 };
+}
+
+export function isCourtSlotOpen(
+  schedules: CourtWeekdaySchedule[] | null,
+  dateStr: string,
+  slot: string,
+): boolean {
+  const s = getCourtDaySchedule(schedules, dateStr);
+  if (!s.enabled) return false;
+  const startHour = parseInt(slot.slice(0, 2), 10);
+  return startHour >= s.startHour && startHour < s.endHour;
+}
+
 export const PENSION_WEEKDAY_PRICE = 650000;
 export const PENSION_WEEKEND_PRICE = 850000;
 
