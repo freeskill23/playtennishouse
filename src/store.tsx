@@ -777,14 +777,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }
         return false;
       });
-      if (toPurge.length > 0) {
-        setReservations(rows.filter((r) => !toPurge.find((p) => p.id === r.id)));
-        toPurge.forEach((r) => deleteReservationFromSupabase(r.id));
-      } else {
-        setReservations(rows);
-      }
+      setReservations(rows.filter((r) => !toPurge.includes(r)));
     }
-  }, [deleteReservationFromSupabase]);
+  }, []);
 
   useEffect(() => {
     if (!supabaseConfigured) return;
@@ -832,23 +827,17 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         const expired = prev.filter(
           (r) => r.type === 'court' && r.timeSlot && now - slotEndEpoch(r.date, r.timeSlot) > PURGE_MS,
         );
-        if (expired.length > 0 && supabaseConfigured) {
-          expired.forEach((r) => deleteReservationFromSupabase(r.id));
-        }
         return expired.length > 0 ? prev.filter((r) => !expired.find((e) => e.id === r.id)) : prev;
       });
       setMatchingPosts((prev) => {
         const expired = prev.filter((m) => now - matchingEndEpoch(m.date, m.time) > PURGE_MS);
-        if (expired.length > 0 && supabaseConfigured) {
-          expired.forEach((m) => supabase.from('matching_posts').delete().eq('id', m.id));
-        }
         return expired.length > 0 ? prev.filter((m) => !expired.find((e) => e.id === m.id)) : prev;
       });
     };
     purge();
     const interval = setInterval(purge, 60 * 1000);
     return () => clearInterval(interval);
-  }, [deleteReservationFromSupabase]);
+  }, []);
   // ===== Toast helpers =====
   const pushToast = useCallback((message: string, kind: Toast['kind'] = 'success') => {
     const id = uid('toast');
