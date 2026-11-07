@@ -83,6 +83,7 @@ export function AdminMembersScreen() {
     try {
       const res = await fetch(`${FUNCTION_URL}?action=list`, {
         headers: { Authorization: `Bearer ${ANON_KEY}`, apikey: ANON_KEY },
+        signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) throw new Error(`목록 조회 실패 (${res.status})`);
       const data = await res.json();

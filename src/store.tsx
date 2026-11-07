@@ -555,7 +555,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       .subscribe((status) => {
         if (status !== 'SUBSCRIBED') console.warn('[matching_realtime]', status);
       });
-    const poll = setInterval(() => loadMatchingPosts(), 15000);
+    const poll = setInterval(() => loadMatchingPosts(), 60000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);
@@ -607,7 +607,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         () => loadGameDayEvents(),
       )
       .subscribe();
-    const poll = setInterval(() => loadGameDayEvents(), 15000);
+    const poll = setInterval(() => loadGameDayEvents(), 60000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);
@@ -863,7 +863,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       .subscribe((status) => {
         if (status !== 'SUBSCRIBED') console.warn('[reservations_realtime]', status);
       });
-    const poll = setInterval(() => loadReservations(), 15000);
+    const poll = setInterval(() => loadReservations(), 60000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);
