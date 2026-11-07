@@ -41,7 +41,7 @@ interface EventWithCounts extends GameDayEvent {
 
 export function EventScreen() {
   const { isGuest, user } = useAuth();
-  const { bankAccount } = useApp();
+  const { bankAccount, subscribeTableChange } = useApp();
   const [events, setEvents] = useState<EventWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<GameDayEvent | null>(null);
@@ -125,16 +125,14 @@ export function EventScreen() {
 
   useEffect(() => {
     loadEvents();
-    if (supabaseConfigured) {
-      const channel = supabase
-        .channel('game_day_events_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_events' }, () => loadEvents())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_participants' }, () => loadEvents())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_matches' }, () => loadEvents())
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
-    }
-  }, [loadEvents]);
+    if (!supabaseConfigured) return;
+    const unsubscribers = [
+      subscribeTableChange('game_day_events', () => void loadEvents()),
+      subscribeTableChange('game_day_participants', () => void loadEvents()),
+      subscribeTableChange('game_day_matches', () => void loadEvents()),
+    ];
+    return () => unsubscribers.forEach((off) => off());
+  }, [loadEvents, subscribeTableChange]);
 
   // Check which events the current user has already applied to
   useEffect(() => {

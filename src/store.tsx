@@ -47,6 +47,7 @@ import {
 } from './mockData';
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
+import { useTableChangeHub, type SubscribeTableChange } from './lib/tableChanges';
 import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE, DEFAULT_BBQ_PRICING, computeBBQPrice, isCourtSlotOpen } from './pricing';
 import type { CourtPricing, BBQPricing, CourtWeekdaySchedule } from './pricing';
 
@@ -164,6 +165,7 @@ interface Toast {
 interface AppState {
   // identity
   currentUserId: string;
+  subscribeTableChange: SubscribeTableChange;
 
   // data
   users: User[];
@@ -385,6 +387,7 @@ export function useApp() {
 
 export function AppProvider({ children, authUser }: { children: ReactNode; authUser: AuthUser }) {
   const currentUserId = authUser.id;
+  const subscribeTableChange = useTableChangeHub();
   const [users, setUsers] = useState<User[]>(() => {
     const authAsUser: User = {
       id: authUser.id,
@@ -451,18 +454,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   useEffect(() => {
     if (!supabaseConfigured) return;
     loadProfiles();
-    const channel = supabase
-      .channel('profiles_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        () => loadProfiles(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loadProfiles]);
+    return subscribeTableChange('profiles', () => void loadProfiles());
+  }, [loadProfiles, subscribeTableChange]);
   const [rooms, setRooms] = useState<Room[]>(initialRooms);
   const [reservations, setReservations] = useState<Reservation[]>(supabaseConfigured ? [] : initialReservations);
   const [matchingPosts, setMatchingPosts] = useState<MatchingPost[]>(supabaseConfigured ? [] : initialMatchingPosts);
@@ -541,26 +534,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   useEffect(() => {
     if (!supabaseConfigured) return;
     loadMatchingPosts();
-    // Realtime: refresh matching posts when any row changes so hosts
-    // see new applicants without a manual page reload.
-    const channel = supabase
-      .channel('matching_posts_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matching_posts' },
-        () => {
-          loadMatchingPosts();
-        },
-      )
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') console.warn('[matching_realtime]', status);
-      });
+    const unsubscribe = subscribeTableChange('matching_posts', () => void loadMatchingPosts());
     const poll = setInterval(() => loadMatchingPosts(), 60000);
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
       clearInterval(poll);
     };
-  }, [loadMatchingPosts]);
+  }, [loadMatchingPosts, subscribeTableChange]);
 
   // Load game day events from Supabase
   const loadGameDayEvents = useCallback(async () => {
@@ -599,20 +579,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   useEffect(() => {
     if (!supabaseConfigured) return;
     loadGameDayEvents();
-    const channel = supabase
-      .channel('game_day_events_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'game_day_events' },
-        () => loadGameDayEvents(),
-      )
-      .subscribe();
+    const unsubscribe = subscribeTableChange('game_day_events', () => void loadGameDayEvents());
     const poll = setInterval(() => loadGameDayEvents(), 60000);
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
       clearInterval(poll);
     };
-  }, [loadGameDayEvents]);
+  }, [loadGameDayEvents, subscribeTableChange]);
 
   const [notices, setNotices] = useState<Notice[]>(supabaseConfigured ? [] : initialNotices);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
@@ -704,21 +677,14 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     void refreshGallery();
     const poll = window.setInterval(() => void refreshGallery(), 60000);
     document.addEventListener('visibilitychange', handleVisibility);
-    const channel = supabase
-      .channel('gallery_items_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'gallery_items' },
-        () => void refreshGallery(),
-      )
-      .subscribe();
+    const unsubscribe = subscribeTableChange('gallery_items', () => void refreshGallery());
     return () => {
       cancelled = true;
       window.clearInterval(poll);
       document.removeEventListener('visibilitychange', handleVisibility);
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
-  }, [loadGalleryItems]);
+  }, [loadGalleryItems, subscribeTableChange]);
 
   // Load reviews from Supabase
   useEffect(() => {
@@ -756,42 +722,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       );
     };
     load();
-    const channel = supabase
-      .channel('reviews_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'reviews' },
-        async () => {
-          const { data } = await supabase
-            .from('reviews')
-            .select('*')
-            .order('created_at', { ascending: false });
-          if (data) {
-            setReviews(
-              data
-                .map((r) => ({
-                  id: r.id as string,
-                  authorName: r.author_name as string,
-                  authorId: (r.author_id as string | null) ?? null,
-                  content: r.content as string,
-                  rating: r.rating as number,
-                  imageUrls: (r.image_urls as string[]) || [],
-                  adminReply: (r.admin_reply as string | null) ?? null,
-                  adminReplyAt: (r.admin_reply_at as number | null) ?? null,
-                  isDeleted: (r.is_deleted as boolean) ?? false,
-                  createdAt: r.created_at as number,
-                }))
-                .filter((r) => !r.isDeleted),
-            );
-          }
-        },
-      )
-      .subscribe();
+    const unsubscribe = subscribeTableChange('reviews', () => void load());
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      unsubscribe();
     };
-  }, []);
+  }, [subscribeTableChange]);
   const [notifications, setNotifications] = useState<AppNotification[]>(supabaseConfigured ? [] : initialNotifications);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -853,22 +789,13 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   useEffect(() => {
     if (!supabaseConfigured) return;
     loadReservations();
-    const channel = supabase
-      .channel('reservations_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'reservations' },
-        () => loadReservations(),
-      )
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') console.warn('[reservations_realtime]', status);
-      });
+    const unsubscribe = subscribeTableChange('reservations', () => void loadReservations());
     const poll = setInterval(() => loadReservations(), 60000);
     return () => {
-      supabase.removeChannel(channel);
+      unsubscribe();
       clearInterval(poll);
     };
-  }, [loadReservations]);
+  }, [loadReservations, subscribeTableChange]);
 
   // Purge fully-cancelled reservations older than 24 hours from local state
   useEffect(() => {
@@ -1140,20 +1067,8 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Realtime sync: when settings row changes on another device, reload
   useEffect(() => {
     if (!supabaseConfigured) return;
-    const channel = supabase
-      .channel('settings_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'settings' },
-        () => loadSettings(),
-      )
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') console.warn('[settings_realtime]', status);
-      });
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabaseConfigured, loadSettings]);
+    return subscribeTableChange('settings', () => void loadSettings());
+  }, [supabaseConfigured, loadSettings, subscribeTableChange]);
 
   // Load rooms from Supabase so admin edits are shared across sessions
   useEffect(() => {
@@ -1184,20 +1099,12 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       }
     };
     loadRooms();
-    const channel = supabase
-      .channel('rooms_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rooms' },
-        () => loadRooms(),
-      )
-      .subscribe((status) => {
-        if (status !== 'SUBSCRIBED') console.warn('[rooms_realtime]', status);
-      });
+    const unsubscribe = subscribeTableChange('rooms', () => void loadRooms());
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      unsubscribe();
     };
-  }, []);
+  }, [subscribeTableChange]);
 
   const updateRoom = useCallback(
     (id: string, patch: Partial<Pick<Room, 'maxCapacity' | 'description'>>) => {
@@ -1618,7 +1525,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   // Load date memos from Supabase
   useEffect(() => {
     if (!supabaseConfigured) return;
-    (async () => {
+    const loadDateMemos = async () => {
       const { data } = await supabase.from('date_memos').select('date, content');
       if (data) {
         const map: Record<string, string> = {};
@@ -1627,28 +1534,10 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         }
         setDateMemos(map);
       }
-    })();
-    const channel = supabase
-      .channel('date_memos_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'date_memos' },
-        async () => {
-          const { data } = await supabase.from('date_memos').select('date, content');
-          if (data) {
-            const map: Record<string, string> = {};
-            for (const m of data) {
-              map[m.date as string] = m.content as string;
-            }
-            setDateMemos(map);
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
     };
-  }, []);
+    void loadDateMemos();
+    return subscribeTableChange('date_memos', () => void loadDateMemos());
+  }, [subscribeTableChange]);
 
   const getDateMemo = useCallback(
     (dateStr: string): string => dateMemos[dateStr] ?? '',
@@ -3392,6 +3281,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const value: AppState = {
     currentUserId,
+    subscribeTableChange,
     users,
     rooms,
     updateRoom,

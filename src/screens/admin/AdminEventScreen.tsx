@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
+import { useApp } from '../../store';
 import { Calendar, todayYMD, addDaysToYMD } from '../../components/Calendar';
 import { Modal } from '../../components/Modal';
 import { EmptyState } from '../../components/ui';
@@ -62,6 +63,7 @@ interface AdminEventWithCounts extends GameDayEvent {
 }
 
 export function AdminEventScreen() {
+  const { subscribeTableChange } = useApp();
   const [events, setEvents] = useState<AdminEventWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModal, setCreateModal] = useState(false);
@@ -158,16 +160,16 @@ export function AdminEventScreen() {
 
   useEffect(() => {
     loadEvents();
-    if (supabaseConfigured) {
-      const channel = supabase
-        .channel('admin_game_day_events_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_events' }, () => loadEvents())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_participants' }, () => loadEvents())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'game_day_matches' }, () => { if (detailEvent) loadDetail(detailEvent.id); })
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
-    }
-  }, [loadEvents, detailEvent]);
+    if (!supabaseConfigured) return;
+    const unsubscribers = [
+      subscribeTableChange('game_day_events', () => void loadEvents()),
+      subscribeTableChange('game_day_participants', () => void loadEvents()),
+      subscribeTableChange('game_day_matches', () => {
+        if (detailEvent) void loadDetail(detailEvent.id);
+      }),
+    ];
+    return () => unsubscribers.forEach((off) => off());
+  }, [loadEvents, detailEvent, subscribeTableChange]);
 
   const loadDetail = async (eventId: string) => {
     setDetailLoading(true);

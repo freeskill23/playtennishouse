@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Search, Trash2, Pencil, X, Calendar, StickyNote, Check, Loader2 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
+import { useApp } from '../../store';
 import { SectionTitle, EmptyState } from '../../components/ui';
 
 type AdminMemo = {
@@ -24,6 +25,7 @@ function formatDateLabel(dateStr: string): string {
 }
 
 export function AdminMemoScreen() {
+  const { subscribeTableChange } = useApp();
   const [memos, setMemos] = useState<AdminMemo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -55,18 +57,8 @@ export function AdminMemoScreen() {
 
   useEffect(() => {
     loadMemos();
-    const channel = supabase
-      .channel('admin_memos_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'admin_memos' },
-        () => loadMemos(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loadMemos]);
+    return subscribeTableChange('admin_memos', () => void loadMemos());
+  }, [loadMemos, subscribeTableChange]);
 
   const resetForm = () => {
     setFormDate(todayStr());
