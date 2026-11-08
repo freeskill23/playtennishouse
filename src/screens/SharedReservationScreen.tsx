@@ -424,7 +424,7 @@ export function SharedReservationScreen() {
                         return (
                           <div
                             key={slot}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                            className={`flex h-11 items-center gap-2 rounded-lg px-3 text-sm ${
                               status === 'booked'
                                 ? 'bg-volt-50 text-navy-900'
                                 : status === 'pending'
