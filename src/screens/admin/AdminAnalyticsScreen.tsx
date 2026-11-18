@@ -410,29 +410,31 @@ export function AdminAnalyticsScreen() {
     startOfToday.setHours(0, 0, 0, 0);
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    let query = supabase
+    let dayQuery = supabase
       .from('visitor_logs')
-      .select('*')
+      .select('id, session_id, page, path, referrer, search_keyword, user_agent, is_member, user_name, created_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ad_platform, landing_url')
       .gte('created_at', (day === 'today' ? startOfToday : startOfYesterday).toISOString());
-    if (day === 'yesterday') query = query.lt('created_at', startOfToday.toISOString());
-    const { data } = await query
-      .order('created_at', { ascending: false })
-      .limit(1000);
-    setDayVisitorLogs((data as RawLog[]) || []);
+    if (day === 'yesterday') dayQuery = dayQuery.lt('created_at', startOfToday.toISOString());
 
-    // Fetch last 7 days of logs to compute per-visitor visit counts
-    // Order by created_at desc so newest sessions are prioritized if limit is hit
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const { data: weekData, error: weekErr } = await supabase
-      .from('visitor_logs')
-      .select('session_id, is_member, user_name')
-      .gte('created_at', weekAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .limit(50000);
-    if (weekErr) console.error('[weekCounts]', weekErr.message);
+    const [dayResult, weekResult] = await Promise.all([
+      dayQuery.order('created_at', { ascending: false }).limit(1000),
+      supabase
+        .from('visitor_logs')
+        .select('session_id, is_member, user_name')
+        .gte('created_at', weekAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50000),
+    ]);
+
+    if (dayResult.error) console.error('[visitorDetails]', dayResult.error.message);
+    if (weekResult.error) console.error('[weekCounts]', weekResult.error.message);
+    const data = dayResult.data;
+    setDayVisitorLogs((data as RawLog[]) || []);
+
     const counts = new Map<string, number>();
-    for (const wl of (weekData as Pick<RawLog, 'session_id' | 'is_member' | 'user_name'>[]) || []) {
+    for (const wl of (weekResult.data as Pick<RawLog, 'session_id' | 'is_member' | 'user_name'>[]) || []) {
       const key = wl.is_member && wl.user_name ? `member:${wl.user_name}` : `session:${wl.session_id}`;
       counts.set(key, (counts.get(key) || 0) + 1);
     }
