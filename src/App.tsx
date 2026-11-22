@@ -29,7 +29,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { ToastStack } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { AlertTriangle, Images } from 'lucide-react';
+import { AlertTriangle, Images, MessageCircle, Phone, Copy } from 'lucide-react';
 import { HomeScreen } from './screens/HomeScreen';
 import { PensionScreen } from './screens/PensionScreen';
 import { CourtScreen } from './screens/CourtScreen';
@@ -408,13 +408,47 @@ function UserShell() {
       <footer className="border-t border-slate-100 bg-white">
         <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
           <Logo size={28} imageUrl={logoImageUrl} />
-          <p className="text-xs text-slate-400">
-            PLAY TENNIS HOUSE 테니스 펜션 예약 & 코트 대관 & 매칭만들기
+          <p className="text-xs text-slate-500">
+            PLAY TENNIS HOUSE 테니스 펜션 예약 & 코트 대관 & 바베큐패키지
           </p>
         </div>
+        <div className="max-w-6xl mx-auto px-4 pb-2">
+          <a
+            href="https://pf.kakao.com/_qExfvX"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-white font-bold text-sm transition mb-3"
+          >
+            <MessageCircle size={18} /> 카카오톡 문의하기
+          </a>
+          <div className="flex items-center justify-center gap-2">
+            <a
+              href="tel:010-8884-0819"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold text-navy-800 transition"
+            >
+              <Phone size={14} /> 010-8884-0819
+            </a>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText('010-8884-0819');
+                  alert('전화번호가 복사되었습니다.');
+                } catch {
+                  alert('복사에 실패했습니다. 010-8884-0819');
+                }
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm font-bold text-navy-800 transition"
+            >
+              <Copy size={14} /> 번호 복사
+            </button>
+          </div>
+        </div>
         <div className="max-w-6xl mx-auto px-4 pb-4">
-          <p className="text-[11px] text-slate-300 text-center leading-relaxed">
-            제이피지(132-18-80228) 대표 : 김진수 권세미 · 경기도 포천시 금강로 2480-47
+          <p className="text-xs font-bold text-navy-700 text-center leading-relaxed">
+            경기도 포천시 내촌면 금강로 2480-47
+          </p>
+          <p className="text-[11px] text-slate-400 text-center leading-relaxed mt-1.5">
+            제이피지(132-18-80228) 대표 : 김진수 권세미
           </p>
           <p className="text-[11px] text-slate-300 text-center leading-relaxed mt-1">
             테니스펜션 · 테니스 · 테니스코트 · 테니스코트대관 · 테니스장 · 예쁜테니스장 · 예쁜테니스펜션 · 테니스매칭 · 테니스동호회 · 테니스예약 · 테니스펜션예약 · 테니스 숙박 · 테니스 여행
