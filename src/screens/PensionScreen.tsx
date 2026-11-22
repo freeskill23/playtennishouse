@@ -8,7 +8,7 @@ import { Modal } from '../components/Modal';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { formatWon } from '../pricing';
 import { logEvent } from '../lib/visitorLog';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { EXTRA_PERSON_FEE } from '../store';
 import type { RoomName } from '../types';
 
