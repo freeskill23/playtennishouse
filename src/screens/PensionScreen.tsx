@@ -80,6 +80,17 @@ export function PensionScreen() {
     setDate(share.date);
     setSelectedRoom(share.room as RoomName);
     setCapacity(share.capacity);
+    // Clean the URL so a refresh doesn't re-apply (possibly stale) share values
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('pshare');
+      u.searchParams.delete('date');
+      u.searchParams.delete('room');
+      u.searchParams.delete('cap');
+      window.history.replaceState(null, '', u.toString());
+    } catch {
+      // ignore
+    }
   }, [isGuest, signInAsGuest]);
 
   const roomBlocked = (name: RoomName) => isPensionBlockedByCourt(date, name) || isPensionBlockedByGameDay(date, name);

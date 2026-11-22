@@ -23,6 +23,7 @@ import {
 import { AppProvider, useApp } from './store';
 import { AuthProvider, useAuth } from './lib/auth';
 import { useClickSound } from './lib/useClickSound';
+import { readShareParams } from './lib/pensionShare';
 import { logVisit } from './lib/visitorLog';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from './components/Logo';
@@ -187,10 +188,13 @@ function AdminLogin({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function useTabHistory<T extends string>(initial: T, storageKey: string) {
+function useTabHistory<T extends string>(initial: T, storageKey: string, ignoreSaved = false) {
   const [tab, setTab] = useState<T>(() => {
-    const saved = sessionStorage.getItem(storageKey);
-    return (saved as T) || initial;
+    if (!ignoreSaved) {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved) return saved as T;
+    }
+    return initial;
   });
 
   useEffect(() => {
@@ -288,7 +292,12 @@ const GUEST_AUTH_USER: AuthUser = {
 function UserShell() {
   const { currentUser, logoImageUrl } = useApp();
   const { signOut, isGuest } = useAuth();
-  const { tab, go: goRaw } = useTabHistory<UserTab>('home', 'user_tab');
+  const hasShareParams = Boolean(readShareParams());
+  const { tab, go: goRaw } = useTabHistory<UserTab>(
+    hasShareParams ? 'pension' : 'home',
+    'user_tab',
+    hasShareParams,
+  );
   useTabSEO(tab);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [guestBlockMsg, setGuestBlockMsg] = useState<string | null>(null);
@@ -543,10 +552,22 @@ function AdminShell() {
   );
 }
 
+function ShareGuestEntry({ onEnter }: { onEnter: () => void }) {
+  useEffect(() => {
+    onEnter();
+  }, [onEnter]);
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
+      <Loader2 size={32} className="animate-spin text-volt-400" />
+    </div>
+  );
+}
+
 function Shell() {
   const route = useRoute();
-  const { user, loading, configError, isGuest, guestId } = useAuth();
+  const { user, loading, configError, isGuest, guestId, signInAsGuest } = useAuth();
   useClickSound();
+  const shareParams = route === null ? readShareParams() : null;
 
   if (route === 'admin') {
     return (
@@ -582,7 +603,10 @@ function Shell() {
     );
   }
 
-  if (!user && !isGuest) return <AuthScreen />;
+  if (!user && !isGuest) {
+    if (shareParams) return <ShareGuestEntry onEnter={signInAsGuest} />;
+    return <AuthScreen />;
+  }
 
   const authUser = user || {
     ...GUEST_AUTH_USER,

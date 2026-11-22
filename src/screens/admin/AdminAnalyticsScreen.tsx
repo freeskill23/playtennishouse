@@ -19,6 +19,8 @@ import {
   ChevronRight,
   ArrowLeft,
   Filter,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -112,6 +114,15 @@ interface FunnelStep {
   count: number;
   sessions: Set<string>;
 }
+
+const PENSION_FUNNEL_STEPS: { key: string; label: string }[] = [
+  { key: 'pension_page_visited', label: '펜션 페이지 방문' },
+  { key: 'pension_date_selected', label: '날짜 선택' },
+  { key: 'pension_room_selected', label: '객실(A/B동) 선택' },
+  { key: 'pension_price_shown', label: '예약 금액 확인' },
+  { key: 'pension_depositor_filled', label: '입금자명 입력' },
+  { key: 'pension_reserve_submitted', label: '예약 신청 완료' },
+];
 
 function formatAdPlatform(platform: string | null): string {
   if (!platform) return '자연 유입';
@@ -261,6 +272,7 @@ export function AdminAnalyticsScreen() {
   const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedVisitorKey, setSelectedVisitorKey] = useState<string | null>(null);
+  const [dayFunnelLogs, setDayFunnelLogs] = useState<RawLog[]>([]);
   const [dailyLogs, setDailyLogs] = useState<Pick<RawLog, 'created_at' | 'session_id'>[]>([]);
 
   const fetchLogs = useCallback(async () => {
@@ -421,9 +433,16 @@ export function AdminAnalyticsScreen() {
       .gte('created_at', (day === 'today' ? startOfToday : startOfYesterday).toISOString());
     if (day === 'yesterday') dayQuery = dayQuery.lt('created_at', startOfToday.toISOString());
 
+    let funnelQuery = supabase
+      .from('visitor_logs')
+      .select('id, session_id, event_name, event_detail, created_at')
+      .not('event_name', 'is', null)
+      .gte('created_at', (day === 'today' ? startOfToday : startOfYesterday).toISOString());
+    if (day === 'yesterday') funnelQuery = funnelQuery.lt('created_at', startOfToday.toISOString());
+
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const [dayResult, weekResult] = await Promise.all([
+    const [dayResult, weekResult, funnelResult] = await Promise.all([
       dayQuery.order('created_at', { ascending: false }).limit(1000),
       supabase
         .from('visitor_logs')
@@ -431,12 +450,15 @@ export function AdminAnalyticsScreen() {
         .gte('created_at', weekAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(50000),
+      funnelQuery.order('created_at', { ascending: false }).limit(2000),
     ]);
 
     if (dayResult.error) console.error('[visitorDetails]', dayResult.error.message);
     if (weekResult.error) console.error('[weekCounts]', weekResult.error.message);
+    if (funnelResult.error) console.error('[visitorFunnel]', funnelResult.error.message);
     const data = dayResult.data;
     setDayVisitorLogs((data as RawLog[]) || []);
+    setDayFunnelLogs((funnelResult.data as RawLog[]) || []);
 
     const counts = new Map<string, number>();
     for (const wl of (weekResult.data as Pick<RawLog, 'session_id' | 'is_member' | 'user_name'>[]) || []) {
@@ -595,22 +617,14 @@ export function AdminAnalyticsScreen() {
   const organicVisits = stats.totalVisits - adVisits;
 
   // Pension reservation funnel — sessions counted at each step, in order
-  const FUNNEL_STEPS: { key: string; label: string }[] = [
-    { key: 'pension_page_visited', label: '펜션 페이지 방문' },
-    { key: 'pension_date_selected', label: '날짜 선택' },
-    { key: 'pension_room_selected', label: '객실(A/B동) 선택' },
-    { key: 'pension_price_shown', label: '예약 금액 확인' },
-    { key: 'pension_depositor_filled', label: '입금자명 입력' },
-    { key: 'pension_reserve_submitted', label: '예약 신청 완료' },
-  ];
   const funnelLogs = logs.filter((l) => l.event_name?.startsWith('pension_'));
-  const pensionSessions = new Set(
-    funnelLogs.map((l) => l.session_id)
-      // page-visit logs don't carry the event key, so also count sessions that visited the pension page
-  );
   const pensionPageVisits = logs.filter((l) => l.page === 'pension');
-  for (const l of pensionPageVisits) pensionSessions.add(l.session_id);
-  const funnelData: FunnelStep[] = FUNNEL_STEPS.map((step, idx) => {
+  const pensionSessions = new Set([
+    ...funnelLogs.map((l) => l.session_id),
+    // page-visit logs don't carry the event key, so also count sessions that visited the pension page
+    ...pensionPageVisits.map((l) => l.session_id),
+  ]);
+  const funnelData: FunnelStep[] = PENSION_FUNNEL_STEPS.map((step) => {
     let sessions: Set<string>;
     if (step.key === 'pension_page_visited') {
       sessions = new Set(pensionPageVisits.map((l) => l.session_id));
@@ -619,7 +633,6 @@ export function AdminAnalyticsScreen() {
         funnelLogs.filter((l) => l.event_name === step.key).map((l) => l.session_id)
       );
     }
-    void idx;
     return { label: step.label, count: sessions.size, sessions };
   });
   const maxFunnel = Math.max(...funnelData.map((f) => f.count), 1);
@@ -1042,6 +1055,58 @@ export function AdminAnalyticsScreen() {
                   >
                     <ArrowLeft size={16} /> 목록으로
                   </button>
+                  {(() => {
+                    const funnelEvents = dayFunnelLogs.filter(
+                      (l) => visitorKey(l) === selectedVisitorKey && l.event_name?.startsWith('pension_'),
+                    );
+                    let lastStepIdx = -1;
+                    const stepRows: { label: string; detail: string | null; time: string | null; done: boolean }[] = PENSION_FUNNEL_STEPS.map((step, idx) => {
+                      const hits = funnelEvents.filter((l) => l.event_name === step.key);
+                      const hit = hits[0];
+                      if (hit) lastStepIdx = Math.max(lastStepIdx, idx);
+                      return {
+                        label: step.label,
+                        detail: hit?.event_detail || (hits.length > 1 ? `${hits.length}회` : null),
+                        time: hit ? new Date(hit.created_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
+                        done: hits.length > 0,
+                      };
+                    });
+                    const reserveFails = funnelEvents.filter((l) => l.event_name === 'pension_reserve_failed');
+                    const hasFunnel = stepRows.some((s) => s.done) || pensionSessions.has(selectedVisitorKey.replace(/^session:/, ''));
+                    return hasFunnel ? (
+                      <div className="rounded-xl border border-volt-100 bg-volt-50/60 p-3.5 mb-4">
+                        <p className="text-xs font-bold text-navy-800 mb-2 flex items-center gap-1.5">
+                          <Filter size={12} className="text-volt-600" />
+                          펜션 예약 단계별 진행
+                          <span className="text-[10px] font-semibold text-amber-600">
+                            {lastStepIdx >= 0 && lastStepIdx < PENSION_FUNNEL_STEPS.length - 1
+                              ? `· '${PENSION_FUNNEL_STEPS[lastStepIdx].label}' 단계에서 이탈`
+                              : ''}
+                          </span>
+                        </p>
+                        <div className="space-y-1">
+                          {stepRows.map((s) => (
+                            <div key={s.label} className={`flex items-center gap-2 text-xs ${s.done ? 'text-navy-900' : 'text-slate-300'}`}>
+                              {s.done ? (
+                                <CheckCircle2 size={13} className="text-green-500 shrink-0" />
+                              ) : (
+                                <XCircle size={13} className="text-slate-200 shrink-0" />
+                              )}
+                              <span className={s.done ? 'font-semibold' : ''}>{s.label}</span>
+                              {s.detail && <span className="text-[10px] text-slate-400 truncate">{s.detail}</span>}
+                              {s.time && <span className="text-[10px] text-slate-400 ml-auto shrink-0">{s.time}</span>}
+                            </div>
+                          ))}
+                          {reserveFails.length > 0 && (
+                            <p className="text-[11px] text-rose-500 font-semibold pt-1 flex items-center gap-1">
+                              <XCircle size={12} />
+                              예약 실패 {reserveFails.length}건{reserveFails[0]?.event_detail ? ` · ${reserveFails[0].event_detail}` : ''}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
                   <div className="flex items-center gap-2 mb-3">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${isMember ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                       {isMember ? firstName.charAt(0) : <Globe size={16} />}
@@ -1088,11 +1153,21 @@ export function AdminAnalyticsScreen() {
                 </div>
               );
             }
-            const grouped = new Map<string, { logs: RawLog[]; isMember: boolean; name: string }>();
+            const grouped = new Map<string, { logs: RawLog[]; isMember: boolean; name: string; funnelStep: number }>();
             for (const log of dayVisitorLogs) {
               const key = visitorKey(log);
-              if (!grouped.has(key)) grouped.set(key, { logs: [], isMember: log.is_member, name: log.is_member && log.user_name ? log.user_name : '비회원' });
+              if (!grouped.has(key)) grouped.set(key, { logs: [], isMember: log.is_member, name: log.is_member && log.user_name ? log.user_name : '비회원', funnelStep: -1 });
               grouped.get(key)!.logs.push(log);
+            }
+            const stepIndexOf = (eventName: string | null) => {
+              if (!eventName) return -1;
+              const idx = PENSION_FUNNEL_STEPS.findIndex((s) => s.key === eventName);
+              return idx === -1 ? -1 : idx;
+            };
+            for (const fl of dayFunnelLogs) {
+              const key = fl.is_member && fl.user_name ? `member:${fl.user_name}` : `session:${fl.session_id}`;
+              const g = grouped.get(key);
+              if (g) g.funnelStep = Math.max(g.funnelStep, stepIndexOf(fl.event_name));
             }
             const visitors = Array.from(grouped.entries()).map(([key, v]) => ({ key, ...v })).sort((a, b) => {
               const aTime = new Date(a.logs[0].created_at).getTime();
@@ -1132,6 +1207,11 @@ export function AdminAnalyticsScreen() {
                       </p>
                       <p className="text-xs text-slate-400 truncate">
                         {dayLabel} {v.logs.length}회 · {pageLabelMap[v.logs[0].page] || v.logs[0].page}
+                        {v.funnelStep >= 0 && (
+                          <span className="ml-1.5 text-[10px] font-semibold text-volt-700 bg-volt-50 rounded px-1 py-0.5">
+                            펜션 {PENSION_FUNNEL_STEPS[v.funnelStep].label}까지
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
