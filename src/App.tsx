@@ -85,7 +85,7 @@ const USER_NAV: { key: UserTab; label: string; icon: LucideIcon; mobileOnly?: bo
   { key: 'notices', label: '공지', icon: Megaphone },
   { key: 'gallery', label: '갤러리', icon: Images },
   { key: 'reviews', label: '이용후기', icon: Star },
-  { key: 'suggestions', label: '플테하에 바라는 점', icon: Lightbulb, mobileOnly: true },
+  { key: 'suggestions', label: '플테하에 바라는 점', icon: Lightbulb },
   { key: 'mypage', label: '내예약', icon: Ticket },
 ];
 
