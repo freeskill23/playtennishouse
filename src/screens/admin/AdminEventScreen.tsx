@@ -639,7 +639,7 @@ export function AdminEventScreen() {
               value={date}
               onChange={(d) => setDate(d)}
               minDate={todayYMD()}
-              maxDate={addDaysToYMD(90)}
+              maxDate={addDaysToYMD(todayYMD(), 90)}
               compact
             />
           </div>

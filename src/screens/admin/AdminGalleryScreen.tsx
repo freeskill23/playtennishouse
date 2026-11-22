@@ -299,7 +299,7 @@ export function AdminGalleryScreen() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {[...galleryItems]
               .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-              .map((item, idx, arr) => (
+              .map((item, idx) => (
               <figure
                 key={item.id}
                 draggable

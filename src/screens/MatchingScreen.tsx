@@ -23,7 +23,7 @@ import { Modal } from '../components/Modal';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { Calendar as CalendarPicker, todayYMD, addDaysYMD } from '../components/Calendar';
 import { COURT_TIME_SLOTS, MATCHING_MAX_PLAYERS } from '../types';
-import { COURT_SLOT_PRICE, COURT_SLOT_PRICE_PEAK, getCourtSlotPrice, formatWon } from '../pricing';
+import { getCourtSlotPrice, formatWon } from '../pricing';
 import type { MatchingPost, CourtName, NTRP, GameType, GenderRequirement, ApplicantGender } from '../types';
 
 const NTRP_OPTIONS: (NTRP | 'any')[] = ['any', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5'];
@@ -413,6 +413,7 @@ function ApplyOrManageModal({
   onApprove,
   onReject,
   onCloseMatching,
+  onShowContact,
 }: {
   post: MatchingPost;
   isHost: boolean;

@@ -26,6 +26,7 @@ const KIND_META: Record<NotificationKind, { icon: LucideIcon; color: string }> =
   waiting_timeout: { icon: Clock, color: 'bg-rose-100 text-rose-600' },
   matching_new: { icon: Users, color: 'bg-navy-100 text-navy-700' },
   matching_approved: { icon: Hand, color: 'bg-volt-100 text-volt-700' },
+  matching_rejected: { icon: XCircle, color: 'bg-rose-100 text-rose-600' },
   matching_completed: { icon: CheckCircle2, color: 'bg-volt-100 text-volt-700' },
   notice_new: { icon: Megaphone, color: 'bg-clay-100 text-clay-500' },
 };

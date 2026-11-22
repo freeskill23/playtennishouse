@@ -37,6 +37,7 @@ export const initialUsers: User[] = [
     gamePreference: 'doubles',
     bio: '주말 테니스 러버. 복식 좋아합니다!',
     isAdmin: false,
+    referralSource: 'direct',
   },
   {
     id: 'u2',
@@ -51,6 +52,7 @@ export const initialUsers: User[] = [
     gamePreference: 'mixed',
     bio: '혼성 복식 환영 🎾',
     isAdmin: false,
+    referralSource: 'direct',
   },
   {
     id: 'u3',
@@ -65,6 +67,7 @@ export const initialUsers: User[] = [
     gamePreference: 'singles',
     bio: '단식 위주, 강서버',
     isAdmin: false,
+    referralSource: 'direct',
   },
   {
     id: 'admin',
@@ -79,6 +82,7 @@ export const initialUsers: User[] = [
     gamePreference: 'any',
     bio: '플테하 운영진',
     isAdmin: true,
+    referralSource: 'admin',
   },
 ];
 

@@ -23,10 +23,9 @@ import {
 } from 'lucide-react';
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
-import { Logo } from '../components/Logo';
 import { StatusBadge, SectionTitle, EmptyState } from '../components/ui';
 import { Modal } from '../components/Modal';
-import type { Reservation, MatchingPost, GameType, GenderRequirement, ReservationStatus, Notice } from '../types';
+import type { Reservation, MatchingPost, GameType, GenderRequirement, Notice } from '../types';
 import { mergeTimeSlots } from '../types';
 
 const QUICK_MENUS = [

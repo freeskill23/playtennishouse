@@ -69,6 +69,7 @@ const ADMIN_AUTH_USER: AuthUser = {
   hand: 'right',
   gamePreference: 'any',
   bio: '플테하 운영진',
+  referralSource: 'admin',
 };
 
 type UserTab = 'home' | 'pension' | 'court' | 'bbq' | 'matching' | 'event' | 'notices' | 'gallery' | 'reviews' | 'suggestions' | 'mypage';
@@ -277,10 +278,11 @@ const GUEST_AUTH_USER: AuthUser = {
   profileImg:
     'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=200',
   career: '',
-  ntrp: '',
+  ntrp: '2.0',
   hand: 'right',
   gamePreference: 'any',
   bio: '',
+  referralSource: 'direct',
 };
 
 function UserShell() {

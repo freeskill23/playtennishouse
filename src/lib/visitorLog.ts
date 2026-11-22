@@ -156,6 +156,36 @@ function isPreviewEnvironment(): boolean {
   return window.self !== window.top || window.location.hostname.includes('webcontainer');
 }
 
+export function logEvent(eventName: string, isMember: boolean, eventDetail?: string, userName?: string): void {
+  if (!supabaseConfigured) return;
+  if (isPreviewEnvironment()) return;
+
+  const campaign = getCampaignData();
+
+  supabase
+    .from('visitor_logs')
+    .insert({
+      session_id: getSessionId(),
+      page: 'event',
+      event_name: eventName,
+      event_detail: eventDetail || null,
+      referrer: document.referrer || null,
+      user_agent: navigator.userAgent.slice(0, 200),
+      is_member: isMember,
+      user_name: isMember ? userName || null : null,
+      utm_source: campaign.utmSource,
+      utm_medium: campaign.utmMedium,
+      utm_campaign: campaign.utmCampaign,
+      utm_term: campaign.utmTerm,
+      utm_content: campaign.utmContent,
+      ad_platform: campaign.adPlatform,
+      landing_url: campaign.landingUrl,
+    })
+    .then(({ error }) => {
+      if (error) console.error('[logEvent]', error.message);
+    });
+}
+
 export function logVisit(page: string, isMember: boolean, userName?: string): void {
   if (!supabaseConfigured) return;
   if (isPreviewEnvironment()) return;

@@ -14,6 +14,7 @@ import type {
   MatchingPost,
   MatchingStatus,
   Notice,
+  NoticeComment,
   GalleryItem,
   AppNotification,
   Review,
@@ -48,7 +49,7 @@ import {
 import type { AuthUser } from './lib/auth';
 import { supabase, supabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from './lib/supabase';
 import { useTableChangeHub, type SubscribeTableChange } from './lib/tableChanges';
-import { isWeekendOrHoliday, isPensionWeekendOrHoliday, COURT_SLOT_PRICE, getCourtSlotPrice, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE, DEFAULT_BBQ_PRICING, computeBBQPrice, isCourtSlotOpen } from './pricing';
+import { isWeekendOrHoliday, isPensionWeekendOrHoliday, getCourtSlotPriceWithConfig, DEFAULT_COURT_PRICING, PENSION_WEEKDAY_PRICE, PENSION_WEEKEND_PRICE, DEFAULT_BBQ_PRICING, computeBBQPrice, isCourtSlotOpen } from './pricing';
 import type { CourtPricing, BBQPricing, CourtWeekdaySchedule } from './pricing';
 
 // Pension reserved on a date blocks court from 15:00 that day to 11:00 next day.
@@ -188,11 +189,15 @@ interface AppState {
     roomId: string;
     date: string;
     capacity: number;
+    depositorName?: string;
+    depositorPhone?: string;
   }) => { ok: boolean; reason?: string; reservation?: Reservation };
   createCourtReservation: (input: {
     court: CourtName;
     date: string;
     timeSlots: string[];
+    depositorName?: string;
+    depositorPhone?: string;
   }) => { ok: boolean; reason?: string; reservations?: Reservation[] };
   createAdminCourtReservation: (input: {
     court: CourtName;
@@ -1840,7 +1845,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         targetUserId: currentUserId,
       });
       // Customer-facing Telegram confirmation
-      const [yy, mm, dd] = input.date.split('-');
+      const [, mm, dd] = input.date.split('-');
       const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
       void sendTelegramNotification(
         '펜션 예약 안내',
@@ -1908,7 +1913,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         targetUserId: currentUserId,
       });
       // Customer-facing Telegram confirmation
-      const [yy, mm, dd] = input.date.split('-');
+      const [, mm, dd] = input.date.split('-');
       const userName = input.depositorName || getUser(currentUserId)?.name || '회원';
       const slotLabel = mergeTimeSlots(input.timeSlots);
       void sendTelegramNotification(
@@ -2238,7 +2243,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(`${getUser(target.userId)?.name}님 예약 승인 완료`);
 
       // Customer-facing Telegram: reservation confirmed
-      const [aYY, aMM, aDD] = target.date.split('-');
+      const [, aMM, aDD] = target.date.split('-');
       const aUserName = target.depositorName || getUser(target.userId)?.name || '회원';
       const capacityLabel = target.type === 'pension' ? ` ${target.capacity}명` : '';
       const timeLabel = target.timeSlot || '';
@@ -2286,7 +2291,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       pushToast(`${firstName}님 예약 ${targets.length}건 승인 완료`);
       // Customer-facing Telegram: reservation confirmed (one per reservation)
       for (const r of targets) {
-        const [bYY, bMM, bDD] = r.date.split('-');
+        const [, bMM, bDD] = r.date.split('-');
         const bUserName = r.depositorName || getUser(r.userId)?.name || '회원';
         const capLabel = r.type === 'pension' ? ` ${r.capacity}명` : '';
         const tLabel = r.timeSlot || '';
@@ -2770,12 +2775,11 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       });
       setNotices((prev) => {
         const map = new Map(prev.map((n) => [n.id, n]));
-        return updates
-          .map((u) => {
-            const n = map.get(u.id);
-            return n ? { ...n, sortOrder: u.sortOrder } : null;
-          })
-          .filter((n): n is Notice => n !== null);
+        return updates.reduce<Notice[]>((result, u) => {
+          const n = map.get(u.id);
+          if (n) result.push({ ...n, sortOrder: u.sortOrder });
+          return result;
+        }, []);
       });
       if (supabaseConfigured) {
         updates.forEach(({ id, sortOrder }) => {

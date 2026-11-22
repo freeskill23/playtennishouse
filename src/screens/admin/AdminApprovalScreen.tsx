@@ -122,7 +122,7 @@ export function AdminApprovalScreen() {
                       <span>·</span>
                       <span>{g.date}</span>
                       {g.type === 'court' && (
-                        <span>· {g.items.map((r) => r.timeSlot).filter(Boolean).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</span>
+                        <span>· {g.items.map((r) => r.timeSlot).filter((slot): slot is string => Boolean(slot)).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</span>
                       )}
                       {g.type === 'bbq' && g.items[0].timeSlot && (
                         <span>· {g.items[0].timeSlot}</span>
@@ -225,7 +225,7 @@ export function AdminApprovalScreen() {
             <div className="rounded-xl bg-slate-50 p-3 text-sm space-y-1">
               <p>날짜: {depositModal.date}</p>
               {depositModal.type === 'court' && depositModal.items.length > 1 && (
-                <p>시간: {depositModal.items.map((r) => r.timeSlot).filter(Boolean).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</p>
+                <p>시간: {depositModal.items.map((r) => r.timeSlot).filter((slot): slot is string => Boolean(slot)).sort((a, b) => parseInt(a.split(':')[0], 10) - parseInt(b.split(':')[0], 10)).join(', ')}</p>
               )}
               {depositModal.type === 'court' && depositModal.items.length === 1 && (
                 <p>시간: {depositModal.items[0].timeSlot}</p>

@@ -16,7 +16,7 @@ import { useApp } from '../store';
 import { todayYMD } from '../components/Calendar';
 import { Modal } from '../components/Modal';
 import { EmptyState } from '../components/ui';
-import type { GameDayEvent, EventParticipant, EventMatch, EventGameType } from '../types';
+import type { GameDayEvent, EventParticipant, EventMatch, EventGameType, EventStatus } from '../types';
 
 const GAME_TYPE_LABEL: Record<EventGameType, string> = {
   singles: '단식',
@@ -108,7 +108,7 @@ export function EventScreen() {
         feePerPlayer: (r.fee_per_player as number) ?? 0,
         refundAccount: (r.refund_account as string) || '',
         description: r.description as string,
-        status: r.status as string,
+        status: r.status as EventStatus,
         bracketGeneratedAt: r.bracket_generated_at as number | null,
         createdAt: r.created_at as number,
       };

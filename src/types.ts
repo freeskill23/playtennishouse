@@ -4,7 +4,7 @@ export type Role = 'user' | 'admin';
 
 export type Hand = 'right' | 'left' | 'both';
 export type GamePreference = 'singles' | 'doubles' | 'mixed' | 'any';
-export type NTRP = '1.0' | '1.5' | '2.0' | '2.5' | '3.0' | '3.5' | '4.0' | '4.5' | '5.0';
+export type NTRP = '1.0' | '1.5' | '2.0' | '2.5' | '3.0' | '3.5' | '4.0' | '4.5' | '5.0' | '5.5';
 
 export interface User {
   id: string;

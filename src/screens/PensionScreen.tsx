@@ -5,11 +5,34 @@ import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
 import { Calendar, todayYMD, endOfMonthPlusN } from '../components/Calendar';
 import { Modal } from '../components/Modal';
-import { SectionTitle } from '../components/ui';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { formatWon } from '../pricing';
+import { logEvent } from '../lib/visitorLog';
+import { useRef } from 'react';
 import { EXTRA_PERSON_FEE } from '../store';
 import type { RoomName } from '../types';
+
+function PriceShownLogger({
+  price,
+  room,
+  date,
+  onLog,
+}: {
+  price: number;
+  room: string | null;
+  date: string;
+  onLog: () => void;
+}) {
+  const lastKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!room || !price) return;
+    const key = `${room}/${date}/${price}`;
+    if (lastKey.current === key) return;
+    lastKey.current = key;
+    onLog();
+  }, [room, date, price, onLog]);
+  return null;
+}
 
 export function PensionScreen() {
   const {
@@ -29,6 +52,8 @@ export function PensionScreen() {
     getBaseCapacityForDate,
   } = useApp();
   const { isGuest } = useAuth();
+  const logPensionEvent = (event: string, detail?: string) =>
+    logEvent(event, !isGuest, detail, currentUser.name);
   const pensionSlides = galleryItems.filter((g) => g.showOnPension);
   const [date, setDate] = useState(todayYMD());
   const [selectedRoom, setSelectedRoom] = useState<RoomName | null>(null);
@@ -58,8 +83,10 @@ export function PensionScreen() {
     if (!room) return;
     const res = createPensionReservation({ roomId: room.id, date, capacity, depositorName: depositorName.trim(), depositorPhone: (isGuest ? depositorPhone.trim() : undefined) || undefined });
     if (!res.ok) {
+      logPensionEvent('pension_reserve_failed', res.reason);
       return;
     }
+    logPensionEvent('pension_reserve_submitted', `${selectedRoom}/${date}/${totalPrice}`);
     setModalOpen(true);
     setDepositorName('');
     setDepositorPhone('');
@@ -100,7 +127,10 @@ export function PensionScreen() {
 
       <Calendar
         value={date}
-        onChange={setDate}
+        onChange={(d) => {
+          if (d !== date) logPensionEvent('pension_date_selected', d);
+          setDate(d);
+        }}
         minDate={todayYMD()}
         maxDate={endOfMonthPlusN(pensionOpenMonths - 1)}
         dayRender={(d) => {
@@ -139,7 +169,10 @@ export function PensionScreen() {
           return (
             <button
               key={room.id}
-              onClick={() => setSelectedRoom(room.name)}
+              onClick={() => {
+                logPensionEvent('pension_room_selected', room.name);
+                setSelectedRoom(room.name);
+              }}
               disabled={unavailable}
               className={`card p-5 text-left transition-all ${
                 isSel
@@ -192,7 +225,7 @@ export function PensionScreen() {
       </div>
 
       {/* Capacity + action */}
-      {selectedRoom && !selectedBlocked && roomStatus?.status !== 'booked' && (
+      {selectedRoom && !selectedBlocked && (
         <div className="card p-5 space-y-4 animate-slide-up">
           <div>
             <label className="label">이용 인원 <span className="text-xs font-normal text-slate-400">(기준 {baseCapacity}명)</span></label>
@@ -242,6 +275,12 @@ export function PensionScreen() {
                   </p>
                 </div>
               )}
+              <PriceShownLogger
+                price={totalPrice}
+                room={selectedRoom}
+                date={date}
+                onLog={() => logPensionEvent('pension_price_shown', `${selectedRoom}/${date}/${totalPrice}`)}
+              />
               <div className="rounded-xl bg-navy-50 border border-navy-200 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-navy-600">기본 요금</span>
@@ -265,7 +304,12 @@ export function PensionScreen() {
                 <input
                   type="text"
                   value={depositorName}
-                  onChange={(e) => setDepositorName(e.target.value)}
+                  onChange={(e) => {
+                    setDepositorName(e.target.value);
+                    if (e.target.value.trim().length >= 2) {
+                      logPensionEvent('pension_depositor_filled', `${selectedRoom}/${date}`);
+                    }
+                  }}
                   placeholder="입금자명"
                   className={`input py-2.5 transition-all ${
                     depositorName.trim()

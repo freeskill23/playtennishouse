@@ -10,12 +10,11 @@ import {
   CheckCircle2,
   X,
   Search,
-  MessageSquare,
   Trash2,
   AlertTriangle,
 } from 'lucide-react';
 import { useApp } from '../../store';
-import { SectionTitle, EmptyState, Pill } from '../../components/ui';
+import { SectionTitle, EmptyState } from '../../components/ui';
 import { Modal } from '../../components/Modal';
 import type { MatchingPost, GameType, GenderRequirement } from '../../types';
 

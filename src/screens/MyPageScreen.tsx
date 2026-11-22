@@ -5,7 +5,6 @@ import {
   Users,
   Clock,
   Plus,
-  Hand,
   CheckCircle2,
   LogOut,
   Pencil,

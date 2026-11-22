@@ -18,6 +18,7 @@ import {
   KeyRound,
   ChevronRight,
   ArrowLeft,
+  Filter,
 } from 'lucide-react';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { SectionTitle, EmptyState } from '../../components/ui';
@@ -41,6 +42,8 @@ interface RawLog {
   utm_content: string | null;
   ad_platform: string | null;
   landing_url: string | null;
+  event_name: string | null;
+  event_detail: string | null;
 }
 
 interface ProfileRow {
@@ -104,6 +107,12 @@ interface AdPlatformCount {
   visits: number;
 }
 
+interface FunnelStep {
+  label: string;
+  count: number;
+  sessions: Set<string>;
+}
+
 function formatAdPlatform(platform: string | null): string {
   if (!platform) return '자연 유입';
   const map: Record<string, string> = {
@@ -135,12 +144,6 @@ function isWithinDays(dateStr: string, days: number): boolean {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   return d >= cutoff;
-}
-
-function isThisMonth(dateStr: string): boolean {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
 function detectDevice(ua: string | null): string {
@@ -258,7 +261,7 @@ export function AdminAnalyticsScreen() {
   const [visitorWeekCounts, setVisitorWeekCounts] = useState<Map<string, number>>(new Map());
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedVisitorKey, setSelectedVisitorKey] = useState<string | null>(null);
-  const [dailyLogs, setDailyLogs] = useState<RawLog[]>([]);
+  const [dailyLogs, setDailyLogs] = useState<Pick<RawLog, 'created_at' | 'session_id'>[]>([]);
 
   const fetchLogs = useCallback(async () => {
     if (!supabaseConfigured) return;
@@ -371,6 +374,7 @@ export function AdminAnalyticsScreen() {
       .from('visitor_logs')
       .select('*')
       .eq('is_member', true)
+      .is('event_name', null)
       .order('created_at', { ascending: false })
       .limit(1000);
     setMemberVisitLogs((data as RawLog[]) || []);
@@ -412,7 +416,8 @@ export function AdminAnalyticsScreen() {
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
     let dayQuery = supabase
       .from('visitor_logs')
-      .select('id, session_id, page, path, referrer, search_keyword, user_agent, is_member, user_name, created_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ad_platform, landing_url')
+      .select('id, session_id, page, path, referrer, search_keyword, user_agent, is_member, user_name, created_at, utm_source, utm_medium, utm_campaign, utm_term, utm_content, ad_platform, landing_url, event_name, event_detail')
+      .is('event_name', null)
       .gte('created_at', (day === 'today' ? startOfToday : startOfYesterday).toISOString());
     if (day === 'yesterday') dayQuery = dayQuery.lt('created_at', startOfToday.toISOString());
 
@@ -588,6 +593,36 @@ export function AdminAnalyticsScreen() {
 
   const adVisits = logs.filter((l) => l.ad_platform).length;
   const organicVisits = stats.totalVisits - adVisits;
+
+  // Pension reservation funnel — sessions counted at each step, in order
+  const FUNNEL_STEPS: { key: string; label: string }[] = [
+    { key: 'pension_page_visited', label: '펜션 페이지 방문' },
+    { key: 'pension_date_selected', label: '날짜 선택' },
+    { key: 'pension_room_selected', label: '객실(A/B동) 선택' },
+    { key: 'pension_price_shown', label: '예약 금액 확인' },
+    { key: 'pension_depositor_filled', label: '입금자명 입력' },
+    { key: 'pension_reserve_submitted', label: '예약 신청 완료' },
+  ];
+  const funnelLogs = logs.filter((l) => l.event_name?.startsWith('pension_'));
+  const pensionSessions = new Set(
+    funnelLogs.map((l) => l.session_id)
+      // page-visit logs don't carry the event key, so also count sessions that visited the pension page
+  );
+  const pensionPageVisits = logs.filter((l) => l.page === 'pension');
+  for (const l of pensionPageVisits) pensionSessions.add(l.session_id);
+  const funnelData: FunnelStep[] = FUNNEL_STEPS.map((step, idx) => {
+    let sessions: Set<string>;
+    if (step.key === 'pension_page_visited') {
+      sessions = new Set(pensionPageVisits.map((l) => l.session_id));
+    } else {
+      sessions = new Set(
+        funnelLogs.filter((l) => l.event_name === step.key).map((l) => l.session_id)
+      );
+    }
+    void idx;
+    return { label: step.label, count: sessions.size, sessions };
+  });
+  const maxFunnel = Math.max(...funnelData.map((f) => f.count), 1);
 
   const rangeLabels: Record<typeof range, string> = {
     today: '오늘',
@@ -776,6 +811,50 @@ export function AdminAnalyticsScreen() {
             );
           })}
         </div>
+      </div>
+
+      {/* Pension Reservation Funnel */}
+      <div className="card p-5">
+        <h3 className="font-bold text-navy-900 mb-1 flex items-center gap-2">
+          <Filter size={18} className="text-volt-600" />
+          펜션 예약 단계별 전환
+        </h3>
+        <p className="text-xs text-slate-400 mb-4">
+          {rangeLabels[range]} 펜션 페이지에 들어온 방문자가 어느 단계에서 이탈하는지 보여줍니다.
+        </p>
+        {funnelData[0].count === 0 ? (
+          <p className="text-sm text-slate-400 py-4 text-center">아직 펜션 방문 데이터가 없습니다.</p>
+        ) : (
+          <div className="space-y-2">
+            {funnelData.map((step, idx) => {
+              const prev = idx === 0 ? null : funnelData[idx - 1];
+              const convFromPrev = prev && prev.count > 0 ? Math.round((step.count / prev.count) * 100) : null;
+              const widthPct = Math.max((step.count / maxFunnel) * 100, step.count > 0 ? 4 : 0);
+              return (
+                <div key={step.key} className="flex items-center gap-3">
+                  <span className="text-xs sm:text-sm text-navy-800 w-32 sm:w-36 shrink-0 font-semibold">{step.label}</span>
+                  <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden">
+                    <div
+                      className={`h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2 ${
+                        idx === funnelData.length - 1
+                          ? 'bg-gradient-to-r from-green-600 to-emerald-500'
+                          : 'bg-navy-700'
+                      }`}
+                      style={{ width: `${widthPct}%` }}
+                    >
+                      {step.count > 0 && (
+                        <span className="text-[10px] font-bold text-white whitespace-nowrap">{step.count}명</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-slate-400 w-20 sm:w-24 text-right shrink-0">
+                    {convFromPrev !== null ? `전환율 ${convFromPrev}%` : `${step.count}명`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

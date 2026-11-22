@@ -67,12 +67,6 @@ function rowToReservation(r: RawReservationRow): Reservation {
   };
 }
 
-function isWeekendOrHoliday(dateStr: string): boolean {
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDay();
-  return day === 0 || day === 6;
-}
-
 const PENSION_BLOCK_START_HOUR = 15;
 const PENSION_BLOCK_END_HOUR = 11;
 
@@ -124,8 +118,8 @@ export function SharedReservationScreen() {
       const [
         { data: resData, error: resErr },
         { data: roomData, error: roomErr },
-        { data: profileData, error: profileErr },
-        { data: settingsData, error: settingsErr },
+        { data: profileData },
+        { data: settingsData },
       ] = await Promise.all([
         supabase.from('reservations').select('*').neq('status', '취소'),
         supabase.from('rooms').select('*'),
@@ -191,7 +185,6 @@ export function SharedReservationScreen() {
     reservation?: Reservation;
     waitings: Reservation[];
   } => {
-    const room = rooms.find((r) => r.name === roomName);
     const roomRes = pensionReservations.filter(
       (r) => r.targetLabel === roomName && r.waitingSequence === null && r.status !== '취소',
     );
