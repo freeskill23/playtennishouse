@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BedDouble, Users, Wallet, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { BedDouble, Users, Wallet, Clock, AlertTriangle, CheckCircle2, MessageCircle } from 'lucide-react';
 // Clock still used for waiting count indicator on room cards
 import { useApp } from '../store';
 import { useAuth } from '../lib/auth';
@@ -8,7 +8,8 @@ import { Modal } from '../components/Modal';
 import { GallerySlideshow } from '../components/GallerySlideshow';
 import { formatWon } from '../pricing';
 import { logEvent } from '../lib/visitorLog';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import { buildShareUrl, readShareParams, sharePensionLink } from '../lib/pensionShare';
 import { EXTRA_PERSON_FEE } from '../store';
 import type { RoomName } from '../types';
 
@@ -51,7 +52,7 @@ export function PensionScreen() {
     pushToast,
     getBaseCapacityForDate,
   } = useApp();
-  const { isGuest } = useAuth();
+  const { isGuest, signInAsGuest } = useAuth();
   const logPensionEvent = (event: string, detail?: string) =>
     logEvent(event, !isGuest, detail, currentUser.name);
   const pensionSlides = galleryItems.filter((g) => g.showOnPension);
@@ -66,6 +67,20 @@ export function PensionScreen() {
   const [modalOpen, setModalOpen] = useState(false);
   const [depositorName, setDepositorName] = useState('');
   const [depositorPhone, setDepositorPhone] = useState('');
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const appliedShareRef = useRef(false);
+
+  // Apply shared pension params (from KakaoTalk share link) once on mount
+  useEffect(() => {
+    if (appliedShareRef.current) return;
+    const share = readShareParams();
+    if (!share) return;
+    appliedShareRef.current = true;
+    if (isGuest === false) signInAsGuest();
+    setDate(share.date);
+    setSelectedRoom(share.room as RoomName);
+    setCapacity(share.capacity);
+  }, [isGuest, signInAsGuest]);
 
   const roomBlocked = (name: RoomName) => isPensionBlockedByCourt(date, name) || isPensionBlockedByGameDay(date, name);
   const roomStatus = selectedRoom
@@ -329,6 +344,29 @@ export function PensionScreen() {
                   />
                 )}
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    if (!selectedRoom) return;
+                    const url = buildShareUrl({ date, room: selectedRoom, capacity });
+                    const result = await sharePensionLink(url);
+                    if (result === 'kakao' || result === 'native' || result === 'copied') {
+                      setShareMsg('공유되었습니다. 카톡방에서 확인해주세요.');
+                    } else if (result === 'copied') {
+                      setShareMsg('링크가 복사되었습니다. 원하는 곳에 붙여넣으세요.');
+                    } else {
+                      setShareMsg('공유에 실패했습니다. 링크를 복사해서 전달해주세요.');
+                    }
+                    setTimeout(() => setShareMsg(null), 3000);
+                  }}
+                  className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-white font-bold text-base flex items-center justify-center gap-2 transition"
+                >
+                  <MessageCircle size={18} /> 카카오톡 공유하기
+                </button>
+              </div>
+              {shareMsg && (
+                <p className="text-xs font-semibold text-navy-700 text-center animate-slide-up">{shareMsg}</p>
+              )}
               <button onClick={handleReserve} disabled={!depositorName.trim()} className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed">
                 <Wallet size={18} /> 예약하기
               </button>
