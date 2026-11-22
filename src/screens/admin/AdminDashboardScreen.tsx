@@ -88,7 +88,7 @@ export function AdminDashboardScreen() {
   const [adminPensionCapacity, setAdminPensionCapacity] = useState(2);
   const [date, setDate] = useState(todayYMD());
   const [courtPricingEdit, setCourtPricingEdit] = useState<CourtPricing>(courtPricing);
-  const [limitsEdit, setLimitsEdit] = useState({ court: courtOpenDays, pension: pensionOpenMonths });
+  const [limitsEdit, setLimitsEdit] = useState({ court: '', pension: '' });
   const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
   const [baseCapacityEdit, setBaseCapacityEdit] = useState({ weekday: pensionWeekdayBaseCapacity, weekend: pensionWeekendBaseCapacity });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
@@ -143,8 +143,13 @@ export function AdminDashboardScreen() {
 
   // Sync limitsEdit when reservation limits load/update from Supabase
   useEffect(() => {
-    setLimitsEdit({ court: courtOpenDays, pension: pensionOpenMonths });
+    setLimitsEdit({ court: String(courtOpenDays), pension: String(pensionOpenMonths) });
   }, [courtOpenDays, pensionOpenMonths]);
+
+  const courtPreview = Math.max(1, Math.min(365, parseInt(limitsEdit.court, 10) || 0) || courtOpenDays);
+  const pensionPreview = Math.max(1, Math.min(24, parseInt(limitsEdit.pension, 10) || 0) || pensionOpenMonths);
+  const limitsDirty =
+    courtPreview !== courtOpenDays || pensionPreview !== pensionOpenMonths;
 
   const dayReservations = reservations.filter((r) => r.date === date);
   const dayMatchings = getMatchingsByDate(date);
@@ -743,12 +748,12 @@ export function AdminDashboardScreen() {
                 min={1}
                 max={365}
                 value={limitsEdit.court}
-                onChange={(e) => setLimitsEdit((s) => ({ ...s, court: Math.max(1, Number(e.target.value)) }))}
+                onChange={(e) => setLimitsEdit((s) => ({ ...s, court: e.target.value }))}
                 className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
               />
               <span className="text-xs text-slate-400 shrink-0">일</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">오늘부터 {limitsEdit.court}일 후까지 예약 가능</p>
+            <p className="text-[11px] text-slate-400 mt-1">오늘부터 {courtPreview}일 후까지 예약 가능</p>
           </label>
           <label className="block">
             <span className="text-xs font-semibold text-navy-600 mb-1 block">펜션 예약 오픈 (몇개월)</span>
@@ -758,20 +763,20 @@ export function AdminDashboardScreen() {
                 min={1}
                 max={24}
                 value={limitsEdit.pension}
-                onChange={(e) => setLimitsEdit((s) => ({ ...s, pension: Math.max(1, Number(e.target.value)) }))}
+                onChange={(e) => setLimitsEdit((s) => ({ ...s, pension: e.target.value }))}
                 className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
               />
               <span className="text-xs text-slate-400 shrink-0">개월</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">오늘 기준 {limitsEdit.pension}개월 후의 말일까지 예약 가능</p>
+            <p className="text-[11px] text-slate-400 mt-1">오늘 기준 {pensionPreview}개월 후의 말일까지 예약 가능</p>
           </label>
         </div>
         <div className="flex justify-end mt-3">
           <button
-            onClick={() => updateReservationLimits(limitsEdit.court, limitsEdit.pension)}
-            disabled={limitsEdit.court === courtOpenDays && limitsEdit.pension === pensionOpenMonths}
+            onClick={() => updateReservationLimits(courtPreview, pensionPreview)}
+            disabled={!limitsDirty}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${
-              limitsEdit.court === courtOpenDays && limitsEdit.pension === pensionOpenMonths
+              !limitsDirty
                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 : 'bg-volt-500 text-navy-950 hover:bg-volt-400 shadow-volt'
             }`}
