@@ -45,7 +45,9 @@ export function PensionScreen() {
     currentUser,
     getPensionPrice,
     pensionWeekdayPrice,
-    pensionWeekendPrice,
+    pensionFriSatPrice,
+    pensionSatSunPrice,
+    pensionSunMonPrice,
     bankAccount,
     galleryItems,
     pensionOpenMonths,
@@ -129,7 +131,7 @@ export function PensionScreen() {
         <div className="mt-1.5 rounded-xl bg-volt-50 border border-volt-200 px-3.5 py-2 flex items-center gap-1.5">
           <BedDouble size={14} className="text-volt-700" />
           <span className="text-xs font-semibold text-volt-800">
-            이용료 {formatWon(pensionWeekdayPrice)}~{formatWon(pensionWeekendPrice)}
+            이용료 {formatWon(Math.min(pensionWeekdayPrice, pensionFriSatPrice, pensionSatSunPrice, pensionSunMonPrice))}~{formatWon(Math.max(pensionWeekdayPrice, pensionFriSatPrice, pensionSatSunPrice, pensionSunMonPrice))}
           </span>
         </div>
       </div>

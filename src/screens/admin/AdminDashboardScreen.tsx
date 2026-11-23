@@ -39,7 +39,9 @@ export function AdminDashboardScreen() {
     getMatchingsByDate,
     getUser,
     pensionWeekdayPrice,
-    pensionWeekendPrice,
+    pensionFriSatPrice,
+    pensionSatSunPrice,
+    pensionSunMonPrice,
     pensionPriceOverrides,
     getPensionPrice,
     updatePensionPrice,
@@ -89,7 +91,7 @@ export function AdminDashboardScreen() {
   const [date, setDate] = useState(todayYMD());
   const [courtPricingEdit, setCourtPricingEdit] = useState<CourtPricing>(courtPricing);
   const [limitsEdit, setLimitsEdit] = useState({ court: '', pension: '' });
-  const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
+  const [priceEdit, setPriceEdit] = useState({ weekday: pensionWeekdayPrice, friSat: pensionFriSatPrice, satSun: pensionSatSunPrice, sunMon: pensionSunMonPrice });
   const [baseCapacityEdit, setBaseCapacityEdit] = useState({ weekday: pensionWeekdayBaseCapacity, weekend: pensionWeekendBaseCapacity });
   const [datePriceInput, setDatePriceInput] = useState<string>('');
   const [bannerUrlInput, setBannerUrlInput] = useState('');
@@ -105,8 +107,8 @@ export function AdminDashboardScreen() {
 
   // Sync priceEdit when pension prices load/update from Supabase
   useEffect(() => {
-    setPriceEdit({ weekday: pensionWeekdayPrice, weekend: pensionWeekendPrice });
-  }, [pensionWeekdayPrice, pensionWeekendPrice]);
+    setPriceEdit({ weekday: pensionWeekdayPrice, friSat: pensionFriSatPrice, satSun: pensionSatSunPrice, sunMon: pensionSunMonPrice });
+  }, [pensionWeekdayPrice, pensionFriSatPrice, pensionSatSunPrice, pensionSunMonPrice]);
 
   useEffect(() => {
     setBaseCapacityEdit({ weekday: pensionWeekdayBaseCapacity, weekend: pensionWeekendBaseCapacity });
@@ -158,7 +160,11 @@ export function AdminDashboardScreen() {
   const courtReservations = dayReservations.filter((r) => r.type === 'court');
   const bbqReservations = dayReservations.filter((r) => r.type === 'bbq');
 
-  const priceDirty = priceEdit.weekday !== pensionWeekdayPrice || priceEdit.weekend !== pensionWeekendPrice;
+  const priceDirty =
+    priceEdit.weekday !== pensionWeekdayPrice ||
+    priceEdit.friSat !== pensionFriSatPrice ||
+    priceEdit.satSun !== pensionSatSunPrice ||
+    priceEdit.sunMon !== pensionSunMonPrice;
   const baseCapacityDirty = baseCapacityEdit.weekday !== pensionWeekdayBaseCapacity || baseCapacityEdit.weekend !== pensionWeekendBaseCapacity;
   const bankDirty =
     bankEdit.bank !== bankAccount.bank ||
@@ -169,7 +175,7 @@ export function AdminDashboardScreen() {
     telegramEdit.chatId !== telegramConfig.chatId;
 
   const handleSavePrice = () => {
-    updatePensionPrice(priceEdit.weekday, priceEdit.weekend);
+    updatePensionPrice(priceEdit.weekday, priceEdit.friSat, priceEdit.satSun, priceEdit.sunMon);
   };
 
   const handleSaveBaseCapacity = () => {
@@ -529,9 +535,10 @@ export function AdminDashboardScreen() {
         {/* Default prices */}
         <div className="mb-4">
           <p className="text-xs font-bold text-navy-500 mb-2">기본 요금</p>
+          <p className="text-[11px] text-slate-400 mb-3">체크인 요일 기준으로 요금이 적용됩니다. (금요일 체크인 → 금토 1박, 토요일 체크인 → 토일 1박, 일요일 체크인 → 일월 1박)</p>
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-xs font-semibold text-navy-600 mb-1 block">평일</span>
+              <span className="text-xs font-semibold text-navy-600 mb-1 block">평일요금 (월~목)</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -545,14 +552,42 @@ export function AdminDashboardScreen() {
               </div>
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-navy-600 mb-1 block">주말·공휴일</span>
+              <span className="text-xs font-semibold text-navy-600 mb-1 block">금토 (1박)</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   step={10000}
                   min={0}
-                  value={priceEdit.weekend}
-                  onChange={(e) => setPriceEdit((s) => ({ ...s, weekend: Number(e.target.value) }))}
+                  value={priceEdit.friSat}
+                  onChange={(e) => setPriceEdit((s) => ({ ...s, friSat: Number(e.target.value) }))}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-400 shrink-0">원</span>
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-navy-600 mb-1 block">토일 (1박)</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step={10000}
+                  min={0}
+                  value={priceEdit.satSun}
+                  onChange={(e) => setPriceEdit((s) => ({ ...s, satSun: Number(e.target.value) }))}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
+                />
+                <span className="text-xs text-slate-400 shrink-0">원</span>
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-navy-600 mb-1 block">일월 (1박)</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step={10000}
+                  min={0}
+                  value={priceEdit.sunMon}
+                  onChange={(e) => setPriceEdit((s) => ({ ...s, sunMon: Number(e.target.value) }))}
                   className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-navy-900 focus:border-volt-400 focus:ring-2 focus:ring-volt-100 outline-none"
                 />
                 <span className="text-xs text-slate-400 shrink-0">원</span>
