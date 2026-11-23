@@ -1103,6 +1103,24 @@ export function AdminAnalyticsScreen() {
                               예약 실패 {reserveFails.length}건{reserveFails[0]?.event_detail ? ` · ${reserveFails[0].event_detail}` : ''}
                             </p>
                           )}
+                          {(() => {
+                            const shares = funnelEvents.filter((l) => l.event_name === 'pension_shared');
+                            if (shares.length === 0) {
+                              return (
+                                <p className="text-[11px] text-slate-400 pt-1 flex items-center gap-1">
+                                  <XCircle size={12} className="text-slate-200" />
+                                  카카오톡 공유 안함
+                                </p>
+                              );
+                            }
+                            return (
+                              <p className="text-[11px] text-amber-600 font-semibold pt-1 flex items-center gap-1">
+                                <CheckCircle2 size={12} className="text-amber-500" />
+                                카카오톡 공유 {shares.length}회
+                                {shares[0]?.event_detail ? ` · ${shares[0].event_detail}` : ''}
+                              </p>
+                            );
+                          })()}
                         </div>
                       </div>
                     ) : null;

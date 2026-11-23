@@ -362,6 +362,7 @@ export function PensionScreen() {
                     const url = buildShareUrl({ date, room: selectedRoom, capacity });
                     const result = await sharePensionLink(url);
                     if (result === 'kakao' || result === 'native' || result === 'copied') {
+                      logPensionEvent('pension_shared', `${selectedRoom}/${date}/${result}`);
                       setShareMsg('공유되었습니다. 카톡방에서 확인해주세요.');
                     } else if (result === 'copied') {
                       setShareMsg('링크가 복사되었습니다. 원하는 곳에 붙여넣으세요.');
