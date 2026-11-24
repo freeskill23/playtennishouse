@@ -295,8 +295,11 @@ interface AppState {
   // pension base capacity (기준인원)
   pensionWeekdayBaseCapacity: number;
   pensionWeekendBaseCapacity: number;
+  pensionFriSatBaseCapacity: number;
+  pensionSatSunBaseCapacity: number;
+  pensionSunMonBaseCapacity: number;
   getBaseCapacityForDate: (dateStr: string) => number;
-  updatePensionBaseCapacity: (weekday: number, weekend: number) => void;
+  updatePensionBaseCapacity: (weekday: number, friSat: number, satSun: number, sunMon: number) => void;
 
   // court pricing
   courtPricing: CourtPricing;
@@ -919,6 +922,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
   const [pensionSunMonPrice, setPensionSunMonPrice] = useState(PENSION_WEEKEND_PRICE);
   const [pensionWeekdayBaseCapacity, setPensionWeekdayBaseCapacity] = useState(4);
   const [pensionWeekendBaseCapacity, setPensionWeekendBaseCapacity] = useState(4);
+  const [pensionFriSatBaseCapacity, setPensionFriSatBaseCapacity] = useState(4);
+  const [pensionSatSunBaseCapacity, setPensionSatSunBaseCapacity] = useState(4);
+  const [pensionSunMonBaseCapacity, setPensionSunMonBaseCapacity] = useState(4);
   const [pensionPriceOverrides, setPensionPriceOverrides] = useState<Record<string, number>>({});
   const [courtPricing, setCourtPricing] = useState<CourtPricing>(DEFAULT_COURT_PRICING);
   const [bbqPricing, setBbqPricing] = useState<BBQPricing>(DEFAULT_BBQ_PRICING);
@@ -941,7 +947,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     if (!supabaseConfigured) return;
     const { data, error } = await supabase
       .from('settings')
-      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_fri_sat_price, pension_sat_sun_price, pension_sun_mon_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules, court_open_weekday_schedules')
+      .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_fri_sat_price, pension_sat_sun_price, pension_sun_mon_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, pension_fri_sat_base_capacity, pension_sat_sun_base_capacity, pension_sun_mon_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules, court_open_weekday_schedules')
       .eq('id', 1)
       .maybeSingle();
     if (error) {
@@ -966,6 +972,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
       if (data.pension_sun_mon_price != null) setPensionSunMonPrice(data.pension_sun_mon_price);
       if (data.pension_weekday_base_capacity != null) setPensionWeekdayBaseCapacity(data.pension_weekday_base_capacity);
       if (data.pension_weekend_base_capacity != null) setPensionWeekendBaseCapacity(data.pension_weekend_base_capacity);
+      if (data.pension_fri_sat_base_capacity != null) setPensionFriSatBaseCapacity(data.pension_fri_sat_base_capacity);
+      if (data.pension_sat_sun_base_capacity != null) setPensionSatSunBaseCapacity(data.pension_sat_sun_base_capacity);
+      if (data.pension_sun_mon_base_capacity != null) setPensionSunMonBaseCapacity(data.pension_sun_mon_base_capacity);
       if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
       if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
       if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
@@ -1004,7 +1013,7 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     const load = async () => {
       const { data, error } = await supabase
         .from('settings')
-        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_fri_sat_price, pension_sat_sun_price, pension_sun_mon_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules, court_open_weekday_schedules')
+        .select('banner_image_url, banner_gradient_colors, logo_image_url, pension_weekday_price, pension_weekend_price, pension_fri_sat_price, pension_sat_sun_price, pension_sun_mon_price, pension_price_overrides, temp_holidays, bank_name, bank_account_number, bank_account_holder, court_pricing, telegram_bot_token, telegram_chat_id, telegram_message_templates, court_open_days, pension_open_months, pension_weekday_base_capacity, pension_weekend_base_capacity, pension_fri_sat_base_capacity, pension_sat_sun_base_capacity, pension_sun_mon_base_capacity, bbq_day_start_hour, bbq_night_start_hour, bbq_base_hours, bbq_base_capacity, bbq_day_price, bbq_night_price, bbq_extra_person_fee, bbq_extra_hour_fee, bbq_open_days, bbq_open_weekdays, bbq_open_weekday_schedules, court_open_weekday_schedules')
         .eq('id', 1)
         .maybeSingle();
       if (cancelled) return;
@@ -1033,6 +1042,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
         if (data.pension_sun_mon_price != null) setPensionSunMonPrice(data.pension_sun_mon_price);
         if (data.pension_weekday_base_capacity != null) setPensionWeekdayBaseCapacity(data.pension_weekday_base_capacity);
         if (data.pension_weekend_base_capacity != null) setPensionWeekendBaseCapacity(data.pension_weekend_base_capacity);
+        if (data.pension_fri_sat_base_capacity != null) setPensionFriSatBaseCapacity(data.pension_fri_sat_base_capacity);
+        if (data.pension_sat_sun_base_capacity != null) setPensionSatSunBaseCapacity(data.pension_sat_sun_base_capacity);
+        if (data.pension_sun_mon_base_capacity != null) setPensionSunMonBaseCapacity(data.pension_sun_mon_base_capacity);
         if (data.pension_price_overrides) setPensionPriceOverrides(data.pension_price_overrides as Record<string, number>);
         if (Array.isArray(data.temp_holidays)) setTempHolidays(data.temp_holidays as string[]);
         if (data.court_pricing) setCourtPricing(data.court_pricing as CourtPricing);
@@ -1178,23 +1190,31 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
 
   const getBaseCapacityForDate = useCallback(
     (dateStr: string) => {
+      const day = new Date(dateStr + 'T00:00:00').getDay();
+      if (day === 5) return pensionFriSatBaseCapacity; // 금토(1박)
+      if (day === 6) return pensionSatSunBaseCapacity; // 토일(1박)
+      if (day === 0) return pensionSunMonBaseCapacity; // 일월(1박)
       const isHolidayDate = isPensionWeekendOrHoliday(dateStr) || tempHolidays.includes(dateStr);
-      return isHolidayDate ? pensionWeekendBaseCapacity : pensionWeekdayBaseCapacity;
+      return isHolidayDate ? pensionFriSatBaseCapacity : pensionWeekdayBaseCapacity;
     },
-    [pensionWeekdayBaseCapacity, pensionWeekendBaseCapacity, tempHolidays],
+    [pensionWeekdayBaseCapacity, pensionFriSatBaseCapacity, pensionSatSunBaseCapacity, pensionSunMonBaseCapacity, tempHolidays],
   );
 
   const updatePensionBaseCapacity = useCallback(
-    (weekday: number, weekend: number) => {
+    (weekday: number, friSat: number, satSun: number, sunMon: number) => {
       setPensionWeekdayBaseCapacity(weekday);
-      setPensionWeekendBaseCapacity(weekend);
+      setPensionFriSatBaseCapacity(friSat);
+      setPensionSatSunBaseCapacity(satSun);
+      setPensionSunMonBaseCapacity(sunMon);
       if (supabaseConfigured) {
         supabase
           .from('settings')
           .upsert({
             id: 1,
             pension_weekday_base_capacity: weekday,
-            pension_weekend_base_capacity: weekend,
+            pension_fri_sat_base_capacity: friSat,
+            pension_sat_sun_base_capacity: satSun,
+            pension_sun_mon_base_capacity: sunMon,
             updated_at: new Date().toISOString(),
           })
           .then(({ error }) => {
@@ -3361,6 +3381,9 @@ export function AppProvider({ children, authUser }: { children: ReactNode; authU
     removePensionPriceOverride,
     pensionWeekdayBaseCapacity,
     pensionWeekendBaseCapacity,
+    pensionFriSatBaseCapacity,
+    pensionSatSunBaseCapacity,
+    pensionSunMonBaseCapacity,
     getBaseCapacityForDate,
     updatePensionBaseCapacity,
     courtPricing,
